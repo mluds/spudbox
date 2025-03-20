@@ -1,0 +1,12 @@
+# templates/wg0.conf.j2
+[Interface]
+Address = {{ wireguard_address }}
+ListenPort = {{ wireguard_port }}
+PrivateKey = {{ lookup('file', '/etc/wireguard/privatekey') }}
+PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+# Example client config - add this section manually for each client
+#[Peer]
+#PublicKey = CLIENT_PUBLIC_KEY_HERE
+#AllowedIPs = 10.0.0.2/32

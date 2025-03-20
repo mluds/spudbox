@@ -1,0 +1,45 @@
+---
+# tasks/mergerfs_setup.yml
+- name: Install MergerFS
+  apt:
+    name: mergerfs
+    state: present
+    update_cache: yes
+
+- name: Create mount points for source drives
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ source_drives }}"
+
+- name: Create MergerFS mount point
+  file:
+    path: "{{ mergerfs_mount_point }}"
+    state: directory
+    mode: '0755'
+
+- name: Mount source drives (you may need to modify this based on your actual drives)
+  mount:
+    path: "{{ item }}"
+    src: "/dev/sdX"  # Change this to match your actual device paths
+    fstype: ext4     # Change this to match your filesystem
+    state: mounted
+  loop: "{{ source_drives }}"
+  ignore_errors: yes  # This is just a placeholder task
+
+- name: Add MergerFS mount to fstab
+  lineinfile:
+    path: /etc/fstab
+    line: "{{ source_drives | join(':') }} {{ mergerfs_mount_point }} fuse.mergerfs defaults,allow_other,use_ino,category.create=mfs,moveonenospc=true,minfreespace=20G,fsname=mergerfs 0 0"
+    state: present
+
+- name: Mount MergerFS
+  command: mount {{ mergerfs_mount_point }}
+  ignore_errors: yes
+
+- name: Create shares directory
+  file:
+    path: "{{ smb_share_path }}"
+    state: directory
+    mode: '0755'

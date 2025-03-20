@@ -1,0 +1,48 @@
+---
+# tasks/wireguard_setup.yml
+- name: Install WireGuard
+  apt:
+    name: wireguard
+    state: present
+    update_cache: yes
+
+- name: Create WireGuard config directory
+  file:
+    path: /etc/wireguard
+    state: directory
+    mode: '0700'
+
+- name: Generate WireGuard private key
+  shell: wg genkey | tee /etc/wireguard/privatekey | wg pubkey > /etc/wireguard/publickey
+  args:
+    creates: /etc/wireguard/privatekey
+
+- name: Set permissions on WireGuard keys
+  file:
+    path: "{{ item }}"
+    mode: '0600'
+  loop:
+    - /etc/wireguard/privatekey
+    - /etc/wireguard/publickey
+
+- name: Create WireGuard configuration
+  template:
+    src: templates/wg0.conf.j2
+    dest: /etc/wireguard/wg0.conf
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: Enable and start WireGuard
+  systemd:
+    name: wg-quick@wg0
+    state: started
+    enabled: yes

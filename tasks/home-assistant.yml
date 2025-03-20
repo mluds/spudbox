@@ -1,0 +1,58 @@
+---
+# tasks/home_assistant_setup.yml
+- name: Install KVM and related packages
+  apt:
+    name:
+      - qemu-kvm
+      - libvirt-daemon-system
+      - bridge-utils
+      - virtinst
+      - libvirt-clients
+    state: present
+    update_cache: yes
+
+- name: Start and enable libvirtd
+  service:
+    name: libvirtd
+    state: started
+    enabled: yes
+
+- name: Add user to libvirt group
+  user:
+    name: "{{ ansible_user }}"
+    groups: libvirt
+    append: yes
+
+- name: Create Home Assistant directory
+  file:
+    path: "{{ home_assistant_directory }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Download Home Assistant OS image
+  get_url:
+    url: https://github.com/home-assistant/operating-system/releases/download/10.4/haos_ova-10.4.qcow2.gz
+    dest: /tmp/haos.qcow2.gz
+  ignore_errors: yes  # In case URL is outdated
+
+- name: Extract Home Assistant OS image
+  shell: gunzip -c /tmp/haos.qcow2.gz > "{{ home_assistant_directory }}/haos.qcow2"
+  args:
+    creates: "{{ home_assistant_directory }}/haos.qcow2"
+  ignore_errors: yes
+
+- name: Create Home Assistant VM
+  shell: |
+    virt-install --name homeassistant \
+      --memory 2048 \
+      --vcpus 2 \
+      --import \
+      --disk {{ home_assistant_directory }}/haos.qcow2,format=qcow2 \
+      --os-variant=generic \
+      --network bridge=virbr0 \
+      --graphics none \
+      --noautoconsole
+  args:
+    creates: /etc/libvirt/qemu/homeassistant.xml
+  ignore_errors: yes
