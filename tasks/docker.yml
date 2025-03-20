@@ -1,5 +1,3 @@
----
-# tasks/docker_setup.yml
 - name: Install required packages
   apt:
     name:
@@ -11,24 +9,46 @@
     state: present
     update_cache: yes
 
+- name: Create Docker keyring directory
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
 - name: Add Docker GPG key
-  apt_key:
+  get_url:
     url: https://download.docker.com/linux/ubuntu/gpg
-    state: present
+    dest: /tmp/docker.gpg
+    mode: '0644'
+
+- name: Dearmor Docker GPG key
+  shell: gpg --dearmor < /tmp/docker.gpg > /etc/apt/keyrings/docker.gpg
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
+
+- name: Set Docker GPG key permissions
+  file:
+    path: /etc/apt/keyrings/docker.gpg
+    mode: '0644'
+
+- name: Set Docker architecture variable
+  set_fact:
+    docker_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else (ansible_architecture if ansible_architecture == 'x86_64' else 'amd64') }}"
 
 - name: Add Docker repository
   apt_repository:
-    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    repo: "deb [arch={{ docker_arch }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
     state: present
+    update_cache: yes
 
 - name: Install Docker
-  apt:
+  package:
     name:
-      - docker-ce
       - docker-ce-cli
       - containerd.io
       - docker-buildx-plugin
       - docker-compose-plugin
+      - docker-ce
     state: present
     update_cache: yes
 
@@ -63,6 +83,6 @@
     state: started
     enabled: yes
 
-- name: Run docker-compose up
-  shell: cd /opt/docker && docker compose up -d
-  become: true
+# - name: Run docker-compose up
+#   shell: cd /opt/docker && docker compose up -d
+#   become: true
