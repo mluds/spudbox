@@ -1,0 +1,21 @@
+- name: Disable SSH password auth
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^#PasswordAuthentication yes"
+    line: "PasswordAuthentication no"
+
+- name: Disable PAM auth
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^UsePAM yes"
+    line: "UsePAM no"
+
+- name: Ensure cloudinit doesn't enable password auth
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d/50-cloud-init.conf
+    state: absent
+
+- name: Restart SSH daemon
+  service:
+    name: ssh
+    state: restarted

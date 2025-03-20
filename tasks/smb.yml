@@ -1,5 +1,4 @@
 ---
-# tasks/smb_setup.yml
 - name: Install Samba
   apt:
     name:

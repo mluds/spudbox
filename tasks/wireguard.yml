@@ -1,5 +1,3 @@
----
-# tasks/wireguard_setup.yml
 - name: Install WireGuard
   apt:
     name: wireguard

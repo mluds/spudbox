@@ -1,0 +1,9 @@
+mergerfs_mount_point: /mnt/storage
+source_drives:
+  - /mnt/disk1
+  - /mnt/disk2
+  - /mnt/disk3
+smb_share_path: "{{ mergerfs_mount_point }}/shares"
+wireguard_port: 51820
+wireguard_address: "10.0.0.1/24"
+home_assistant_directory: /opt/homeassistant

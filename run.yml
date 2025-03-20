@@ -1,0 +1,8 @@
+- name: Configure Ubuntu server
+  hosts: spudbox
+  become: yes
+  tasks:
+    # - import_tasks: tasks/sudo.yml
+    # - import_tasks: tasks/ssh.yml
+    # - import_tasks: tasks/upgrade.yml
+    - import_tasks: tasks/docker.yml
