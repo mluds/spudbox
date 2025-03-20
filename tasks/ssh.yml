@@ -11,7 +11,7 @@
     line: "UsePAM no"
 
 - name: Ensure cloudinit doesn't enable password auth
-  ansible.builtin.file:
+  file:
     path: /etc/ssh/sshd_config.d/50-cloud-init.conf
     state: absent
 
