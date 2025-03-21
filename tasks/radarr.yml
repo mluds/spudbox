@@ -43,40 +43,46 @@
         ]
       }
     status_code: [201, 400]
-  register: status
-  failed_when: status.status != 201 and 'already exists' not in status.content
+  register: nzbgeek_add_result
+  failed_when: 
+    - nzbgeek_add_result.status != 201 
+    - not (nzbgeek_add_result.json is defined and nzbgeek_add_result.json | selectattr('errorMessage', 'defined') | selectattr('errorMessage', 'search', 'Should be unique') | list | length > 0)
+  changed_when: nzbgeek_add_result.status == 201
 
-# - name: Add SABnzbd as download client
-#   uri:
-#     url: "http://{{ radarr_host }}:{{ radarr_port }}/api/v3/downloadclient"
-#     method: POST
-#     body_format: json
-#     headers:
-#       X-Api-Key: "{{ radarr_api_key }}"
-#     body: |
-#       {
-#         "name": "SABnzbd",
-#         "enable": true,
-#         "protocol": "usenet",
-#         "priority": 1,
-#         "removeCompletedDownloads": true,
-#         "removeFailedDownloads": true,
-#         "implementationName": "Sabnzbd",
-#         "implementation": "Sabnzbd",
-#         "configContract": "SabnzbdSettings",
-#         "fields": [
-#           { "name": "host", "value": "{{ sabnzbd_host }}" },
-#           { "name": "port", "value": {{ sabnzbd_port }} },
-#           { "name": "apiKey", "value": "{{ sabnzbd_api_key }}" },
-#           { "name": "useSsl", "value": false },
-#           { "name": "category", "value": "movies" },
-#           { "name": "recentTvPriority", "value": 0 },
-#           { "name": "olderTvPriority", "value": 0 }
-#         ]
-#       }
-#     status_code: [201, 400]
-#     failed_when: "status != 201 and ('already exists' not in content)"
-#   register: status
+- name: Add SABnzbd as download client
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:7878/api/v3/downloadclient"
+    method: POST
+    body_format: json
+    headers:
+      X-Api-Key: "{{ radarr_api_key }}"
+    body: |
+      {
+        "name": "SABnzbd",
+        "enable": true,
+        "protocol": "usenet",
+        "priority": 1,
+        "removeCompletedDownloads": true,
+        "removeFailedDownloads": true,
+        "implementationName": "Sabnzbd",
+        "implementation": "Sabnzbd",
+        "configContract": "SabnzbdSettings",
+        "fields": [
+          { "name": "host", "value": "sabnzbd" },
+          { "name": "port", "value": 8080 },
+          { "name": "apiKey", "value": "{{ sabnzbd_api_key }}" },
+          { "name": "useSsl", "value": false },
+          { "name": "category", "value": "movies" },
+          { "name": "recentTvPriority", "value": 0 },
+          { "name": "olderTvPriority", "value": 0 }
+        ]
+      }
+    status_code: [201, 400]
+  register: sabnzbd_add_result
+  failed_when: 
+    - sabnzbd_add_result.status != 201 
+    - not (sabnzbd_add_result.json is defined and sabnzbd_add_result.json | selectattr('errorMessage', 'defined') | selectattr('errorMessage', 'search', 'Should be unique') | list | length > 0)
+  changed_when: sabnzbd_add_result.status == 201
 
 - name: Restart Radarr container using docker-compose
   community.docker.docker_compose_v2:
@@ -84,3 +90,4 @@
     services:
       - radarr
     state: restarted
+  when: nzbgeek_add_result is changed or sabnzbd_add_result is changed
