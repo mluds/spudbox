@@ -8,8 +8,10 @@ wireguard_port: 51820
 wireguard_address: "10.0.0.1/24"
 home_assistant_directory: /opt/homeassistant
 
-sabnzbd_user: 1000
+media_gid: 1337
+
+sabnzbd_uid: 1000
 sabnzbd_download_dir: /incomplete-downloads
 sabnzbd_complete_dir: /downloads
 
-radarr_user: 1001
+radarr_uid: 1001

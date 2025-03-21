@@ -1,0 +1,121 @@
+quality_size_values:
+  "Unknown":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "WORKPRINT":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "CAM":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "TELESYNC":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "TELECINE":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "REGIONAL":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "DVDSCR":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "SDTV":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "DVD":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "DVD-R":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "WEBDL-480p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "WEBRip-480p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "Bluray-480p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "Bluray-576p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "HDTV-720p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "WEBDL-720p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "WEBRip-720p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "Bluray-720p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "HDTV-1080p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "WEBDL-1080p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "WEBRip-1080p":
+    minSize: 0
+    preferredSize: 95
+    maxSize: 100
+  "Bluray-1080p":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200
+  "Remux-1080p":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200
+  "HDTV-2160p":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200
+  "WEBDL-2160p":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200
+  "WEBRip-2160p":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200
+  "Bluray-2160p":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200
+  "Remux-2160p":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200
+  "BR-DISK":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200
+  "Raw-HD":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200

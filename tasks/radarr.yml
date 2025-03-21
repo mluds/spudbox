@@ -1,8 +1,40 @@
+- name: Create media group with specific GID
+  ansible.builtin.group:
+    name: media
+    gid: "{{ media_gid }}"
+    state: present
+
+- name: Ensure movies directory exists with proper permissions
+  ansible.builtin.file:
+    path: /mnt/storage/data/media/movies
+    state: directory
+    mode: '0775'
+    owner: "{{ ansible_user }}"
+    group: media
+
 - name: Set Radarr API key in config.xml
   xml:
     path: /mnt/storage/appdata/radarr/config.xml
     xpath: /Config/AuthenticationMethod
     value: External
+  register: set_radarr_api_key
+
+- name: Restart Radarr container using docker-compose
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - radarr
+    state: restarted
+  when: set_radarr_api_key is changed
+  register: radarr_restart_result
+
+- name: Check if Radarr is ready
+  wait_for:
+    port: 7878
+    host: 127.0.0.1
+    delay: 1
+    timeout: 120
+  when: radarr_restart_result is changed
 
 - name: Extract Radarr API key from config.xml
   xml:
@@ -14,6 +46,57 @@
 - name: Set fact for Radarr API key
   set_fact:
     radarr_api_key: "{{ radarr_api_key_result.matches[0].ApiKey }}"
+
+- name: Add root folder to Radarr
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:7878/api/v3/rootfolder"
+    method: POST
+    body_format: json
+    headers:
+      X-Api-Key: "{{ radarr_api_key }}"
+    body: |
+      {
+        "name": "Movies",
+        "path": "/movies"
+      }
+    status_code: [201, 400]
+  register: radarr_rootfolder_result
+  failed_when: 
+    - radarr_rootfolder_result.status != 201 
+    - not (radarr_rootfolder_result.json is defined and radarr_rootfolder_result.json | selectattr('errorMessage', 'defined') | selectattr('errorMessage', 'search', 'already configured') | list | length > 0)
+  changed_when: radarr_rootfolder_result.status == 201
+
+- name: Get Radarr quality definitions
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:7878/api/v3/qualitydefinition"
+    method: GET
+    headers:
+      X-Api-Key: "{{ radarr_api_key }}"
+    status_code: 200
+    return_content: yes
+  register: quality_definitions
+
+- name: Update size values for each quality definition
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:7878/api/v3/qualitydefinition/{{ item.id }}"
+    method: PUT
+    body_format: json
+    headers:
+      X-Api-Key: "{{ radarr_api_key }}"
+    body: "{{ item | combine({
+      'minSize': quality_size_values[item.quality.name].minSize | default(item.minSize),
+      'maxSize': quality_size_values[item.quality.name].maxSize | default(item.maxSize),
+      'preferredSize': quality_size_values[item.quality.name].preferredSize | default(item.preferredSize)
+      }) }}"
+    status_code: 202
+  register: update_result
+  loop: "{{ quality_definitions.json }}"
+  when: item.quality.name in quality_size_values
+  changed_when: >
+    update_result.status == 202 and 
+    (item.minSize != (quality_size_values[item.quality.name].minSize | default(item.minSize)) or
+     item.maxSize != (quality_size_values[item.quality.name].maxSize | default(item.maxSize)) or
+     item.preferredSize != (quality_size_values[item.quality.name].preferredSize | default(item.preferredSize)))
 
 - name: Add NZBGeek as indexer
   ansible.builtin.uri:
@@ -83,11 +166,3 @@
     - sabnzbd_add_result.status != 201 
     - not (sabnzbd_add_result.json is defined and sabnzbd_add_result.json | selectattr('errorMessage', 'defined') | selectattr('errorMessage', 'search', 'Should be unique') | list | length > 0)
   changed_when: sabnzbd_add_result.status == 201
-
-- name: Restart Radarr container using docker-compose
-  community.docker.docker_compose_v2:
-    project_src: /opt/docker
-    services:
-      - radarr
-    state: restarted
-  when: nzbgeek_add_result is changed or sabnzbd_add_result is changed

@@ -3,14 +3,15 @@ services:
     image: linuxserver/radarr
     container_name: radarr
     restart: unless-stopped
+    user: "{{ radarr_uid }}:{{ media_gid }}"
     ports:
       - "7878:7878"
     volumes:
       - /mnt/storage/appdata/radarr:/config
       - /mnt/storage/data/media/movies:/movies
     environment:
-      - PUID={{ radarr_user }}
-      - PGID={{ radarr_user }}
+      - PUID={{ radarr_uid }}
+      - PGID={{ media_gid }}
       - TZ=America/New_York
     networks:
       - internal
@@ -19,6 +20,7 @@ services:
     image: linuxserver/sabnzbd
     container_name: sabnzbd
     restart: unless-stopped
+    user: "{{ sabnzbd_uid }}:{{ sabnzbd_uid }}"
     ports:
       - "8082:8080"
     volumes:
@@ -26,8 +28,8 @@ services:
       - /mnt/storage/data/usenet/complete:{{ sabnzbd_complete_dir }}
       - /mnt/storage/data/usenet/incomplete:{{ sabnzbd_download_dir }}
     environment:
-      - PUID={{ sabnzbd_user }}
-      - PGID={{ sabnzbd_user }}
+      - PUID={{ sabnzbd_uid }}
+      - PGID={{ sabnzbd_uid }}
       - TZ=America/New_York
     networks:
       - internal
