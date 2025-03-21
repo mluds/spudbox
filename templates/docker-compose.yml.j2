@@ -9,8 +9,25 @@ services:
       - /mnt/storage/appdata/radarr:/config
       - /mnt/storage/data/media/movies:/movies
     environment:
-      - PUID=99
-      - PGID=100
+      - PUID={{ radarr_user }}
+      - PGID={{ radarr_user }}
+      - TZ=America/New_York
+    networks:
+      - internal
+
+  sabnzbd:
+    image: linuxserver/sabnzbd
+    container_name: sabnzbd
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+    volumes:
+      - /mnt/storage/appdata/sabnzbd:/config
+      - /mnt/storage/data/usenet/complete:{{ sabnzbd_complete_dir }}
+      - /mnt/storage/data/usenet/incomplete:{{ sabnzbd_download_dir }}
+    environment:
+      - PUID={{ sabnzbd_user }}
+      - PGID={{ sabnzbd_user }}
       - TZ=America/New_York
     networks:
       - internal
@@ -52,34 +69,7 @@ services:
   #   networks:
   #     - internal
 
-  # homer:
-  #   image: b4bz/homer:latest
-  #   container_name: homer
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8080"
-  #   volumes:
-  #     - /mnt/user/appdata/homer/assets:/www/assets
-  #   environment:
-  #     - TZ=America/New_York
-  #   networks:
-  #     - internal
 
-  # sabnzbd:
-  #   image: ghcr.io/binhex/arch-sabnzbd
-  #   container_name: sabnzbd
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8080"
-  #   volumes:
-  #     - /mnt/user/appdata/binhex-sabnzbd:/config
-  #     - /mnt/user/data/usenet:/data/usenet
-  #   environment:
-  #     - PUID=99
-  #     - PGID=100
-  #     - TZ=America/New_York
-  #   networks:
-  #     - internal
 
   # qbittorrent:
   #   image: ghcr.io/binhex/arch-qbittorrentvpn

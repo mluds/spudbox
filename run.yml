@@ -5,6 +5,7 @@
     # - import_tasks: tasks/sudo.yml
     # - import_tasks: tasks/ssh.yml
     # - import_tasks: tasks/upgrade.yml
-    # - import_tasks: tasks/docker.yml
+    - import_tasks: tasks/docker.yml
     # - import_tasks: tasks/ansible.yml
-    - import_tasks: tasks/radarr.yml
+    # - import_tasks: tasks/radarr.yml
+    - import_tasks: tasks/sabnzbd.yml
