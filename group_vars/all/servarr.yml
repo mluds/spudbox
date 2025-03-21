@@ -1,7 +1,0 @@
-radarr_host: "localhost"
-radarr_port: 7878
-radarr_api_key: "your_api_key_here"  # Store this in an Ansible vault
-sabnzbd_host: "localhost"
-sabnzbd_port: 8080
-sabnzbd_api_key: "your_sabnzbd_api_key"  # Store this in an Ansible vault
-nzbgeek_api_key: "your_nzbgeek_api_key"
