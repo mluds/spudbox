@@ -1,0 +1,86 @@
+- name: Set Radarr API key in config.xml
+  xml:
+    path: /mnt/storage/appdata/radarr/config.xml
+    xpath: /Config/AuthenticationMethod
+    value: External
+
+- name: Extract Radarr API key from config.xml
+  xml:
+    path: /mnt/storage/appdata/radarr/config.xml
+    xpath: /Config/ApiKey
+    content: text
+  register: radarr_api_key_result
+
+- name: Set fact for Radarr API key
+  set_fact:
+    radarr_api_key: "{{ radarr_api_key_result.matches[0].ApiKey }}"
+
+- name: Add NZBGeek as indexer
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:7878/api/v3/indexer"
+    method: POST
+    body_format: json
+    headers:
+      X-Api-Key: "{{ radarr_api_key }}"
+    body: |
+      {
+        "name": "NZBGeek",
+        "implementationName": "Newznab",
+        "implementation": "Newznab",
+        "configContract": "NewznabSettings",
+        "enable": true,
+        "protocol": "usenet",
+        "enableRss": true,
+        "enableAutomaticSearch": true,
+        "enableInteractiveSearch": true,
+        "supportsRss": true,
+        "supportsSearch": true,
+        "fields": [
+          { "name": "baseUrl", "value": "https://api.nzbgeek.info/" },
+          { "name": "apiPath", "value": "/api" },
+          { "name": "apiKey", "value": "{{ nzbgeek_api_key }}" },
+          { "name": "categories", "value": [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060] }
+        ]
+      }
+    status_code: [201, 400]
+  register: status
+  failed_when: status.status != 201 and 'already exists' not in status.content
+
+# - name: Add SABnzbd as download client
+#   uri:
+#     url: "http://{{ radarr_host }}:{{ radarr_port }}/api/v3/downloadclient"
+#     method: POST
+#     body_format: json
+#     headers:
+#       X-Api-Key: "{{ radarr_api_key }}"
+#     body: |
+#       {
+#         "name": "SABnzbd",
+#         "enable": true,
+#         "protocol": "usenet",
+#         "priority": 1,
+#         "removeCompletedDownloads": true,
+#         "removeFailedDownloads": true,
+#         "implementationName": "Sabnzbd",
+#         "implementation": "Sabnzbd",
+#         "configContract": "SabnzbdSettings",
+#         "fields": [
+#           { "name": "host", "value": "{{ sabnzbd_host }}" },
+#           { "name": "port", "value": {{ sabnzbd_port }} },
+#           { "name": "apiKey", "value": "{{ sabnzbd_api_key }}" },
+#           { "name": "useSsl", "value": false },
+#           { "name": "category", "value": "movies" },
+#           { "name": "recentTvPriority", "value": 0 },
+#           { "name": "olderTvPriority", "value": 0 }
+#         ]
+#       }
+#     status_code: [201, 400]
+#     failed_when: "status != 201 and ('already exists' not in content)"
+#   register: status
+
+- name: Restart Radarr container using docker-compose
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - radarr
+    state: restarted

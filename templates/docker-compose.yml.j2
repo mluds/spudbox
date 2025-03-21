@@ -1,36 +1,13 @@
-version: '3.8'
-
 services:
-  nginx:
-    image: jc21/nginx-proxy-manager
-    container_name: nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "81:81"
-    volumes:
-      - /mnt/user/appdata/Nginx-Proxy-Manager-Official/data:/data
-      - /mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt:/etc/letsencrypt
-      - /tmp/Nginx-Proxy-Manager-Official/var/log:/var/log
-    environment:
-      - DB_SQLITE_FILE=/data/database.sqlite
-      - TZ=America/New_York
-    networks:
-      br0:
-        ipv4_address: 192.168.0.62
-      internal:
-
   radarr:
-    image: ghcr.io/binhex/arch-radarr
+    image: linuxserver/radarr
     container_name: radarr
     restart: unless-stopped
     ports:
-      - "7878"
+      - "7878:7878"
     volumes:
-      - /mnt/user/appdata/binhex-radarr:/config
-      - /mnt/user/data:/data
-      - /mnt/user/data/media:/media
+      - /mnt/storage/appdata/radarr:/config
+      - /mnt/storage/data/media/movies:/movies
     environment:
       - PUID=99
       - PGID=100
@@ -38,103 +15,123 @@ services:
     networks:
       - internal
 
-  sonarr:
-    image: ghcr.io/binhex/arch-sonarr
-    container_name: sonarr
-    restart: unless-stopped
-    ports:
-      - "8989"
-    volumes:
-      - /mnt/user/appdata/binhex-sonarr:/config
-      - /mnt/user/data:/data
-      - /mnt/user/data/media:/media
-    environment:
-      - PUID=99
-      - PGID=100
-      - TZ=America/New_York
-    networks:
-      - internal
+  # nginx:
+  #   image: jc21/nginx-proxy-manager
+  #   container_name: nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #     - "81:81"
+  #   volumes:
+  #     - /mnt/user/appdata/Nginx-Proxy-Manager-Official/data:/data
+  #     - /mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt:/etc/letsencrypt
+  #     - /tmp/Nginx-Proxy-Manager-Official/var/log:/var/log
+  #   environment:
+  #     - DB_SQLITE_FILE=/data/database.sqlite
+  #     - TZ=America/New_York
+  #   networks:
+  #     br0:
+  #       ipv4_address: 192.168.0.62
+  #     internal:
 
-  homer:
-    image: b4bz/homer:latest
-    container_name: homer
-    restart: unless-stopped
-    ports:
-      - "8080"
-    volumes:
-      - /mnt/user/appdata/homer/assets:/www/assets
-    environment:
-      - TZ=America/New_York
-    networks:
-      - internal
+  # sonarr:
+  #   image: ghcr.io/binhex/arch-sonarr
+  #   container_name: sonarr
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8989"
+  #   volumes:
+  #     - /mnt/user/appdata/binhex-sonarr:/config
+  #     - /mnt/user/data:/data
+  #     - /mnt/user/data/media:/media
+  #   environment:
+  #     - PUID=99
+  #     - PGID=100
+  #     - TZ=America/New_York
+  #   networks:
+  #     - internal
 
-  sabnzbd:
-    image: ghcr.io/binhex/arch-sabnzbd
-    container_name: sabnzbd
-    restart: unless-stopped
-    ports:
-      - "8080"
-    volumes:
-      - /mnt/user/appdata/binhex-sabnzbd:/config
-      - /mnt/user/data/usenet:/data/usenet
-    environment:
-      - PUID=99
-      - PGID=100
-      - TZ=America/New_York
-    networks:
-      - internal
+  # homer:
+  #   image: b4bz/homer:latest
+  #   container_name: homer
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080"
+  #   volumes:
+  #     - /mnt/user/appdata/homer/assets:/www/assets
+  #   environment:
+  #     - TZ=America/New_York
+  #   networks:
+  #     - internal
 
-  qbittorrent:
-    image: ghcr.io/binhex/arch-qbittorrentvpn
-    container_name: qbittorrent
-    restart: unless-stopped
-    ports:
-      - "8080"
-    volumes:
-      - /mnt/user/appdata/binhex-qbittorrentvpn:/config
-      - /mnt/user/data/torrents:/data
-    environment:
-      - PUID=99
-      - PGID=100
-      - TZ=America/New_York
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
-    networks:
-      - internal
+  # sabnzbd:
+  #   image: ghcr.io/binhex/arch-sabnzbd
+  #   container_name: sabnzbd
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080"
+  #   volumes:
+  #     - /mnt/user/appdata/binhex-sabnzbd:/config
+  #     - /mnt/user/data/usenet:/data/usenet
+  #   environment:
+  #     - PUID=99
+  #     - PGID=100
+  #     - TZ=America/New_York
+  #   networks:
+  #     - internal
 
-  overseerr:
-    image: ghcr.io/binhex/arch-overseerr
-    container_name: overseerr
-    restart: unless-stopped
-    ports:
-      - "5055"
-    volumes:
-      - /mnt/user/appdata/binhex-overseerr:/config
-    environment:
-      - PUID=99
-      - PGID=100
-      - TZ=America/New_York
-    networks:
-      - internal
+  # qbittorrent:
+  #   image: ghcr.io/binhex/arch-qbittorrentvpn
+  #   container_name: qbittorrent
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080"
+  #   volumes:
+  #     - /mnt/user/appdata/binhex-qbittorrentvpn:/config
+  #     - /mnt/user/data/torrents:/data
+  #   environment:
+  #     - PUID=99
+  #     - PGID=100
+  #     - TZ=America/New_York
+  #   sysctls:
+  #     - net.ipv4.conf.all.src_valid_mark=1
+  #   networks:
+  #     - internal
 
-  plex:
-    image: plexinc/pms-docker
-    container_name: plex
-    restart: unless-stopped
-    ports:
-      - "32400"
-    volumes:
-      - /mnt/user/appdata/Plex-Media-Server:/config
-      - /mnt/user/data/media:/data
-      - /mnt/user/data/transcodes:/transcode
-    environment:
-      - TZ=America/New_York
-      - PLEX_CLAIM=claim-dCM29RPbWYu9zbnVYLvN
-    networks:
-      - internal
+  # overseerr:
+  #   image: ghcr.io/binhex/arch-overseerr
+  #   container_name: overseerr
+  #   restart: unless-stopped
+  #   ports:
+  #     - "5055"
+  #   volumes:
+  #     - /mnt/user/appdata/binhex-overseerr:/config
+  #   environment:
+  #     - PUID=99
+  #     - PGID=100
+  #     - TZ=America/New_York
+  #   networks:
+  #     - internal
+
+  # plex:
+  #   image: plexinc/pms-docker
+  #   container_name: plex
+  #   restart: unless-stopped
+  #   ports:
+  #     - "32400"
+  #   volumes:
+  #     - /mnt/user/appdata/Plex-Media-Server:/config
+  #     - /mnt/user/data/media:/data
+  #     - /mnt/user/data/transcodes:/transcode
+  #   environment:
+  #     - TZ=America/New_York
+  #     - PLEX_CLAIM=claim-dCM29RPbWYu9zbnVYLvN
+  #   networks:
+  #     - internal
 
 networks:
-  br0:
-    external: true
+  # br0:
+  #   external: true
   internal:
     driver: bridge

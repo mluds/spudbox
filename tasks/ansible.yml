@@ -1,0 +1,5 @@
+- name: Install dependencies for ansible modules
+  apt:
+    name: 
+      - python3-lxml
+    state: present
