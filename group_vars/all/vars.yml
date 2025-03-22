@@ -23,3 +23,9 @@ sonarr_port: 8989
 
 plex_uid: 1003
 plex_port: 32400
+
+overseerr_uid: 1004
+overseerr_port: 5055
+
+qbittorrent_uid: 1005
+qbittorrent_port: 8082

@@ -1,0 +1,13 @@
+- name: Create Overseerr config file
+  template:
+    src: templates/overseerr.json.j2
+    dest: /mnt/storage/appdata/overseerr/settings.json
+    owner: "{{ overseerr_uid }}"
+    mode: '0644'
+
+- name: Restart Overseerr container
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - overseerr
+    state: restarted

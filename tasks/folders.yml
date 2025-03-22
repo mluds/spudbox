@@ -25,7 +25,7 @@
     state: directory
     mode: '0755'
     owner: "{{ item.uid }}"
-    group: "{{ item.uid }}"
+    group: "{{ item.gid | default(item.uid) }}"
   loop:
     - path: '/mnt/storage/appdata/sabnzbd'
       uid: "{{ sabnzbd_uid }}"
@@ -33,3 +33,10 @@
       uid: "{{ radarr_uid }}"
     - path: '/mnt/storage/appdata/sonarr'
       uid: "{{ sonarr_uid }}"
+    - path: '/mnt/storage/appdata/plex'
+      uid: "{{ plex_uid }}"
+      gid: "{{ media_gid }}"
+    - path: '/mnt/storage/appdata/overseerr'
+      uid: "{{ overseerr_uid }}"
+    - path: '/mnt/storage/appdata/qbittorrent'
+      uid: "{{ qbittorrent_uid }}"

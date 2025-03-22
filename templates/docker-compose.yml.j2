@@ -54,7 +54,6 @@ services:
     image: linuxserver/plex
     container_name: plex
     restart: unless-stopped
-    user: "{{ plex_uid }}:{{ media_gid }}"
     ports:
       - "{{ plex_port }}:{{ plex_port }}"
     volumes:
@@ -66,6 +65,40 @@ services:
       - TZ=America/New_York
       - VERSION=docker
       - PLEX_CLAIM={{ plex_claim }}
+    networks:
+      - internal
+
+  overseerr:
+    image: linuxserver/overseerr
+    container_name: overseerr
+    restart: unless-stopped
+    user: "{{ overseerr_uid }}:{{ overseerr_uid }}"
+    ports:
+      - "{{ overseerr_port }}:{{ overseerr_port }}"
+    volumes:
+      - /mnt/storage/appdata/overseerr:/config
+    environment:
+      - PUID={{ overseerr_uid }}
+      - PGID={{ overseerr_uid }}
+      - TZ=America/New_York
+    networks:
+      - internal
+
+  qbittorrent:
+    image: linuxserver/qbittorrent
+    container_name: qbittorrent
+    restart: unless-stopped
+    user: "{{ qbittorrent_uid }}:{{ qbittorrent_uid }}"
+    ports:
+      - "{{ qbittorrent_port }}:{{ qbittorrent_port }}"
+    volumes:
+      - /mnt/storage/appdata/qbittorrent:/config
+      - /mnt/storage/data:/data
+    environment:
+      - PUID={{ qbittorrent_uid }}
+      - PGID={{ qbittorrent_uid }}
+      - TZ=America/New_York
+      - WEBUI_PORT={{ qbittorrent_port }}
     networks:
       - internal
 
@@ -88,39 +121,6 @@ services:
   #     br0:
   #       ipv4_address: 192.168.0.62
   #     internal:
-
-  # qbittorrent:
-  #   image: ghcr.io/binhex/arch-qbittorrentvpn
-  #   container_name: qbittorrent
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8080"
-  #   volumes:
-  #     - /mnt/user/appdata/binhex-qbittorrentvpn:/config
-  #     - /mnt/user/data/torrents:/data
-  #   environment:
-  #     - PUID=99
-  #     - PGID=100
-  #     - TZ=America/New_York
-  #   sysctls:
-  #     - net.ipv4.conf.all.src_valid_mark=1
-  #   networks:
-  #     - internal
-
-  # overseerr:
-  #   image: ghcr.io/binhex/arch-overseerr
-  #   container_name: overseerr
-  #   restart: unless-stopped
-  #   ports:
-  #     - "5055"
-  #   volumes:
-  #     - /mnt/user/appdata/binhex-overseerr:/config
-  #   environment:
-  #     - PUID=99
-  #     - PGID=100
-  #     - TZ=America/New_York
-  #   networks:
-  #     - internal
 
 networks:
   # br0:
