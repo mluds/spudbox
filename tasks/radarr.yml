@@ -1,9 +1,16 @@
-- name: Set Radarr auth method in config.xml
+- name: Set Radarr auth method
   xml:
     path: /mnt/storage/appdata/radarr/config.xml
     xpath: /Config/AuthenticationMethod
     value: External
   register: set_radarr_auth
+
+- name: Set Radarr API key
+  xml:
+    path: /mnt/storage/appdata/radarr/config.xml
+    xpath: /Config/ApiKey
+    value: "{{ radarr_api_key }}"
+  register: set_radarr_api_key
 
 - name: Restart Radarr container using docker-compose
   community.docker.docker_compose_v2:
@@ -11,7 +18,7 @@
     services:
       - radarr
     state: restarted
-  when: set_radarr_auth is changed
+  when: set_radarr_auth is changed or set_radarr_api_key is changed
   register: radarr_restart_result
 
 - name: Check if Radarr is ready
@@ -21,17 +28,6 @@
     delay: 1
     timeout: 120
   when: radarr_restart_result is changed
-
-- name: Extract Radarr API key from config.xml
-  xml:
-    path: /mnt/storage/appdata/radarr/config.xml
-    xpath: /Config/ApiKey
-    content: text
-  register: radarr_api_key_result
-
-- name: Set fact for Radarr API key
-  set_fact:
-    radarr_api_key: "{{ radarr_api_key_result.matches[0].ApiKey }}"
 
 - name: Add root folder to Radarr
   ansible.builtin.uri:
@@ -106,7 +102,7 @@
         "configContract": "SabnzbdSettings",
         "fields": [
           { "name": "host", "value": "sabnzbd" },
-          { "name": "port", "value": 8080 },
+          { "name": "port", "value": {{ sabnzbd_port }} },
           { "name": "apiKey", "value": "{{ sabnzbd_api_key }}" },
           { "name": "useSsl", "value": false },
           { "name": "category", "value": "movies" },
