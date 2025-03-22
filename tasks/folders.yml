@@ -4,34 +4,32 @@
     gid: "{{ media_gid }}"
     state: present
 
-- name: Ensure movies directory exists with proper permissions
+- name: Create media directories
   ansible.builtin.file:
-    path: /mnt/storage/data/media/movies
+    path: "{{ item }}"
     state: directory
     mode: '0775'
     owner: "{{ ansible_user }}"
     group: media
+  loop:
+    - /mnt/storage/data/usenet/complete/movies
+    - /mnt/storage/data/usenet/complete/tv
+    - /mnt/storage/data/usenet/incomplete/movies
+    - /mnt/storage/data/usenet/incomplete/tv
+    - /mnt/storage/data/media/movies
+    - /mnt/storage/data/media/tv
 
-- name: Ensure tv directory exists with proper permissions
+- name: Create appdata directories
   ansible.builtin.file:
-    path: /mnt/storage/data/media/tv
-    state: directory
-    mode: '0775'
-    owner: "{{ ansible_user }}"
-    group: media
-
-- name: Ensure config directory exists for radarr
-  ansible.builtin.file:
-    path: /mnt/storage/appdata/radarr
-    state: directory
-    mode: '0755'
-    owner: "{{ radarr_uid }}"
-    group: "{{ radarr_uid }}"
-
-- name: Ensure config directory exists for sonarr
-  ansible.builtin.file:
-    path: /mnt/storage/appdata/sonarr
+    path: "{{ item.path }}"
     state: directory
     mode: '0755'
-    owner: "{{ sonarr_uid }}"
-    group: "{{ sonarr_uid }}"
+    owner: "{{ item.uid }}"
+    group: "{{ item.uid }}"
+  loop:
+    - path: '/mnt/storage/appdata/sabnzbd'
+      uid: "{{ sabnzbd_uid }}"
+    - path: '/mnt/storage/appdata/radarr'
+      uid: "{{ radarr_uid }}"
+    - path: '/mnt/storage/appdata/sonarr'
+      uid: "{{ sonarr_uid }}"

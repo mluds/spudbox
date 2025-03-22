@@ -1,4 +1,21 @@
 services:
+  sabnzbd:
+    image: linuxserver/sabnzbd
+    container_name: sabnzbd
+    restart: unless-stopped
+    user: "{{ sabnzbd_uid }}:{{ media_gid }}"
+    ports:
+      - "8082:8080"
+    volumes:
+      - /mnt/storage/appdata/sabnzbd:/config
+      - /mnt/storage/data:/data
+    environment:
+      - PUID={{ sabnzbd_uid }}
+      - PGID={{ media_gid }}
+      - TZ=America/New_York
+    networks:
+      - internal
+
   radarr:
     image: linuxserver/radarr
     container_name: radarr
@@ -8,7 +25,7 @@ services:
       - "{{ radarr_port }}:{{ radarr_port }}"
     volumes:
       - /mnt/storage/appdata/radarr:/config
-      - /mnt/storage/data/media/movies:/movies
+      - /mnt/storage/data:/data
     environment:
       - PUID={{ radarr_uid }}
       - PGID={{ media_gid }}
@@ -25,7 +42,7 @@ services:
       - "{{ sonarr_port }}:{{ sonarr_port }}"
     volumes:
       - /mnt/storage/appdata/sonarr:/config
-      - /mnt/storage/data/media/tv:/tv
+      - /mnt/storage/data:/data
     environment:
       - PUID={{ sonarr_uid }}
       - PGID={{ media_gid }}
@@ -33,36 +50,21 @@ services:
     networks:
       - internal
 
-  sabnzbd:
-    image: linuxserver/sabnzbd
-    container_name: sabnzbd
-    restart: unless-stopped
-    user: "{{ sabnzbd_uid }}:{{ sabnzbd_uid }}"
-    ports:
-      - "8082:8080"
-    volumes:
-      - /mnt/storage/appdata/sabnzbd:/config
-      - /mnt/storage/data/usenet/complete:{{ sabnzbd_complete_dir }}
-      - /mnt/storage/data/usenet/incomplete:{{ sabnzbd_download_dir }}
-    environment:
-      - PUID={{ sabnzbd_uid }}
-      - PGID={{ sabnzbd_uid }}
-      - TZ=America/New_York
-    networks:
-      - internal
-
   plex:
-    image: plexinc/pms-docker
+    image: linuxserver/plex
     container_name: plex
     restart: unless-stopped
+    user: "{{ plex_uid }}:{{ media_gid }}"
     ports:
-      - "32400:32400"
+      - "{{ plex_port }}:{{ plex_port }}"
     volumes:
       - /mnt/storage/appdata/plex:/config
-      - /mnt/storage/data/media:/data
-      - /mnt/storage/data/transcodes:/transcode
+      - /mnt/storage/data:/data
     environment:
+      - PUID={{ plex_uid }}
+      - PGID={{ media_gid }}
       - TZ=America/New_York
+      - VERSION=docker
       - PLEX_CLAIM={{ plex_claim }}
     networks:
       - internal

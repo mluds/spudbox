@@ -50,7 +50,7 @@
     body: |
       {
         "name": "TV",
-        "path": "/tv"
+        "path": "/data/media/tv"
       }
     status_code: [201, 400]
   register: sonarr_rootfolder_result

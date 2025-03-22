@@ -19,3 +19,6 @@ radarr_port: 7878
 
 sonarr_uid: 1002
 sonarr_port: 8989
+
+plex_uid: 1003
+plex_port: 32400

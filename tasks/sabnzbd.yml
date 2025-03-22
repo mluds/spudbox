@@ -1,15 +1,8 @@
-- name: Create SABnzbd appdata directory
-  file:
-    path: /mnt/storage/appdata/sabnzbd
-    state: directory
-    owner: "{{ sabnzbd_user }}"
-    mode: '0755'
-
 - name: Create SABnzbd config file
   template:
     src: templates/sabnzbd.ini.j2
     dest: /mnt/storage/appdata/sabnzbd/sabnzbd.ini
-    owner: "{{ sabnzbd_user }}"
+    owner: "{{ sabnzbd_uid }}"
     mode: '0644'
 
 - name: Restart SABnzbd container using docker-compose

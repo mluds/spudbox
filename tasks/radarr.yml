@@ -43,7 +43,7 @@
     body: |
       {
         "name": "Movies",
-        "path": "/movies"
+        "path": "/data/media/movies"
       }
     status_code: [201, 400]
   register: radarr_rootfolder_result
