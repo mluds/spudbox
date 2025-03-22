@@ -5,9 +5,20 @@
 }
 
 sonarr.{{ domain }} {
-    reverse_proxy sonarr:8989
+    reverse_proxy sonarr:{{ sonarr_port }}
 }
-
 radarr.{{ domain }} {
-    reverse_proxy radarr:7878
+    reverse_proxy radarr:{{ radarr_port }}
+}
+plex.{{ domain }} {
+    reverse_proxy plex:{{ plex_port }}
+}
+qbittorrent.{{ domain }} {
+    reverse_proxy qbittorrent:{{ qbittorrent_port }}
+}
+sabnzbd.{{ domain }} {
+    reverse_proxy sabnzbd:{{ sabnzbd_port }}
+}
+overseerr.{{ domain }} {
+    reverse_proxy overseerr:{{ overseerr_port }}
 }
