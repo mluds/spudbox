@@ -161,3 +161,18 @@
     (item.minSize != (quality_size_values[item.quality.name].minSize | default(item.minSize)) or
      item.maxSize != (quality_size_values[item.quality.name].maxSize | default(item.maxSize)) or
      item.preferredSize != (quality_size_values[item.quality.name].preferredSize | default(item.preferredSize)))
+
+- name: Load profile settings
+  set_fact:
+    any_profile: "{{ lookup('file', 'files/any_profile.json') }}"
+
+- name: Apply updated profile to Sonarr
+  uri:
+    url: "http://127.0.0.1:{{ sonarr_port }}/api/v3/qualityprofile/{{ any_profile.id }}"
+    method: PUT
+    headers:
+      X-Api-Key: "{{ sonarr_api_key }}"
+    body: "{{ any_profile | to_json }}"
+    body_format: json
+    status_code: 202
+  register: update_result
