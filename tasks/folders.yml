@@ -12,12 +12,17 @@
     owner: "{{ ansible_user }}"
     group: media
   loop:
+    - /mnt/storage/data/media/movies
+    - /mnt/storage/data/media/tv
     - /mnt/storage/data/usenet/complete/movies
     - /mnt/storage/data/usenet/complete/tv
     - /mnt/storage/data/usenet/incomplete/movies
     - /mnt/storage/data/usenet/incomplete/tv
-    - /mnt/storage/data/media/movies
-    - /mnt/storage/data/media/tv
+    - /mnt/storage/data/torrents/complete/movies
+    - /mnt/storage/data/torrents/complete/tv
+    - /mnt/storage/data/torrents/incomplete/movies
+    - /mnt/storage/data/torrents/incomplete/tv
+
 
 - name: Create appdata directories
   ansible.builtin.file:
@@ -38,5 +43,5 @@
       gid: "{{ media_gid }}"
     - path: '/mnt/storage/appdata/overseerr'
       uid: "{{ overseerr_uid }}"
-    - path: '/mnt/storage/appdata/qbittorrent'
+    - path: '/mnt/storage/appdata/qbittorrent/qBittorrent'
       uid: "{{ qbittorrent_uid }}"

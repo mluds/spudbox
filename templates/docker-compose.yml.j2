@@ -88,7 +88,7 @@ services:
     image: linuxserver/qbittorrent
     container_name: qbittorrent
     restart: unless-stopped
-    user: "{{ qbittorrent_uid }}:{{ qbittorrent_uid }}"
+    user: "{{ qbittorrent_uid }}:{{ media_gid }}"
     ports:
       - "{{ qbittorrent_port }}:{{ qbittorrent_port }}"
     volumes:
@@ -96,7 +96,7 @@ services:
       - /mnt/storage/data:/data
     environment:
       - PUID={{ qbittorrent_uid }}
-      - PGID={{ qbittorrent_uid }}
+      - PGID={{ media_gid }}
       - TZ=America/New_York
       - WEBUI_PORT={{ qbittorrent_port }}
     networks:
