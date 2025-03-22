@@ -1,3 +1,8 @@
+- name: Generate bcrypt hash using Ansible
+  set_fact:
+    admin_password_hash: "{{ admin_password | password_hash('bcrypt') }}"
+  no_log: true
+
 - name: Configure Caddy Dockerfile
   template:
     src: caddy/Dockerfile

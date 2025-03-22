@@ -4,20 +4,29 @@
     }
 }
 
+(common_auth) {
+    basicauth {
+        {{ admin_username }} {{ admin_password_hash }}
+    }
+}
+
 sonarr.{{ domain }} {
+    import common_auth
     reverse_proxy sonarr:{{ sonarr_port }}
 }
 radarr.{{ domain }} {
+    import common_auth
     reverse_proxy radarr:{{ radarr_port }}
 }
-plex.{{ domain }} {
-    reverse_proxy plex:{{ plex_port }}
-}
 qbittorrent.{{ domain }} {
+    import common_auth
     reverse_proxy qbittorrent:{{ qbittorrent_port }}
 }
 sabnzbd.{{ domain }} {
     reverse_proxy sabnzbd:{{ sabnzbd_port }}
+}
+plex.{{ domain }} {
+    reverse_proxy plex:{{ plex_port }}
 }
 overseerr.{{ domain }} {
     reverse_proxy overseerr:{{ overseerr_port }}
