@@ -72,11 +72,11 @@
 
 - name: Create docker-compose file
   template:
-    src: templates/docker-compose.yml.j2
+    src: docker-compose.yml.j2
     dest: /opt/docker/docker-compose.yml
     owner: "{{ ansible_user }}"
     mode: '0644'
-  register: compose_file_result
+  notify: update compose
 
 - name: Start Docker service
   service:
@@ -84,8 +84,9 @@
     state: started
     enabled: yes
 
-- name: Restart docker-compose services
-  command: docker compose up -d
-  args:
-    chdir: /opt/docker
-  when: compose_file_result is changed
+- name: Fix Docker DNS
+  template:
+    src: docker/daemon.json
+    dest: /etc/docker/daemon.json
+    mode: '0600'
+  notify: restart docker

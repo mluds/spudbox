@@ -25,7 +25,7 @@
 
 - name: Create WireGuard configuration
   template:
-    src: templates/wg0.conf.j2
+    src: wg0.conf.j2
     dest: /etc/wireguard/wg0.conf
     owner: root
     group: root

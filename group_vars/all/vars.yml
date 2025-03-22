@@ -29,3 +29,5 @@ overseerr_port: 5055
 
 qbittorrent_uid: 1005
 qbittorrent_port: 8082
+
+caddy_uid: 1006

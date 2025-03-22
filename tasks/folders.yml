@@ -45,3 +45,7 @@
       uid: "{{ overseerr_uid }}"
     - path: '/mnt/storage/appdata/qbittorrent/qBittorrent'
       uid: "{{ qbittorrent_uid }}"
+    - path: /mnt/storage/appdata/caddy/conf
+      uid: '{{ caddy_uid }}'
+    - path: /mnt/storage/appdata/caddy/data
+      uid: '{{ caddy_uid }}'

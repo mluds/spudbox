@@ -1,0 +1,16 @@
+- name: update compose
+  command: docker compose up -d
+  args:
+    chdir: /opt/docker
+
+- name: restart caddy
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - caddy
+    state: restarted
+
+- name: restart docker
+  service:
+    name: docker
+    state: restarted

@@ -1,0 +1,13 @@
+*.{{ domain }} {
+    tls {
+        dns cloudflare {{ cloudflare_api_token }}
+    }
+}
+
+sonarr.{{ domain }} {
+    reverse_proxy sonarr:8989
+}
+
+radarr.{{ domain }} {
+    reverse_proxy radarr:7878
+}

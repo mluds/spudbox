@@ -102,6 +102,25 @@ services:
     networks:
       - internal
 
+  caddy:
+    build:
+      context: .
+      dockerfile: /mnt/storage/appdata/caddy/Dockerfile
+    container_name: caddy
+    restart: unless-stopped
+    user: "{{ caddy_uid }}:{{ caddy_uid }}"
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - /mnt/storage/appdata/caddy/conf:/etc/caddy
+      - /mnt/storage/appdata/caddy/data:/data
+    networks:
+      - internal
+
   # nginx:
   #   image: jc21/nginx-proxy-manager
   #   container_name: nginx
