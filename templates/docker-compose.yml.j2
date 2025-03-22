@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     user: "{{ sabnzbd_uid }}:{{ media_gid }}"
     ports:
-      - "8082:8080"
+      - "{{ sabnzbd_port }}:{{ sabnzbd_port }}"
     volumes:
       - /mnt/storage/appdata/sabnzbd:/config
       - /mnt/storage/data:/data

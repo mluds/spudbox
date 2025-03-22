@@ -11,6 +11,7 @@ home_assistant_directory: /opt/homeassistant
 media_gid: 1337
 
 sabnzbd_uid: 1000
+sabnzbd_port: 8081
 sabnzbd_download_dir: /incomplete-downloads
 sabnzbd_complete_dir: /downloads
 
