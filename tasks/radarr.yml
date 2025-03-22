@@ -3,23 +3,16 @@
     path: /mnt/storage/appdata/radarr/config.xml
     xpath: /Config/AuthenticationMethod
     value: External
-  register: set_radarr_auth
+  notify: restart radarr
 
 - name: Set Radarr API key
   xml:
     path: /mnt/storage/appdata/radarr/config.xml
     xpath: /Config/ApiKey
     value: "{{ radarr_api_key }}"
-  register: set_radarr_api_key
+  notify: restart radarr
 
-- name: Restart Radarr container using docker-compose
-  community.docker.docker_compose_v2:
-    project_src: /opt/docker
-    services:
-      - radarr
-    state: restarted
-  when: set_radarr_auth is changed or set_radarr_api_key is changed
-  register: radarr_restart_result
+- meta: flush_handlers
 
 - name: Check if Radarr is ready
   wait_for:
@@ -27,7 +20,6 @@
     host: 127.0.0.1
     delay: 1
     timeout: 120
-  when: radarr_restart_result is changed
 
 - name: Add root folder to Radarr
   ansible.builtin.uri:

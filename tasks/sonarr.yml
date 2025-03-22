@@ -10,23 +10,16 @@
     path: /mnt/storage/appdata/sonarr/config.xml
     xpath: /Config/AuthenticationMethod
     value: External
-  register: set_sonarr_auth
+  notify: restart sonarr
 
 - name: Set Sonarr API key
   xml:
     path: /mnt/storage/appdata/sonarr/config.xml
     xpath: /Config/ApiKey
     value: "{{ sonarr_api_key }}"
-  register: set_sonarr_api_key
+  notify: restart sonarr
 
-- name: Restart sonarr container using docker-compose
-  community.docker.docker_compose_v2:
-    project_src: /opt/docker
-    services:
-      - sonarr
-    state: restarted
-  when: set_sonarr_auth is changed or set_sonarr_api_key is changed
-  register: sonarr_restart_result
+- meta: flush_handlers
 
 - name: Check if Sonarr is ready
   wait_for:
@@ -34,7 +27,6 @@
     host: 127.0.0.1
     delay: 1
     timeout: 120
-  when: sonarr_restart_result is changed
 
 - name: Add root folder to Sonarr
   ansible.builtin.uri:
@@ -171,4 +163,3 @@
     body: "{{ any_profile | to_json }}"
     body_format: json
     status_code: 202
-  register: update_result

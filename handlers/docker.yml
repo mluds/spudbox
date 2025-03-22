@@ -14,3 +14,17 @@
   service:
     name: docker
     state: restarted
+
+- name: restart radarr
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - radarr
+    state: restarted
+
+- name: restart sonarr
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - sonarr
+    state: restarted
