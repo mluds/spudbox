@@ -1,0 +1,37 @@
+- name: Create media group with specific GID
+  ansible.builtin.group:
+    name: media
+    gid: "{{ media_gid }}"
+    state: present
+
+- name: Ensure movies directory exists with proper permissions
+  ansible.builtin.file:
+    path: /mnt/storage/data/media/movies
+    state: directory
+    mode: '0775'
+    owner: "{{ ansible_user }}"
+    group: media
+
+- name: Ensure tv directory exists with proper permissions
+  ansible.builtin.file:
+    path: /mnt/storage/data/media/tv
+    state: directory
+    mode: '0775'
+    owner: "{{ ansible_user }}"
+    group: media
+
+- name: Ensure config directory exists for radarr
+  ansible.builtin.file:
+    path: /mnt/storage/appdata/radarr
+    state: directory
+    mode: '0755'
+    owner: "{{ radarr_uid }}"
+    group: "{{ radarr_uid }}"
+
+- name: Ensure config directory exists for sonarr
+  ansible.builtin.file:
+    path: /mnt/storage/appdata/sonarr
+    state: directory
+    mode: '0755'
+    owner: "{{ sonarr_uid }}"
+    group: "{{ sonarr_uid }}"

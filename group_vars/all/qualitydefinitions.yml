@@ -87,6 +87,10 @@ quality_size_values:
     minSize: 0
     preferredSize: 150
     maxSize: 200
+  "Bluray-1080p Remux":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200
   "Remux-1080p":
     minSize: 0
     preferredSize: 150
@@ -108,6 +112,10 @@ quality_size_values:
     preferredSize: 150
     maxSize: 200
   "Remux-2160p":
+    minSize: 0
+    preferredSize: 150
+    maxSize: 200
+  "Bluray-2160p Remux":
     minSize: 0
     preferredSize: 150
     maxSize: 200

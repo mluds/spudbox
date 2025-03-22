@@ -76,6 +76,7 @@
     dest: /opt/docker/docker-compose.yml
     owner: "{{ ansible_user }}"
     mode: '0644'
+  register: compose_file_result
 
 - name: Start Docker service
   service:
@@ -83,6 +84,8 @@
     state: started
     enabled: yes
 
-# - name: Run docker-compose up
-#   shell: cd /opt/docker && docker compose up -d
-#   become: true
+- name: Restart docker-compose services
+  command: docker compose up -d
+  args:
+    chdir: /opt/docker
+  when: compose_file_result is changed

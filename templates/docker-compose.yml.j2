@@ -5,12 +5,29 @@ services:
     restart: unless-stopped
     user: "{{ radarr_uid }}:{{ media_gid }}"
     ports:
-      - "7878:7878"
+      - "{{ radarr_port }}:{{ radarr_port }}"
     volumes:
       - /mnt/storage/appdata/radarr:/config
       - /mnt/storage/data/media/movies:/movies
     environment:
       - PUID={{ radarr_uid }}
+      - PGID={{ media_gid }}
+      - TZ=America/New_York
+    networks:
+      - internal
+
+  sonarr:
+    image: linuxserver/sonarr
+    container_name: sonarr
+    restart: unless-stopped
+    user: "{{ sonarr_uid }}:{{ media_gid }}"
+    ports:
+      - "{{ sonarr_port }}:{{ sonarr_port }}"
+    volumes:
+      - /mnt/storage/appdata/sonarr:/config
+      - /mnt/storage/data/media/tv:/tv
+    environment:
+      - PUID={{ sonarr_uid }}
       - PGID={{ media_gid }}
       - TZ=America/New_York
     networks:
@@ -34,6 +51,22 @@ services:
     networks:
       - internal
 
+  plex:
+    image: plexinc/pms-docker
+    container_name: plex
+    restart: unless-stopped
+    ports:
+      - "32400:32400"
+    volumes:
+      - /mnt/storage/appdata/plex:/config
+      - /mnt/storage/data/media:/data
+      - /mnt/storage/data/transcodes:/transcode
+    environment:
+      - TZ=America/New_York
+      - PLEX_CLAIM={{ plex_claim }}
+    networks:
+      - internal
+
   # nginx:
   #   image: jc21/nginx-proxy-manager
   #   container_name: nginx
@@ -53,25 +86,6 @@ services:
   #     br0:
   #       ipv4_address: 192.168.0.62
   #     internal:
-
-  # sonarr:
-  #   image: ghcr.io/binhex/arch-sonarr
-  #   container_name: sonarr
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8989"
-  #   volumes:
-  #     - /mnt/user/appdata/binhex-sonarr:/config
-  #     - /mnt/user/data:/data
-  #     - /mnt/user/data/media:/media
-  #   environment:
-  #     - PUID=99
-  #     - PGID=100
-  #     - TZ=America/New_York
-  #   networks:
-  #     - internal
-
-
 
   # qbittorrent:
   #   image: ghcr.io/binhex/arch-qbittorrentvpn
@@ -103,22 +117,6 @@ services:
   #     - PUID=99
   #     - PGID=100
   #     - TZ=America/New_York
-  #   networks:
-  #     - internal
-
-  # plex:
-  #   image: plexinc/pms-docker
-  #   container_name: plex
-  #   restart: unless-stopped
-  #   ports:
-  #     - "32400"
-  #   volumes:
-  #     - /mnt/user/appdata/Plex-Media-Server:/config
-  #     - /mnt/user/data/media:/data
-  #     - /mnt/user/data/transcodes:/transcode
-  #   environment:
-  #     - TZ=America/New_York
-  #     - PLEX_CLAIM=claim-dCM29RPbWYu9zbnVYLvN
   #   networks:
   #     - internal
 
