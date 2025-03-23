@@ -1,43 +1,73 @@
-- name: Install MergerFS
-  apt:
+- name: Check if partitions exist
+  ansible.builtin.shell: lsblk -no NAME | grep -q "{{ item.partition | basename }}"
+  register: partition_check
+  failed_when: false
+  changed_when: false
+  loop: "{{ mergerfs_drives }}"
+
+- name: Create partitions if they don't exist
+  ansible.builtin.shell: |
+    echo -e "o\nn\np\n1\n\n\nw" | fdisk {{ item.item.device }}
+  when: item.rc != 0
+  loop: "{{ partition_check.results }}"
+  register: partition_created
+
+- name: Inform kernel about partition table changes if partitions were created
+  ansible.builtin.shell: partprobe {{ item.item.item.device }}
+  when: partition_created.changed and item.changed
+  loop: "{{ partition_created.results }}"
+
+- name: Check if filesystems exist
+  ansible.builtin.shell: blkid {{ item.partition }} -o value -s TYPE
+  register: fs_check
+  failed_when: false
+  changed_when: false
+  loop: "{{ mergerfs_drives }}"
+
+- debug: var=fs_check
+
+- name: Create XFS filesystem if it doesn't exist
+  ansible.builtin.filesystem:
+    fstype: xfs
+    dev: "{{ item.item.partition }}"
+  when: item.stdout == ""
+  loop: "{{ fs_check.results }}"
+
+- name: Create mount points for individual disks
+  ansible.builtin.file:
+    path: "{{ item.mount }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ mergerfs_drives }}"
+
+- name: Create mount point for merged filesystem
+  ansible.builtin.file:
+    path: "{{ mergerfs_mount }}"
+    state: directory
+    mode: '0755'
+
+- name: Mount individual disks
+  ansible.builtin.mount:
+    path: "{{ item.mount }}"
+    src: "{{ item.partition }}"
+    fstype: xfs
+    state: mounted
+  loop: "{{ mergerfs_drives }}"
+
+- name: Install mergerfs package
+  ansible.builtin.package:
     name: mergerfs
     state: present
     update_cache: yes
 
-- name: Create mount points for source drives
-  file:
-    path: "{{ item }}"
-    state: directory
-    mode: '0755'
-  loop: "{{ source_drives }}"
+- name: Get a list of mounted disks for mergerfs
+  ansible.builtin.set_fact:
+    mergerfs_paths: "{{ mergerfs_drives | map(attribute='mount') | join(':') }}"
 
-- name: Create MergerFS mount point
-  file:
-    path: "{{ mergerfs_mount_point }}"
-    state: directory
-    mode: '0755'
-
-- name: Mount source drives (you may need to modify this based on your actual drives)
-  mount:
-    path: "{{ item }}"
-    src: "/dev/sdX"  # Change this to match your actual device paths
-    fstype: ext4     # Change this to match your filesystem
+- name: Mount mergerfs filesystem
+  ansible.builtin.mount:
+    path: "{{ mergerfs_mount }}"
+    src: "{{ mergerfs_paths }}"
+    fstype: "fuse.mergerfs"
+    opts: "defaults,allow_other,use_ino,cache.files=partial,dropcacheonclose=true,category.create=mfs,fsname=mergerfs"
     state: mounted
-  loop: "{{ source_drives }}"
-  ignore_errors: yes  # This is just a placeholder task
-
-- name: Add MergerFS mount to fstab
-  lineinfile:
-    path: /etc/fstab
-    line: "{{ source_drives | join(':') }} {{ mergerfs_mount_point }} fuse.mergerfs defaults,allow_other,use_ino,category.create=mfs,moveonenospc=true,minfreespace=20G,fsname=mergerfs 0 0"
-    state: present
-
-- name: Mount MergerFS
-  command: mount {{ mergerfs_mount_point }}
-  ignore_errors: yes
-
-- name: Create shares directory
-  file:
-    path: "{{ smb_share_path }}"
-    state: directory
-    mode: '0755'

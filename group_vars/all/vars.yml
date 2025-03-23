@@ -32,10 +32,7 @@ wireguard_clients:
   - name: mikes-iphone
   - name: mikes-pc
 
-# mergerfs_mount_point: /mnt/storage
-# source_drives:
-#   - /mnt/disk1
-#   - /mnt/disk2
-#   - /mnt/disk3
+mergerfs_mount: /mnt/storage
+
 # smb_share_path: "{{ mergerfs_mount_point }}/shares"
 # home_assistant_directory: /opt/homeassistant

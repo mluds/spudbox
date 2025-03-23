@@ -1,1 +1,8 @@
 domain: dev.spudbox.win
+mergerfs_drives:
+  - device: /dev/sda
+    partition: /dev/sda1
+    mount: /mnt/disk1
+  - device: /dev/sdb
+    partition: /dev/sdb1
+    mount: /mnt/disk2
