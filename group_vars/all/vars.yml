@@ -1,13 +1,3 @@
-mergerfs_mount_point: /mnt/storage
-source_drives:
-  - /mnt/disk1
-  - /mnt/disk2
-  - /mnt/disk3
-smb_share_path: "{{ mergerfs_mount_point }}/shares"
-wireguard_port: 51820
-wireguard_address: "10.0.0.1/24"
-home_assistant_directory: /opt/homeassistant
-
 media_gid: 1337
 
 sabnzbd_uid: 1000
@@ -31,3 +21,21 @@ qbittorrent_uid: 1005
 qbittorrent_port: 8082
 
 caddy_uid: 1006
+
+lan_cidr: 192.168.0.0/24
+public_domain: public.spudbox.win
+wireguard_port: 51820
+wireguard_network_base: "10.42.0"
+wireguard_mask: '/24'
+wireguard_server_ip: "{{ wireguard_network_base }}.1"
+wireguard_clients:
+  - name: mikes-iphone
+  - name: mikes-pc
+
+# mergerfs_mount_point: /mnt/storage
+# source_drives:
+#   - /mnt/disk1
+#   - /mnt/disk2
+#   - /mnt/disk3
+# smb_share_path: "{{ mergerfs_mount_point }}/shares"
+# home_assistant_directory: /opt/homeassistant

@@ -1,5 +1,3 @@
----
-# tasks/mergerfs_setup.yml
 - name: Install MergerFS
   apt:
     name: mergerfs
