@@ -121,6 +121,40 @@ services:
     networks:
       - internal
 
+  homeassistant:
+    container_name: homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    user: "{{ homeassistant_uid }}:{{ homeassistant_uid }}"
+    volumes:
+      - /mnt/storage/appdata/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    ports:
+      - "{{ homeassistant_port }}:{{ homeassistant_port }}"
+    environment:
+      - INIT_AUTH=true
+      - USERNAME=admin
+      - PASSWORD=admin
+    # depends_on:
+    #   - zwavejs
+
+  # zwavejs:
+  #   container_name: zwavejs
+  #   image: zwavejs/zwave-js-ui:latest
+  #   restart: unless-stopped
+  #   tty: true
+  #   stop_signal: SIGINT
+  #   environment:
+  #     - TZ=America/New_York # Change to your timezone
+  #   volumes:
+  #     - ./zwavejs:/usr/src/app/store
+  #   devices:
+  #     # Replace with your Z-Wave device path
+  #     - /dev/ttyACM0:/dev/ttyACM0
+  #   ports:
+  #     - "8091:8091" # Web UI
+  #     - "3000:3000" # Z-Wave JS server
+
   # nginx:
   #   image: jc21/nginx-proxy-manager
   #   container_name: nginx
@@ -142,7 +176,5 @@ services:
   #     internal:
 
 networks:
-  # br0:
-  #   external: true
   internal:
     driver: bridge

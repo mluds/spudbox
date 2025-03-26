@@ -1,0 +1,20 @@
+- name: Create Home Assistant configuration files
+  template:
+    src: "homeassistant/{{ item.src }}"
+    dest: "/mnt/storage/appdata/homeassistant/{{ item.dest }}"
+    owner: "{{ homeassistant_uid }}"
+    mode: '0644'
+  loop:
+    - src: onboarding.j2
+      dest: .storage/onboarding
+    - src: configuration.yaml.j2
+      dest: configuration.yaml
+  notify: restart homeassistant
+
+- name: Add Home Assistant user
+  community.docker.docker_container_exec:
+    container: homeassistant
+    command: hass --script auth --config /config add "{{ admin_username }}" "{{ admin_password }}"
+  register: ha_add_user
+  changed_when: "'exists' not in ha_add_user.stdout"
+  notify: restart homeassistant

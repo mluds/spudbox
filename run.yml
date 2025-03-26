@@ -17,4 +17,7 @@
     # - import_tasks: tasks/qbittorrent.yml
     # - import_tasks: tasks/caddy.yml
     # - import_tasks: tasks/wireguard.yml
-    - import_tasks: tasks/mergerfs.yml
+    # - import_tasks: tasks/mergerfs.yml
+
+
+    - import_tasks: tasks/homeassistant.yml

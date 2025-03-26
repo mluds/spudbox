@@ -49,3 +49,5 @@
       uid: '{{ caddy_uid }}'
     - path: /mnt/storage/appdata/caddy/data
       uid: '{{ caddy_uid }}'
+    - path: /mnt/storage/appdata/homeassistant
+      uid: '{{ homeassistant_uid }}'

@@ -22,6 +22,9 @@ qbittorrent_port: 8082
 
 caddy_uid: 1006
 
+homeassistant_uid: 1007
+homeassistant_port: 8123
+
 lan_cidr: 192.168.0.0/24
 public_domain: public.spudbox.win
 wireguard_port: 51820
@@ -34,5 +37,7 @@ wireguard_clients:
 
 mergerfs_mount: /mnt/storage
 
+isos_dir: "{{ mergerfs_mount }}/isos"
+appdata_dir: "{{ mergerfs_mount }}/appdata"
+
 # smb_share_path: "{{ mergerfs_mount_point }}/shares"
-# home_assistant_directory: /opt/homeassistant

@@ -28,3 +28,10 @@
     services:
       - sonarr
     state: restarted
+
+- name: restart homeassistant
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - homeassistant
+    state: restarted
