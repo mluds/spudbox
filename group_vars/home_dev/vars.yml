@@ -6,3 +6,4 @@ mergerfs_drives:
   - device: /dev/sdb
     partition: /dev/sdb1
     mount: /mnt/disk2
+zwave_device_path: /dev/serial/by-id/usb-Zooz_800_Z-Wave_Stick_533D004242-if00

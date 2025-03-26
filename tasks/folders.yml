@@ -23,7 +23,6 @@
     - /mnt/storage/data/torrents/incomplete/movies
     - /mnt/storage/data/torrents/incomplete/tv
 
-
 - name: Create appdata directories
   ansible.builtin.file:
     path: "{{ item.path }}"
@@ -51,3 +50,5 @@
       uid: '{{ caddy_uid }}'
     - path: /mnt/storage/appdata/homeassistant
       uid: '{{ homeassistant_uid }}'
+    - path: /mnt/storage/appdata/zwavejs
+      uid: '{{ zwavejs_uid }}'

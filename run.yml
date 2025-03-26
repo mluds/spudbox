@@ -8,8 +8,8 @@
     # - import_tasks: tasks/ssh.yml
     # - import_tasks: tasks/upgrade.yml
     # - import_tasks: tasks/ansible.yml
-    # - import_tasks: tasks/folders.yml
-    # - import_tasks: tasks/docker.yml
+    - import_tasks: tasks/folders.yml
+    - import_tasks: tasks/docker.yml
     # - import_tasks: tasks/sabnzbd.yml
     # - import_tasks: tasks/radarr.yml
     # - import_tasks: tasks/sonarr.yml
@@ -18,6 +18,4 @@
     # - import_tasks: tasks/caddy.yml
     # - import_tasks: tasks/wireguard.yml
     # - import_tasks: tasks/mergerfs.yml
-
-
     - import_tasks: tasks/homeassistant.yml

@@ -25,6 +25,8 @@ caddy_uid: 1006
 homeassistant_uid: 1007
 homeassistant_port: 8123
 
+zwavejs_uid: 1008
+
 lan_cidr: 192.168.0.0/24
 public_domain: public.spudbox.win
 wireguard_port: 51820

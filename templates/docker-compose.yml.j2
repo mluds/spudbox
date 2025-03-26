@@ -131,49 +131,29 @@ services:
     restart: unless-stopped
     ports:
       - "{{ homeassistant_port }}:{{ homeassistant_port }}"
+    networks:
+      - internal
+
+  zwavejs:
+    container_name: zwavejs
+    image: zwavejs/zwave-js-ui:latest
+    restart: unless-stopped
+    tty: true
+    stop_signal: SIGINT
+    # dialout group to access usb dongle
+    user: "{{ zwavejs_uid }}:dialout"
     environment:
-      - INIT_AUTH=true
-      - USERNAME=admin
-      - PASSWORD=admin
-    # depends_on:
-    #   - zwavejs
-
-  # zwavejs:
-  #   container_name: zwavejs
-  #   image: zwavejs/zwave-js-ui:latest
-  #   restart: unless-stopped
-  #   tty: true
-  #   stop_signal: SIGINT
-  #   environment:
-  #     - TZ=America/New_York # Change to your timezone
-  #   volumes:
-  #     - ./zwavejs:/usr/src/app/store
-  #   devices:
-  #     # Replace with your Z-Wave device path
-  #     - /dev/ttyACM0:/dev/ttyACM0
-  #   ports:
-  #     - "8091:8091" # Web UI
-  #     - "3000:3000" # Z-Wave JS server
-
-  # nginx:
-  #   image: jc21/nginx-proxy-manager
-  #   container_name: nginx
-  #   restart: unless-stopped
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #     - "81:81"
-  #   volumes:
-  #     - /mnt/user/appdata/Nginx-Proxy-Manager-Official/data:/data
-  #     - /mnt/user/appdata/Nginx-Proxy-Manager-Official/letsencrypt:/etc/letsencrypt
-  #     - /tmp/Nginx-Proxy-Manager-Official/var/log:/var/log
-  #   environment:
-  #     - DB_SQLITE_FILE=/data/database.sqlite
-  #     - TZ=America/New_York
-  #   networks:
-  #     br0:
-  #       ipv4_address: 192.168.0.62
-  #     internal:
+      - SESSION_SECRET={{ zwavejs_session_secret }}
+      - TZ=America/New_York
+    networks:
+      - internal
+    devices:
+      - '{{ zwave_device_path }}:/dev/zwave'
+    volumes:
+      - /mnt/storage/appdata/zwavejs:/usr/src/app/store
+    ports:
+      - '8091:8091'
+      - '3000'
 
 networks:
   internal:
