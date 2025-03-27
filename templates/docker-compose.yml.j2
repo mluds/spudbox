@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     user: "{{ sabnzbd_uid }}:{{ media_gid }}"
     ports:
-      - "{{ sabnzbd_port }}:{{ sabnzbd_port }}"
+      - "{{ sabnzbd_port }}"
     volumes:
       - /mnt/storage/appdata/sabnzbd:/config
       - /mnt/storage/data:/data
@@ -22,7 +22,8 @@ services:
     restart: unless-stopped
     user: "{{ radarr_uid }}:{{ media_gid }}"
     ports:
-      - "{{ radarr_port }}:{{ radarr_port }}"
+      # Needed to access API from Ansible
+      - "127.0.0.1:{{ radarr_port }}:{{ radarr_port }}"
     volumes:
       - /mnt/storage/appdata/radarr:/config
       - /mnt/storage/data:/data
@@ -39,7 +40,8 @@ services:
     restart: unless-stopped
     user: "{{ sonarr_uid }}:{{ media_gid }}"
     ports:
-      - "{{ sonarr_port }}:{{ sonarr_port }}"
+      # Needed to access API from Ansible
+      - "127.0.0.1:{{ sonarr_port }}:{{ sonarr_port }}"
     volumes:
       - /mnt/storage/appdata/sonarr:/config
       - /mnt/storage/data:/data
@@ -55,7 +57,7 @@ services:
     container_name: plex
     restart: unless-stopped
     ports:
-      - "{{ plex_port }}:{{ plex_port }}"
+      - "{{ plex_port }}"
     volumes:
       - /mnt/storage/appdata/plex:/config
       - /mnt/storage/data:/data
@@ -74,7 +76,7 @@ services:
     restart: unless-stopped
     user: "{{ overseerr_uid }}:{{ overseerr_uid }}"
     ports:
-      - "{{ overseerr_port }}:{{ overseerr_port }}"
+      - "{{ overseerr_port }}"
     volumes:
       - /mnt/storage/appdata/overseerr:/config
     environment:
@@ -90,7 +92,7 @@ services:
     restart: unless-stopped
     user: "{{ qbittorrent_uid }}:{{ media_gid }}"
     ports:
-      - "{{ qbittorrent_port }}:{{ qbittorrent_port }}"
+      - "{{ qbittorrent_port }}"
     volumes:
       - /mnt/storage/appdata/qbittorrent:/config
       - /mnt/storage/data:/data
@@ -130,7 +132,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     ports:
-      - "{{ homeassistant_port }}:{{ homeassistant_port }}"
+      - "{{ homeassistant_port }}"
     networks:
       - internal
 
@@ -152,7 +154,7 @@ services:
     volumes:
       - /mnt/storage/appdata/zwavejs:/usr/src/app/store
     ports:
-      - '8091:8091'
+      - '{{ zwavejs_port }}'
       - '3000'
 
 networks:
