@@ -157,6 +157,22 @@ services:
       - '{{ zwavejs_port }}'
       - '3000'
 
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    ports:
+      - "{{ homepage_port }}"
+    volumes:
+      - /mnt/storage/appdata/homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - PUID={{ homepage_uid }}
+      - PGID={{ homepage_uid }}
+      - HOMEPAGE_ALLOWED_HOSTS=homepage.{{ domain }}
+    restart: unless-stopped
+    networks:
+      - internal
+
 networks:
   internal:
     driver: bridge

@@ -1,0 +1,10 @@
+- name: Create homepage config files
+  template:
+    src: "homepage/{{ item }}.j2"
+    dest: /mnt/storage/appdata/homepage/{{ item }}
+    owner: "{{ homepage_uid }}"
+    mode: '0644'
+  loop:
+    - settings.yaml
+    - services.yaml
+  notify: restart homepage

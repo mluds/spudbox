@@ -49,3 +49,10 @@
     services:
       - zwavejs
     state: restarted
+
+- name: restart homepage
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - homepage
+    state: restarted

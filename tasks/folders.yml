@@ -52,3 +52,5 @@
       uid: '{{ homeassistant_uid }}'
     - path: /mnt/storage/appdata/zwavejs
       uid: '{{ zwavejs_uid }}'
+    - path: /mnt/storage/appdata/homepage
+      uid: '{{ homepage_uid }}'

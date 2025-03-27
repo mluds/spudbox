@@ -38,3 +38,6 @@ zwavejs.{{ domain }} {
   import common_auth
   reverse_proxy zwavejs:{{ zwavejs_port }}
 }
+homepage.{{ domain }} {
+  reverse_proxy homepage:{{ homepage_port }}
+}
