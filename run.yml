@@ -17,7 +17,7 @@
     - import_tasks: tasks/sonarr.yml
     - import_tasks: tasks/overseerr.yml
     - import_tasks: tasks/qbittorrent.yml
-    - import_tasks: tasks/homeassistant.yml
+    - import_tasks: tasks/zwavejs.yml
     - import_tasks: tasks/caddy.yml
     - import_tasks: tasks/wireguard.yml
     - import_tasks: tasks/mergerfs.yml

@@ -11,14 +11,6 @@
       dest: configuration.yaml
   notify: restart homeassistant
 
-- name: Create Zwave JS configuration file
-  template:
-    src: zwavejs.json.j2
-    dest: "/mnt/storage/appdata/zwavejs/settings.json"
-    owner: "{{ zwavejs_uid }}"
-    mode: '0644'
-  notify: restart zwavejs
-
 - name: Add Home Assistant user
   community.docker.docker_container_exec:
     container: homeassistant
