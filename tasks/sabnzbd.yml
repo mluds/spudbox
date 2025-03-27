@@ -4,10 +4,4 @@
     dest: /mnt/storage/appdata/sabnzbd/sabnzbd.ini
     owner: "{{ sabnzbd_uid }}"
     mode: '0644'
-
-- name: Restart SABnzbd container using docker-compose
-  community.docker.docker_compose_v2:
-    project_src: /opt/docker
-    services:
-      - sabnzbd
-    state: restarted
+  notify: restart sabnzbd

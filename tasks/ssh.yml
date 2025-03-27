@@ -3,19 +3,17 @@
     dest: /etc/ssh/sshd_config
     regexp: "^#PasswordAuthentication yes"
     line: "PasswordAuthentication no"
+  notify: restart ssh
 
 - name: Disable PAM auth
   lineinfile:
     dest: /etc/ssh/sshd_config
     regexp: "^UsePAM yes"
     line: "UsePAM no"
+  notify: restart ssh
 
 - name: Ensure cloudinit doesn't enable password auth
   file:
     path: /etc/ssh/sshd_config.d/50-cloud-init.conf
     state: absent
-
-- name: Restart SSH daemon
-  service:
-    name: ssh
-    state: restarted
+  notify: restart ssh

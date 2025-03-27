@@ -15,6 +15,13 @@
     name: docker
     state: restarted
 
+- name: restart sabnzbd
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - sabnzbd
+    state: restarted
+
 - name: restart radarr
   community.docker.docker_compose_v2:
     project_src: /opt/docker
