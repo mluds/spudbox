@@ -6,5 +6,7 @@
     mode: '0644'
   loop:
     - settings.yaml
+    - widgets.yaml
     - services.yaml
+    - bookmarks.yaml
   notify: restart homepage

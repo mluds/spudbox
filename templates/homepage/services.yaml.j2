@@ -1,43 +1,63 @@
 - Media:
-    - Plex:
-        icon: plex
-        href: https://plex.{{ domain }}
-        description: Media Server
-        container: plex
-    - Overseerr:
-        icon: overseerr
-        href: https://overseerr.{{ domain }}
-        description: Media Requests
-        container: overseerr
-    - Sonarr:
-        icon: sonarr
-        href: https://sonarr.{{ domain }}
-        description: TV Show Management
-        container: sonarr
-    - Radarr:
-        icon: radarr
-        href: https://radarr.{{ domain }}
-        description: Movie Management
-        container: radarr
+  - Plex:
+      icon: plex
+      href: https://plex.{{ domain }}
+      description: Media Server
+      container: plex
+  - Overseerr:
+      icon: overseerr
+      href: https://overseerr.{{ domain }}
+      description: Media Requests
+      container: overseerr
+      # widget:
+      #   type: overseerr
+      #   url: http://overseerr:{{ overseerr_port }}
+      #   key: apikeyapikeyapikeyapikeyapikey
+  - Sonarr:
+      icon: sonarr
+      href: https://sonarr.{{ domain }}
+      description: TV Show Management
+      container: sonarr
+      widget:
+        type: sonarr
+        fields: ["wanted", "queued", "series"]
+        url: http://sonarr:{{ sonarr_port }}
+        key: "{{ sonarr_api_key }}"
+        enableQueue: false
+  - Radarr:
+      icon: radarr
+      href: https://radarr.{{ domain }}
+      description: Movie Management
+      container: radarr
+      widget:
+        type: radarr
+        fields: ["wanted", "missing", "queued", "movies"]
+        url: http://radarr:{{ radarr_port }}
+        key: "{{ radarr_api_key }}"
+        enableQueue: false
 - Downloaders:
-    - SABnzbd:
-        icon: sabnzbd
-        href: https://sabnzbd.{{ domain }}
-        description: Usenet Downloader
-        container: sabnzbd
-    - qBittorrent:
-        icon: qbittorrent
-        href: https://qbittorrent.{{ domain }}
-        description: Torrent Downloader
-        container: qbittorrent
+  - SABnzbd:
+      icon: sabnzbd
+      href: https://sabnzbd.{{ domain }}
+      description: Usenet Downloader
+      container: sabnzbd
+      widget:
+        type: sabnzbd
+        url: http://sabnzbd:{{ sabnzbd_port }}
+        key: "{{ sabnzbd_api_key }}"
+  - qBittorrent:
+      icon: qbittorrent
+      href: https://qbittorrent.{{ domain }}
+      description: Torrent Downloader
+      container: qbittorrent
 - Home Automation:
-    - Home Assistant:
-        icon: home-assistant
-        href: https://homeassistant.{{ domain }}
-        description: Home Automation
-        container: homeassistant
-    - Z-Wave JS UI:
-        icon: zigbee
-        href: https://zwavejs.{{ domain }}
-        description: Z-Wave Network Manager
-        container: zwavejs
+  - Home Assistant:
+      icon: home-assistant
+      href: https://homeassistant.{{ domain }}
+      description: Home Automation
+      container: homeassistant
+  - Z-Wave JS UI:
+      icon: zwavejs2mqtt
+      href: https://zwavejs.{{ domain }}
+      description: Z-Wave Network Manager
+      container: zwavejs

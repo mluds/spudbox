@@ -165,9 +165,10 @@ services:
     volumes:
       - /mnt/storage/appdata/homepage:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/storage:/data
     environment:
       - PUID={{ homepage_uid }}
-      - PGID={{ homepage_uid }}
+      - PGID={{ docker_gid }}
       - HOMEPAGE_ALLOWED_HOSTS=homepage.{{ domain }}
     restart: unless-stopped
     networks:

@@ -70,6 +70,15 @@
     owner: "{{ ansible_user }}"
     mode: '0755'
 
+- name: Get Docker group ID
+  ansible.builtin.command: getent group docker
+  register: docker_group_info
+  changed_when: false
+
+- name: Extract Docker group ID
+  ansible.builtin.set_fact:
+    docker_gid: "{{ docker_group_info.stdout.split(':')[2] }}"
+
 - name: Create docker-compose file
   template:
     src: docker-compose.yml.j2
