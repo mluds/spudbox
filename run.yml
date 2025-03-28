@@ -5,4 +5,5 @@
     - import_tasks: handlers/misc.yml
     - import_tasks: handlers/docker.yml
   tasks:
+    - import_tasks: tasks/homeassistant.yml
     - import_tasks: tasks/homepage.yml

@@ -17,3 +17,9 @@ homeassistant:
   unit_system: us_customary
   country: US
   time_zone: America/New_York
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.17.0.0/16
+    - 172.18.0.0/16
