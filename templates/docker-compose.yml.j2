@@ -52,6 +52,24 @@ services:
     networks:
       - internal
 
+  bazarr:
+    image: linuxserver/bazarr
+    container_name: bazarr
+    restart: unless-stopped
+    user: "{{ bazarr_uid }}:{{ media_gid }}"
+    ports:
+      # Needed to access API from Ansible
+      - "127.0.0.1:{{ bazarr_port }}:{{ bazarr_port }}"
+    volumes:
+      - /mnt/storage/appdata/bazarr:/config
+      - /mnt/storage/data:/data
+    environment:
+      - PUID={{ bazarr_uid }}
+      - PGID={{ media_gid }}
+      - TZ=America/New_York
+    networks:
+      - internal
+
   plex:
     image: linuxserver/plex
     container_name: plex

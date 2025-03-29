@@ -18,6 +18,10 @@ radarr.{{ domain }} {
   import common_auth
   reverse_proxy radarr:{{ radarr_port }}
 }
+bazarr.{{ domain }} {
+  import common_auth
+  reverse_proxy bazarr:{{ bazarr_port }}
+}
 qbittorrent.{{ domain }} {
   import common_auth
   reverse_proxy qbittorrent:{{ qbittorrent_port }}

@@ -37,6 +37,8 @@
       uid: "{{ radarr_uid }}"
     - path: '/mnt/storage/appdata/sonarr'
       uid: "{{ sonarr_uid }}"
+    - path: /mnt/storage/appdata/bazarr
+      uid: '{{ bazarr_uid }}'
     - path: '/mnt/storage/appdata/plex'
       uid: "{{ plex_uid }}"
       gid: "{{ media_gid }}"
