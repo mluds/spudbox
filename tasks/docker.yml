@@ -33,7 +33,7 @@
 
 - name: Set Docker architecture variable
   set_fact:
-    docker_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else (ansible_architecture if ansible_architecture == 'x86_64' else 'amd64') }}"
+    docker_arch: "{{ 'arm64' if ansible_architecture == 'aarch64' else ('amd64' if ansible_architecture == 'x86_64' else 'amd64') }}"
 
 - name: Add Docker repository
   apt_repository:
@@ -99,3 +99,5 @@
     dest: /etc/docker/daemon.json
     mode: '0600'
   notify: restart docker
+
+- meta: flush_handlers

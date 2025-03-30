@@ -1,0 +1,6 @@
+domain: spudbox.win
+mergerfs_drives:
+  - device: /dev/nvme0n1
+    partition: /dev/nvme0n1p1
+    mount: /mnt/disk1
+zwavejs_enabled: false

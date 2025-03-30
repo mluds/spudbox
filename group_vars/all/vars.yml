@@ -28,6 +28,7 @@ caddy_uid: 1006
 homeassistant_uid: 1007
 homeassistant_port: 8123
 
+zwavejs_enabled: true
 zwavejs_uid: 1008
 zwavejs_port: 8091
 

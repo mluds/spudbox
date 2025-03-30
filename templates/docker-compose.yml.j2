@@ -154,6 +154,7 @@ services:
     networks:
       - internal
 
+{% if zwavejs_enabled %}
   zwavejs:
     container_name: zwavejs
     image: zwavejs/zwave-js-ui:latest
@@ -174,6 +175,7 @@ services:
     ports:
       - '{{ zwavejs_port }}'
       - '3000'
+{% endif %}
 
   homepage:
     image: ghcr.io/gethomepage/homepage:latest

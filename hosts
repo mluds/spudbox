@@ -1,5 +1,5 @@
-[home]
-spudbox ansible_host=192.168.0.42 ansible_user=luds ansible_ssh_private_key_file=~/.ssh/spudnet
+[spudnet_prd]
+spudbox_prd ansible_host=192.168.0.42 ansible_user=luds ansible_ssh_private_key_file=~/.ssh/spudnet
 
-[home_dev]
-spudbox ansible_host=192.168.0.109 ansible_user=luds ansible_ssh_private_key_file=~/.ssh/spudnet
+[spudnet_dev]
+spudbox_dev ansible_host=192.168.0.41 ansible_user=luds ansible_ssh_private_key_file=~/.ssh/spudnet
