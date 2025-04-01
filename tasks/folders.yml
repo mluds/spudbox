@@ -11,6 +11,7 @@
     mode: '0775'
     owner: "{{ ansible_user }}"
     group: media
+    recurse: yes
   loop:
     - /mnt/storage/data/media/movies
     - /mnt/storage/data/media/tv
