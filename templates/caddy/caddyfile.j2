@@ -11,11 +11,9 @@
 }
 
 sonarr.{{ domain }} {
-  import common_auth
   reverse_proxy sonarr:{{ sonarr_port }}
 }
 radarr.{{ domain }} {
-  import common_auth
   reverse_proxy radarr:{{ radarr_port }}
 }
 bazarr.{{ domain }} {

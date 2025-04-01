@@ -5,28 +5,34 @@
     delay: 1
     timeout: 120
 
-- name: Set Sonarr auth method
+- name: Config Sonarr
   xml:
     path: /mnt/storage/appdata/sonarr/config.xml
-    xpath: /Config/AuthenticationMethod
-    value: External
+    xpath: "{{ item.xpath }}"
+    value: "{{ item.value }}"
   notify: restart sonarr
-
-- name: Set Sonarr API key
-  xml:
-    path: /mnt/storage/appdata/sonarr/config.xml
-    xpath: /Config/ApiKey
-    value: "{{ sonarr_api_key }}"
-  notify: restart sonarr
+  loop:
+    - xpath: /Config/AuthenticationMethod
+      value: Forms
+    - xpath: /Config/Authentication/Username
+      value: "{{ admin_username }}"
+    - xpath: /Config/Authentication/Password
+      value: "{{ admin_password }}"
+    - xpath: /Config/ApiKey
+      value: "{{ sonarr_api_key }}"
 
 - meta: flush_handlers
 
 - name: Check if Sonarr is ready
-  wait_for:
-    port: "{{ sonarr_port }}"
-    host: 127.0.0.1
-    delay: 1
-    timeout: 120
+  uri:
+    url: "http://127.0.0.1:{{ sonarr_port }}/login"
+    method: GET
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 60
+  delay: 2
+  failed_when: false
 
 - name: Add root folder to Sonarr
   ansible.builtin.uri:
