@@ -319,10 +319,11 @@ nscript_prio_error = 0
 nscript_prio_queue_done = 0
 nscript_prio_other = 1
 [servers]
-[[{{ usenet_server_host }}]]
-name = {{ usenet_server_host }}
-displayname = {{ usenet_server_host }}
-host = {{ usenet_server_host }}
+{% for host in usenet_server_hosts %}
+[[{{ host }}]]
+name = {{ host }}
+displayname = {{ host }}
+host = {{ host }}
 port = {{ usenet_server_port }}
 timeout = 60
 username = {{ usenet_server_username }}
@@ -338,8 +339,10 @@ retention = 0
 expire_date = ""
 quota = ""
 usage_at_start = 0
-priority = 1
+priority = {{ loop.index0 }}
 notes = ""
+
+{% endfor %}
 [categories]
 [[*]]
 name = *

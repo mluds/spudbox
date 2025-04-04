@@ -50,4 +50,14 @@ mergerfs_mount: /mnt/storage
 isos_dir: "{{ mergerfs_mount }}/isos"
 appdata_dir: "{{ mergerfs_mount }}/appdata"
 
+usenet_server_hosts:
+  - news.frugalusenet.com
+  - eunews.frugalusenet.com
+  - newswest.frugalusenet.com
+  - aunews.frugalusenet.com
+  - sanews.frugalusenet.com
+  - asnews.frugalusenet.com
+  - bonus.frugalusenet.com
+usenet_server_port: 563
+
 # smb_share_path: "{{ mergerfs_mount_point }}/shares"
