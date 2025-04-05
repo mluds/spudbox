@@ -36,6 +36,13 @@
       - sonarr
     state: restarted
 
+- name: restart bazarr
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - bazarr
+    state: restarted
+
 - name: restart homeassistant
   community.docker.docker_compose_v2:
     project_src: /opt/docker

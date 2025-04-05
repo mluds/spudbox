@@ -35,6 +35,16 @@
         url: http://radarr:{{ radarr_port }}
         key: "{{ radarr_api_key }}"
         enableQueue: false
+  - Bazarr:
+      icon: bazarr
+      href: https://bazarr.{{ domain }}
+      description: Subtitles Management
+      container: bazarr
+      widget:
+        type: bazarr
+        fields: ["missingEpisodes", "missingMovies"]
+        url: http://bazarr:{{ bazarr_port }}
+        key: "{{ bazarr_api_key }}"
 - Downloaders:
   - SABnzbd:
       icon: sabnzbd
