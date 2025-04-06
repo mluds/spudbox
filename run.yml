@@ -5,6 +5,4 @@
     - import_tasks: handlers/misc.yml
     - import_tasks: handlers/docker.yml
   tasks:
-    - import_tasks: tasks/bazarr.yml
-    - import_tasks: tasks/homepage.yml
-    - import_tasks: tasks/wireguard.yml
+    - import_tasks: tasks/logs.yml
