@@ -71,3 +71,12 @@
       href: https://zwavejs.{{ domain }}
       description: Z-Wave Network Manager
       container: zwavejs
+- Other:
+  - Caddy:
+      icon: caddy
+      description: Service Gateway
+      container: caddy
+      widget:
+        type: caddy
+        fields: ["upstreams", "requests", "requests_failed"]
+        url: http://caddy:{{ caddy_admin_port }}

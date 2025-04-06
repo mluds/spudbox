@@ -24,6 +24,7 @@ qbittorrent_uid: 1005
 qbittorrent_port: 8082
 
 caddy_uid: 1006
+caddy_admin_port: 2019
 
 homeassistant_uid: 1007
 homeassistant_port: 8123
