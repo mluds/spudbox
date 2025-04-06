@@ -4,8 +4,6 @@ services:
     container_name: sabnzbd
     restart: unless-stopped
     user: "{{ sabnzbd_uid }}:{{ media_gid }}"
-    ports:
-      - "{{ sabnzbd_port }}"
     volumes:
       - /mnt/storage/appdata/sabnzbd:/config
       - /mnt/storage/data:/data
@@ -74,8 +72,6 @@ services:
     image: linuxserver/plex
     container_name: plex
     restart: unless-stopped
-    ports:
-      - "{{ plex_port }}"
     volumes:
       - /mnt/storage/appdata/plex:/config
       - /mnt/storage/data:/data
@@ -93,8 +89,6 @@ services:
     container_name: overseerr
     restart: unless-stopped
     user: "{{ overseerr_uid }}:{{ overseerr_uid }}"
-    ports:
-      - "{{ overseerr_port }}"
     volumes:
       - /mnt/storage/appdata/overseerr:/config
     environment:
@@ -109,8 +103,6 @@ services:
     container_name: qbittorrent
     restart: unless-stopped
     user: "{{ qbittorrent_uid }}:{{ media_gid }}"
-    ports:
-      - "{{ qbittorrent_port }}"
     volumes:
       - /mnt/storage/appdata/qbittorrent:/config
       - /mnt/storage/data:/data
@@ -149,8 +141,6 @@ services:
       - /mnt/storage/appdata/homeassistant:/config
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
-    ports:
-      - "{{ homeassistant_port }}"
     networks:
       - internal
 
@@ -180,8 +170,6 @@ services:
   homepage:
     image: ghcr.io/gethomepage/homepage:latest
     container_name: homepage
-    ports:
-      - "{{ homepage_port }}"
     volumes:
       - /mnt/storage/appdata/homepage:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
