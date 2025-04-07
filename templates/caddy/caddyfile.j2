@@ -4,12 +4,18 @@
 
 *.{{ domain }} {
   tls {
-    dns cloudflare {{ cloudflare_api_token }}
+    issuer acme {
+      dns cloudflare {{ cloudflare_api_token }}
+      resolvers 1.1.1.1
+      disable_http_challenge
+      disable_tlsalpn_challenge
+      preferred_chains smallest
+    }
   }
 }
 
 (common_auth) {
-  basicauth {
+  basic_auth {
     {{ admin_username }} {{ admin_password_hash }}
   }
 }
