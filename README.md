@@ -45,7 +45,7 @@ Under `/etc/netplan/`:
 network:
   version: 2
   ethernets:
-    enp9s0:
+    eno1:
       addresses:
         - 192.168.0.42/24
       routes:
