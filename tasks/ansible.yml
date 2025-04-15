@@ -1,6 +1,20 @@
 - name: Install dependencies for ansible modules
   apt:
     name:
+      - python3-pip
       - python3-lxml
+      - python3-venv
       - sqlite3
+      - powertop
     state: present
+
+- name: Create python virtual environment
+  command: python3 -m venv /opt/python-venv
+  args:
+    creates: /opt/python-venv
+
+- name: Install plexapi in virtual environment
+  pip:
+    name: plexapi
+    state: present
+    virtualenv: /opt/python-venv

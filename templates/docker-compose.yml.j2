@@ -72,6 +72,8 @@ services:
     image: linuxserver/plex
     container_name: plex
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:{{ plex_port }}:{{ plex_port }}"
     volumes:
       - /mnt/storage/appdata/plex:/config
       - /mnt/storage/data:/data

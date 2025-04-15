@@ -1,0 +1,27 @@
+- name: Configure Plex server
+  plex_config:
+    plex_url: "http://127.0.0.1:32400"
+    username: "{{ plex_username }}"
+    password: "{{ plex_password }}"
+    access_url: "https://plex.{{ domain }}"
+    library_sections:
+      - name: "Movies"
+        type: "movie"
+        agent: "tv.plex.agents.movie"
+        scanner: "Plex Movie"
+        location: "/data/media/movies"
+        language: "en-US"
+      - name: "TV Shows"
+        type: "show"
+        agent: "tv.plex.agents.series"
+        scanner: "Plex TV Series"
+        location: "/data/media/tv"
+        language: "en-US"
+      - name: "Videos"
+        type: "movie"
+        agent: "tv.plex.agents.none"
+        scanner: "Plex Video Files"
+        location: "/data/media/videos"
+        language: "en-US"
+  vars:
+    ansible_python_interpreter: /opt/python-venv/bin/python
