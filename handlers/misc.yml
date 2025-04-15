@@ -1,5 +1,5 @@
 - name: restart ssh
-  service:
+  systemd:
     name: ssh
     state: restarted
 
@@ -7,3 +7,12 @@
   systemd:
     name: systemd-journald
     state: restarted
+
+- name: restart samba
+  systemd:
+    name: "{{ item }}"
+    state: restarted
+    enabled: yes
+  loop:
+    - smbd
+    - nmbd

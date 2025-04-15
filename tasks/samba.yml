@@ -1,0 +1,55 @@
+# Note that samba passwords to not sync to unix passwords.
+# The user must run smbpasswd to change the samba password.
+
+- name: Install Samba
+  apt:
+    name:
+      - samba
+      - samba-common
+    state: present
+    update_cache: yes
+  notify: restart samba
+
+- name: Configure Samba
+  template:
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart samba
+
+- name: Create Samba groups
+  group:
+    name: "{{ item.name }}"
+    state: present
+  loop: "{{ samba_groups }}"
+
+- name: Check if users exist in Samba passdb
+  command: "pdbedit -L"
+  register: samba_users_list
+  changed_when: false
+  check_mode: no
+
+- name: Add users to Samba password database if needed
+  shell: "(echo '{{ item.password }}'; echo '{{ item.password }}') | smbpasswd -s -a {{ item.username }}"
+  loop: "{{ users }}"
+  when: item.username not in samba_users_list.stdout
+  no_log: true
+
+- name: Add users to Samba groups
+  user:
+    name: "{{ item.0 }}"
+    groups: "{{ item.1.name }}"
+    append: yes
+  with_nested:
+    - "{{ samba_groups | map(attribute='users') | flatten | list }}"
+    - "{{ samba_groups }}"
+  when: item.0 in item.1.users
+
+- name: Configure UFW to allow Samba traffic
+  ufw:
+    rule: allow
+    name: "{{ item }}"
+  loop:
+    - Samba

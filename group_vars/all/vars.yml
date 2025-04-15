@@ -61,4 +61,14 @@ usenet_server_hosts:
   - bonus.frugalusenet.com
 usenet_server_port: 563
 
-# smb_share_path: "{{ mergerfs_mount_point }}/shares"
+samba_shares:
+  - name: misc
+    path: "{{ mergerfs_mount }}/data/misc"
+    browsable: no
+    guest_ok: no
+    read_only: no
+    valid_users: "@smb_misc"
+samba_groups:
+  - name: smb_misc
+    users:
+      - luds

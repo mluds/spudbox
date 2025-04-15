@@ -23,6 +23,7 @@
     - /mnt/storage/data/torrents/complete/tv
     - /mnt/storage/data/torrents/incomplete/movies
     - /mnt/storage/data/torrents/incomplete/tv
+    - /mnt/storage/data/misc
 
 - name: Create appdata directories
   ansible.builtin.file:
