@@ -63,8 +63,8 @@ usenet_server_port: 563
 
 samba_shares:
   - name: misc
-    path: "{{ mergerfs_mount }}/misc"
-    browsable: no
+    path: "{{ mergerfs_mount }}/data/misc"
+    browsable: yes
     guest_ok: no
     read_only: no
     valid_users: "@smb_misc"
