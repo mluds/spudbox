@@ -36,6 +36,8 @@ zwavejs_port: 8091
 homepage_uid: 1000
 homepage_port: 3000
 
+cockpit_port: 9090
+
 lan_cidr: 192.168.0.0/24
 public_domain: public.spudbox.win
 wireguard_port: 51820

@@ -5,4 +5,4 @@
     - import_tasks: handlers/misc.yml
     - import_tasks: handlers/docker.yml
   tasks:
-    - import_tasks: tasks/samba.yml
+    - import_tasks: tasks/cockpit.yml

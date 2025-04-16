@@ -1,0 +1,34 @@
+- name: Install Cockpit
+  apt:
+    name:
+      - cockpit
+      - cockpit-networkmanager
+      - cockpit-packagekit
+      - cockpit-storaged
+      - cockpit-system
+    state: present
+
+- name: Allow access to Cockpit from Docker network
+  ufw:
+    rule: allow
+    port: "9090"
+    proto: tcp
+    src: "172.18.0.1/16"
+    
+- name: Create globally-managed-devices.conf file
+  copy:
+    dest: /etc/NetworkManager/conf.d/10-globally-managed-devices.conf
+    content: |
+      [keyfile]
+      unmanaged-devices=none
+    mode: '0644'
+
+- name: Check if fake network interface already exists
+  shell: nmcli -t -f NAME con show | grep -q "^fake$" || echo "not_exists"
+  register: fake_connection_check
+  changed_when: false
+  
+- name: Create fake network interface for PackageKit
+  command: nmcli con add type dummy con-name fake ifname fake0 ip4 1.2.3.4/24 gw4 1.2.3.1
+  when: fake_connection_check.stdout == "not_exists"
+  register: nm_result

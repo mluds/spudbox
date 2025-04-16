@@ -1,6 +1,6 @@
-- name: Generate bcrypt hash using Ansible
+- name: Generate bcrypt hash for admin password
   set_fact:
-    admin_password_hash: "{{ admin_password | password_hash('bcrypt') }}"
+    admin_password_hash: "{{ admin_password | password_hash('bcrypt', 'FixedSaltValue12345678') }}"
   no_log: true
 
 - name: Configure Caddy Dockerfile

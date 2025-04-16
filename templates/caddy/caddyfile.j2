@@ -52,3 +52,10 @@ zwavejs.{{ domain }} {
 homepage.{{ domain }} {
   reverse_proxy homepage:{{ homepage_port }}
 }
+cockpit.{{ domain }} {
+    reverse_proxy https://{{ ansible_host }}:{{ cockpit_port }} {
+        transport http {
+            tls_insecure_skip_verify
+        }
+    }
+}
