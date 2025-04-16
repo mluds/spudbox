@@ -60,6 +60,11 @@
       href: https://qbittorrent.{{ domain }}
       description: Torrent Downloader
       container: qbittorrent
+      widget:
+        type: qbittorrent
+        url: http://qbittorrent:{{ qbittorrent_port }}
+        fields: ["leech", "download", "seed", "upload"]
+        enableLeechProgress: false
 - Home Automation:
   - Home Assistant:
       icon: home-assistant
