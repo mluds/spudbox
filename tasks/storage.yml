@@ -7,7 +7,7 @@
 
 - name: Create partitions if they don't exist
   ansible.builtin.shell: |
-    echo -e "o\nn\np\n1\n\n\nw" | fdisk {{ item.item.device }}
+    echo -e "g\nn\n1\n\n\nw" | fdisk {{ item.item.device }}
   when: item.rc != 0
   loop: "{{ partition_check.results }}"
   register: partition_created
@@ -23,8 +23,6 @@
   failed_when: false
   changed_when: false
   loop: "{{ mergerfs_drives }}"
-
-- debug: var=fs_check
 
 - name: Create XFS filesystem if it doesn't exist
   ansible.builtin.filesystem:

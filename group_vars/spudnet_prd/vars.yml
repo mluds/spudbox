@@ -3,4 +3,7 @@ mergerfs_drives:
   - device: /dev/nvme0n1
     partition: /dev/nvme0n1p1
     mount: /mnt/disk1
+  - device: /dev/sda
+    partition: /dev/sda1
+    mount: /mnt/disk2
 zwavejs_enabled: false
