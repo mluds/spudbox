@@ -52,6 +52,13 @@
     state: present
     update_cache: yes
 
+- name: Configure Docker
+  template:
+    src: docker/daemon.json
+    dest: /etc/docker/daemon.json
+    mode: '0600'
+  notify: restart docker
+
 - name: Create docker group
   group:
     name: docker
@@ -92,12 +99,5 @@
     name: docker
     state: started
     enabled: yes
-
-- name: Fix Docker DNS
-  template:
-    src: docker/daemon.json
-    dest: /etc/docker/daemon.json
-    mode: '0600'
-  notify: restart docker
 
 - meta: flush_handlers
