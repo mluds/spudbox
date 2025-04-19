@@ -1,3 +1,37 @@
+- name: Create users for Docker services
+  user:
+    name: "{{ item.name }}"
+    uid: "{{ item.uid }}"
+    system: no
+    shell: /usr/sbin/nologin
+    create_home: no
+    state: present
+  loop:
+    - uid: "{{ sabnzbd_uid }}"
+      name: sabnzbd
+    - uid: "{{ radarr_uid }}"
+      name: radarr
+    - uid: "{{ sonarr_uid }}"
+      name: sonarr
+    - uid: "{{ bazarr_uid }}"
+      name: bazarr
+    - uid: "{{ plex_uid }}"
+      name: plex
+    - uid: "{{ overseerr_uid }}"
+      name: overseerr
+    - uid: "{{ qbittorrent_uid }}"
+      name: qbittorrent
+    - uid: "{{ caddy_uid }}"
+      name: caddy
+    - uid: "{{ homeassistant_uid }}"
+      name: homeassistant
+    - uid: "{{ zwavejs_uid }}"
+      name: zwavejs
+    - uid: "{{ homepage_uid }}"
+      name: homepage
+    - uid: "{{ aria2_uid }}"
+      name: aria2
+
 - name: Install required packages
   apt:
     name:

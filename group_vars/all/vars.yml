@@ -1,6 +1,6 @@
 media_gid: 1337
 
-sabnzbd_uid: 1000
+sabnzbd_uid: 1012
 sabnzbd_port: 8081
 sabnzbd_download_dir: /incomplete-downloads
 sabnzbd_complete_dir: /downloads
@@ -33,7 +33,7 @@ zwavejs_enabled: true
 zwavejs_uid: 1008
 zwavejs_port: 8091
 
-homepage_uid: 1000
+homepage_uid: 1013
 homepage_port: 3000
 
 cockpit_port: 9090
