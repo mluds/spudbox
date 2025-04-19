@@ -7,7 +7,7 @@
 
 - name: Config Sonarr
   xml:
-    path: /mnt/storage/appdata/sonarr/config.xml
+    path: "{{ appdata_dir }}/sonarr/config.xml"
     xpath: "{{ item.xpath }}"
     value: "{{ item.value }}"
   notify: restart sonarr
@@ -44,7 +44,7 @@
     body: |
       {
         "name": "TV",
-        "path": "/data/media/tv"
+        "path": "/storage/data/media/tv"
       }
     status_code: [201, 400]
   register: sonarr_rootfolder_result

@@ -5,8 +5,8 @@ services:
     restart: unless-stopped
     user: "{{ sabnzbd_uid }}:{{ media_gid }}"
     volumes:
-      - /mnt/storage/appdata/sabnzbd:/config
-      - /mnt/storage/data:/data
+      - "{{ appdata_dir }}/sabnzbd:/config"
+      - "{{ cache_dir }}/data:/cache/data"
     environment:
       - PUID={{ sabnzbd_uid }}
       - PGID={{ media_gid }}
@@ -23,8 +23,9 @@ services:
       # Needed to access API from Ansible
       - "127.0.0.1:{{ radarr_port }}:{{ radarr_port }}"
     volumes:
-      - /mnt/storage/appdata/radarr:/config
-      - /mnt/storage/data:/data
+      - "{{ appdata_dir }}/radarr:/config"
+      - "{{ storage_dir }}/data:/storage/data"
+      - "{{ cache_dir }}/data:/cache/data"
     environment:
       - PUID={{ radarr_uid }}
       - PGID={{ media_gid }}
@@ -41,8 +42,9 @@ services:
       # Needed to access API from Ansible
       - "127.0.0.1:{{ sonarr_port }}:{{ sonarr_port }}"
     volumes:
-      - /mnt/storage/appdata/sonarr:/config
-      - /mnt/storage/data:/data
+      - "{{ appdata_dir }}/sonarr:/config"
+      - "{{ storage_dir }}/data:/storage/data"
+      - "{{ cache_dir }}/data:/cache/data"
     environment:
       - PUID={{ sonarr_uid }}
       - PGID={{ media_gid }}
@@ -59,8 +61,8 @@ services:
       # Needed to access API from Ansible
       - "127.0.0.1:{{ bazarr_port }}:{{ bazarr_port }}"
     volumes:
-      - /mnt/storage/appdata/bazarr:/config
-      - /mnt/storage/data:/data
+      - "{{ appdata_dir }}/bazarr:/config"
+      - "{{ storage_dir }}/data:/storage/data"
     environment:
       - PUID={{ bazarr_uid }}
       - PGID={{ media_gid }}
@@ -75,8 +77,8 @@ services:
     ports:
       - "127.0.0.1:{{ plex_port }}:{{ plex_port }}"
     volumes:
-      - /mnt/storage/appdata/plex:/config
-      - /mnt/storage/data:/data
+      - "{{ appdata_dir }}/plex:/config"
+      - "{{ storage_dir }}/data:/storage/data"
     environment:
       - PUID={{ plex_uid }}
       - PGID={{ media_gid }}
@@ -92,7 +94,7 @@ services:
     restart: unless-stopped
     user: "{{ overseerr_uid }}:{{ overseerr_uid }}"
     volumes:
-      - /mnt/storage/appdata/overseerr:/config
+      - "{{ appdata_dir }}/overseerr:/config"
     environment:
       - PUID={{ overseerr_uid }}
       - PGID={{ overseerr_uid }}
@@ -106,8 +108,8 @@ services:
     restart: unless-stopped
     user: "{{ qbittorrent_uid }}:{{ media_gid }}"
     volumes:
-      - /mnt/storage/appdata/qbittorrent:/config
-      - /mnt/storage/data:/data
+      - "{{ appdata_dir }}/qbittorrent:/config"
+      - "{{ storage_dir }}/data:/storage/data"
     environment:
       - PUID={{ qbittorrent_uid }}
       - PGID={{ media_gid }}
@@ -119,7 +121,7 @@ services:
   caddy:
     build:
       context: .
-      dockerfile: /mnt/storage/appdata/caddy/Dockerfile
+      dockerfile: "{{ appdata_dir }}/caddy/Dockerfile"
     container_name: caddy
     restart: unless-stopped
     user: "{{ caddy_uid }}:{{ caddy_uid }}"
@@ -130,8 +132,8 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - /mnt/storage/appdata/caddy/conf:/etc/caddy
-      - /mnt/storage/appdata/caddy/data:/data
+      - "{{ appdata_dir }}/caddy/conf:/etc/caddy"
+      - "{{ appdata_dir }}/caddy/data:/data"
     networks:
       - internal
 
@@ -140,7 +142,7 @@ services:
     image: ghcr.io/home-assistant/home-assistant:stable
     user: "{{ homeassistant_uid }}:{{ homeassistant_uid }}"
     volumes:
-      - /mnt/storage/appdata/homeassistant:/config
+      - "{{ appdata_dir }}/homeassistant:/config"
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     networks:
@@ -163,7 +165,7 @@ services:
     devices:
       - '{{ zwave_device_path }}:/dev/zwave'
     volumes:
-      - /mnt/storage/appdata/zwavejs:/usr/src/app/store
+      - "{{ appdata_dir }}/zwavejs:/usr/src/app/store"
     ports:
       - '{{ zwavejs_port }}'
       - '3000'
@@ -173,9 +175,9 @@ services:
     image: ghcr.io/gethomepage/homepage:latest
     container_name: homepage
     volumes:
-      - /mnt/storage/appdata/homepage:/app/config
+      - "{{ appdata_dir }}/homepage:/app/config"
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /mnt/storage:/data
+      - "{{ storage_dir }}:/data"
     environment:
       - PUID={{ homepage_uid }}
       - PGID={{ docker_gid }}

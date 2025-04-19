@@ -1,7 +1,7 @@
 - name: Check if qBittorrent config file would change
   template:
     src: qbittorrent.conf.j2
-    dest: /mnt/storage/appdata/qbittorrent/qBittorrent/qBittorrent.conf
+    dest: "{{ appdata_dir }}/qbittorrent/qBittorrent/qBittorrent.conf"
     owner: "{{ qbittorrent_uid }}"
     mode: '0644'
   register: qbittorrent_config_check
@@ -18,7 +18,7 @@
 - name: Create qBittorrent config file
   template:
     src: qbittorrent.conf.j2
-    dest: /mnt/storage/appdata/qbittorrent/qBittorrent/qBittorrent.conf
+    dest: "{{ appdata_dir }}/qbittorrent/qBittorrent/qBittorrent.conf"
     owner: "{{ qbittorrent_uid }}"
     mode: '0644'
   when: qbittorrent_config_check.changed

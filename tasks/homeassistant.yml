@@ -1,7 +1,7 @@
 - name: Create Home Assistant configuration files
   template:
     src: "homeassistant/{{ item.src }}"
-    dest: "/mnt/storage/appdata/homeassistant/{{ item.dest }}"
+    dest: "{{ appdata_dir }}/homeassistant/{{ item.dest }}"
     owner: "{{ homeassistant_uid }}"
     mode: '0644'
   loop:

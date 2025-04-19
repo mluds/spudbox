@@ -6,13 +6,13 @@
 - name: Configure Caddy Dockerfile
   template:
     src: caddy/Dockerfile
-    dest: /mnt/storage/appdata/caddy/Dockerfile
+    dest: "{{ appdata_dir }}/caddy/Dockerfile"
     mode: '0644'
   notify: update compose
 
 - name: Configure Caddyfile
   template:
     src: caddy/caddyfile.j2
-    dest: /mnt/storage/appdata/caddy/conf/Caddyfile
+    dest: "{{ appdata_dir }}/caddy/conf/Caddyfile"
     mode: '0644'
   notify: restart caddy

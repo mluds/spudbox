@@ -48,10 +48,10 @@ wireguard_clients:
   - name: mikes-iphone
   - name: mikes-pc
 
-mergerfs_mount: /mnt/storage
-
-isos_dir: "{{ mergerfs_mount }}/isos"
-appdata_dir: "{{ mergerfs_mount }}/appdata"
+cache_dir: /mnt/cache
+storage_dir: /mnt/storage
+isos_dir: "{{ storage_dir }}/isos"
+appdata_dir: "{{ cache_dir }}/appdata"
 
 usenet_server_hosts:
   - news.frugalusenet.com
@@ -64,13 +64,22 @@ usenet_server_hosts:
 usenet_server_port: 563
 
 samba_shares:
+  - name: media
+    path: "{{ storage_dir }}/data/media"
+    browsable: yes
+    guest_ok: no
+    read_only: no
+    valid_users: "@smb_media"
   - name: misc
-    path: "{{ mergerfs_mount }}/data/misc"
+    path: "{{ storage_dir }}/data/misc"
     browsable: yes
     guest_ok: no
     read_only: no
     valid_users: "@smb_misc"
 samba_groups:
   - name: smb_misc
+    users:
+      - luds
+  - name: smb_media
     users:
       - luds

@@ -11,7 +11,7 @@
 
 - name: Read existing YAML file
   ansible.builtin.slurp:
-    src: /mnt/storage/appdata/bazarr/config/config.yaml
+    src: "{{ appdata_dir }}/bazarr/config/config.yaml"
   register: config_content
 
 - name: Parse YAML content
@@ -61,13 +61,13 @@
 
 - name: Write updated YAML back to file
   ansible.builtin.copy:
-    dest: /mnt/storage/appdata/bazarr/config/config.yaml
+    dest: "{{ appdata_dir }}/bazarr/config/config.yaml"
     content: "{{ config_yaml | to_nice_yaml(indent=2) }}"
   notify: restart bazarr
 
 - name: Check if language profile exists
   ansible.builtin.shell: |
-    sqlite3 /mnt/storage/appdata/bazarr/db/bazarr.db "SELECT COUNT(*) FROM table_languages_profiles WHERE name='Default';"
+    sqlite3 {{ appdata_dir }}/bazarr/db/bazarr.db "SELECT COUNT(*) FROM table_languages_profiles WHERE name='Default';"
   register: profile_exists
   changed_when: false
   args:
@@ -75,7 +75,7 @@
 
 - name: Add language profile if it doesn't exist
   ansible.builtin.shell: |
-    sqlite3 /mnt/storage/appdata/bazarr/db/bazarr.db "INSERT INTO table_languages_profiles (\"profileId\", cutoff, \"originalFormat\", items, name, \"mustContain\", \"mustNotContain\", tag) VALUES (1, NULL, 0, '[{\"id\": 1, \"language\": \"en\", \"audio_exclude\": \"False\", \"hi\": \"False\", \"forced\": \"False\"}, {\"id\": 2, \"language\": \"zh\", \"audio_exclude\": \"False\", \"hi\": \"False\", \"forced\": \"False\"}]', 'Default', '[]', '[]', NULL);"
+    sqlite3 {{ appdata_dir }}/bazarr/db/bazarr.db "INSERT INTO table_languages_profiles (\"profileId\", cutoff, \"originalFormat\", items, name, \"mustContain\", \"mustNotContain\", tag) VALUES (1, NULL, 0, '[{\"id\": 1, \"language\": \"en\", \"audio_exclude\": \"False\", \"hi\": \"False\", \"forced\": \"False\"}, {\"id\": 2, \"language\": \"zh\", \"audio_exclude\": \"False\", \"hi\": \"False\", \"forced\": \"False\"}]', 'Default', '[]', '[]', NULL);"
   args:
     executable: /bin/bash
   when: profile_exists.stdout == "0"

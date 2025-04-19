@@ -1,7 +1,7 @@
 - name: Create SABnzbd config file
   template:
     src: sabnzbd.ini.j2
-    dest: /mnt/storage/appdata/sabnzbd/sabnzbd.ini
+    dest: "{{ appdata_dir }}/sabnzbd/sabnzbd.ini"
     owner: "{{ sabnzbd_uid }}"
     mode: '0644'
   notify: restart sabnzbd

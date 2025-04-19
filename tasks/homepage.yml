@@ -1,7 +1,7 @@
 - name: Create homepage config files
   template:
     src: "homepage/{{ item }}.j2"
-    dest: /mnt/storage/appdata/homepage/{{ item }}
+    dest: "{{ appdata_dir }}/homepage/{{ item }}"
     owner: "{{ homepage_uid }}"
     mode: '0644'
   loop:

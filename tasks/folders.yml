@@ -13,17 +13,17 @@
     group: media
     recurse: yes
   loop:
-    - /mnt/storage/data/media/movies
-    - /mnt/storage/data/media/tv
-    - /mnt/storage/data/usenet/complete/movies
-    - /mnt/storage/data/usenet/complete/tv
-    - /mnt/storage/data/usenet/incomplete/movies
-    - /mnt/storage/data/usenet/incomplete/tv
-    - /mnt/storage/data/torrents/complete/movies
-    - /mnt/storage/data/torrents/complete/tv
-    - /mnt/storage/data/torrents/incomplete/movies
-    - /mnt/storage/data/torrents/incomplete/tv
-    - /mnt/storage/data/misc
+    - "{{ storage_dir }}/data/media/movies"
+    - "{{ storage_dir }}/data/media/tv"
+    - "{{ storage_dir }}/data/misc"
+    - "{{ cache_dir }}/data/usenet/complete/movies"
+    - "{{ cache_dir }}/data/usenet/complete/tv"
+    - "{{ cache_dir }}/data/usenet/incomplete/movies"
+    - "{{ cache_dir }}/data/usenet/incomplete/tv"
+    - "{{ cache_dir }}/data/torrents/complete/movies"
+    - "{{ cache_dir }}/data/torrents/complete/tv"
+    - "{{ cache_dir }}/data/torrents/incomplete/movies"
+    - "{{ cache_dir }}/data/torrents/incomplete/tv"
 
 - name: Create appdata directories
   ansible.builtin.file:
@@ -33,28 +33,28 @@
     owner: "{{ item.uid }}"
     group: "{{ item.gid | default(item.uid) }}"
   loop:
-    - path: '/mnt/storage/appdata/sabnzbd'
+    - path: '{{ appdata_dir }}/sabnzbd'
       uid: "{{ sabnzbd_uid }}"
-    - path: '/mnt/storage/appdata/radarr'
+    - path: '{{ appdata_dir }}/radarr'
       uid: "{{ radarr_uid }}"
-    - path: '/mnt/storage/appdata/sonarr'
+    - path: '{{ appdata_dir }}/sonarr'
       uid: "{{ sonarr_uid }}"
-    - path: /mnt/storage/appdata/bazarr
+    - path: '{{ appdata_dir }}/bazarr'
       uid: '{{ bazarr_uid }}'
-    - path: '/mnt/storage/appdata/plex'
+    - path: '{{ appdata_dir }}/plex'
       uid: "{{ plex_uid }}"
       gid: "{{ media_gid }}"
-    - path: '/mnt/storage/appdata/overseerr'
+    - path: '{{ appdata_dir }}/overseerr'
       uid: "{{ overseerr_uid }}"
-    - path: '/mnt/storage/appdata/qbittorrent/qBittorrent'
+    - path: '{{ appdata_dir }}/qbittorrent/qBittorrent'
       uid: "{{ qbittorrent_uid }}"
-    - path: /mnt/storage/appdata/caddy/conf
+    - path: '{{ appdata_dir }}/caddy/conf'
       uid: '{{ caddy_uid }}'
-    - path: /mnt/storage/appdata/caddy/data
+    - path: '{{ appdata_dir }}/caddy/data'
       uid: '{{ caddy_uid }}'
-    - path: /mnt/storage/appdata/homeassistant
+    - path: '{{ appdata_dir }}/homeassistant'
       uid: '{{ homeassistant_uid }}'
-    - path: /mnt/storage/appdata/zwavejs
+    - path: '{{ appdata_dir }}/zwavejs'
       uid: '{{ zwavejs_uid }}'
-    - path: /mnt/storage/appdata/homepage
+    - path: '{{ appdata_dir }}/homepage'
       uid: '{{ homepage_uid }}'

@@ -3,7 +3,7 @@
   register: partition_check
   failed_when: false
   changed_when: false
-  loop: "{{ mergerfs_drives }}"
+  loop: "{{ cache_drives + storage_drives }}"
 
 - name: Create partitions if they don't exist
   ansible.builtin.shell: |
@@ -22,7 +22,7 @@
   register: fs_check
   failed_when: false
   changed_when: false
-  loop: "{{ mergerfs_drives }}"
+  loop: "{{ cache_drives + storage_drives }}"
 
 - name: Create XFS filesystem if it doesn't exist
   ansible.builtin.filesystem:
@@ -36,13 +36,16 @@
     path: "{{ item.mount }}"
     state: directory
     mode: '0755'
-  loop: "{{ mergerfs_drives }}"
+  loop: "{{ cache_drives + storage_drives }}"
 
 - name: Create mount point for merged filesystem
   ansible.builtin.file:
-    path: "{{ mergerfs_mount }}"
+    path: "{{ item }}"
     state: directory
     mode: '0755'
+  loop:
+    - "{{ cache_dir }}"
+    - "{{ storage_dir }}"
 
 - name: Mount individual disks
   ansible.builtin.mount:
@@ -50,7 +53,7 @@
     src: "{{ item.partition }}"
     fstype: xfs
     state: mounted
-  loop: "{{ mergerfs_drives }}"
+  loop: "{{ cache_drives + storage_drives }}"
 
 - name: Install mergerfs package
   ansible.builtin.package:
@@ -58,14 +61,43 @@
     state: present
     update_cache: yes
 
-- name: Get a list of mounted disks for mergerfs
+- name: Get a list of mounted disks for mergerfs cache
   ansible.builtin.set_fact:
-    mergerfs_paths: "{{ mergerfs_drives | map(attribute='mount') | join(':') }}"
+    cache_paths: "{{ cache_drives | map(attribute='mount') | join(':') }}"
 
-- name: Mount mergerfs filesystem
+- name: Mount mergerfs cache filesystem
   ansible.builtin.mount:
-    path: "{{ mergerfs_mount }}"
-    src: "{{ mergerfs_paths }}"
+    path: "{{ cache_dir }}"
+    src: "{{ cache_paths }}"
     fstype: "fuse.mergerfs"
     opts: "defaults,allow_other,use_ino,cache.files=partial,dropcacheonclose=true,category.create=mfs,fsname=mergerfs"
     state: mounted
+
+- name: Get a list of mounted disks for mergerfs storage
+  ansible.builtin.set_fact:
+    storage_paths: "{{ storage_drives | map(attribute='mount') | join(':') }}"
+
+- name: Mount mergerfs storage filesystem
+  ansible.builtin.mount:
+    path: "{{ storage_dir }}"
+    src: "{{ storage_paths }}"
+    fstype: "fuse.mergerfs"
+    opts: "defaults,allow_other,use_ino,cache.files=partial,dropcacheonclose=true,category.create=mfs,fsname=mergerfs"
+    state: mounted
+
+- name: Create udev rule for hdparm settings
+  copy:
+    dest: /etc/udev/rules.d/69-hdparm.rules
+    content: 'ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", RUN+="/sbin/hdparm -S 120 -B 127 /dev/%k"'
+    owner: root
+    group: root
+    mode: '0644'
+  register: udev_rule
+
+- name: Reload udev rules
+  command: udevadm control --reload-rules
+  when: udev_rule.changed
+
+- name: Apply udev rules
+  command: udevadm trigger
+  when: udev_rule.changed

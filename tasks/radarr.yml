@@ -7,7 +7,7 @@
 
 - name: Config Radarr
   xml:
-    path: /mnt/storage/appdata/radarr/config.xml
+    path: "{{ appdata_dir }}/radarr/config.xml"
     xpath: "{{ item.xpath }}"
     value: "{{ item.value }}"
   notify: restart radarr
@@ -44,7 +44,7 @@
     body: |
       {
         "name": "Movies",
-        "path": "/data/media/movies"
+        "path": "/storage/data/media/movies"
       }
     status_code: [201, 400]
   register: radarr_rootfolder_result

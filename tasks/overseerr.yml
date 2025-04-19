@@ -1,7 +1,7 @@
 - name: Create Overseerr config file
   template:
     src: overseerr.json.j2
-    dest: /mnt/storage/appdata/overseerr/settings.json
+    dest: "{{ appdata_dir }}/overseerr/settings.json"
     owner: "{{ overseerr_uid }}"
     mode: '0644'
 
