@@ -6,6 +6,7 @@
       - python3-venv
       - sqlite3
       - powertop
+      - iotop
     state: present
 
 - name: Create python virtual environment

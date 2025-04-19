@@ -85,10 +85,10 @@
     opts: "defaults,allow_other,use_ino,cache.files=partial,dropcacheonclose=true,category.create=mfs,fsname=mergerfs"
     state: mounted
 
-- name: Create udev rule for hdparm settings
+- name: Use hdparm to have HDDs go into standby after 5 minutes
   copy:
     dest: /etc/udev/rules.d/69-hdparm.rules
-    content: 'ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", RUN+="/sbin/hdparm -S 120 -B 127 /dev/%k"'
+    content: 'ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", RUN+="/sbin/hdparm -S 60 -B 127 /dev/%k"'
     owner: root
     group: root
     mode: '0644'
