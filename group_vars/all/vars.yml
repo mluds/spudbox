@@ -36,6 +36,11 @@ zwavejs_port: 8091
 homepage_uid: 1013
 homepage_port: 3000
 
+ariang_uid: 1014
+ariang_port: 6880
+aria2_uid: 1011
+aria2_port: 6800
+
 cockpit_port: 9090
 
 lan_cidr: 192.168.0.0/24

@@ -31,6 +31,8 @@
       name: homepage
     - uid: "{{ aria2_uid }}"
       name: aria2
+    - uid: "{{ ariang_uid }}"
+      name: ariang
 
 - name: Install required packages
   apt:

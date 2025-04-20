@@ -59,3 +59,18 @@ cockpit.{{ domain }} {
         }
     }
 }
+ariang.{{ domain }} {
+  @no_cookie {
+    not header Cookie *visited=*
+  }
+  handle @no_cookie {
+    header Set-Cookie "visited=true; Path=/; Max-Age=31536000"
+    redir "https://ariang.{{ domain }}/#!/settings/rpc/set/https/aria2.{{ domain }}/443/jsonrpc/{{ aria2_secret | b64encode }}" 302
+  }
+  handle {
+    reverse_proxy ariang:{{ ariang_port }}
+  }
+}
+aria2.{{ domain }} {
+  reverse_proxy aria2:{{ aria2_port }}
+}
