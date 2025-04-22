@@ -1,0 +1,6 @@
+- name: Configure Stash
+  template:
+    src: stash/config.yml.j2
+    dest: "{{ appdata_dir }}/stash/config/config.yml"
+    mode: '0644'
+  notify: restart stash

@@ -218,6 +218,32 @@ services:
     networks:
       - internal
 
+  stash:
+    image: stashapp/stash:latest
+    container_name: stash
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "10"
+        max-size: "2m"
+    networks:
+      - internal
+    environment:
+      - STASH_STASH=/data/
+      - STASH_GENERATED=/generated/
+      - STASH_METADATA=/metadata/
+      - STASH_CACHE=/cache/
+      - STASH_PORT={{ stash_port }}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - "{{ storage_dir }}/data/misc:/data"
+      - "{{ appdata_dir }}/stash/config:/root/.stash"
+      - "{{ appdata_dir }}/stash/metadata:/metadata"
+      - "{{ appdata_dir }}/stash/cache:/cache"
+      - "{{ appdata_dir }}/stash/blobs:/blobs"
+      - "{{ appdata_dir }}/stash/generated:/generated"
+
 networks:
   internal:
     driver: bridge

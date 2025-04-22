@@ -43,6 +43,11 @@ aria2_port: 6800
 
 cockpit_port: 9090
 
+stash_uid: 1015
+stash_port: 9999
+
+admin_password_bcrypt: "{{ admin_password | password_hash('bcrypt') }}"
+
 lan_cidr: 192.168.0.0/24
 public_domain: public.spudbox.win
 wireguard_port: 51820
