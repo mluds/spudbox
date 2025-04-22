@@ -63,3 +63,10 @@
     services:
       - homepage
     state: restarted
+
+- name: restart aria2
+  community.docker.docker_compose_v2:
+    project_src: /opt/docker
+    services:
+      - aria2
+    state: restarted

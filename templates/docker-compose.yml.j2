@@ -202,8 +202,8 @@ services:
       - CUSTOM_TRACKER_URL=
       - TZ=America/New_York
     volumes:
-      - /mnt/cache/appdata/aria2/config:/config
-      #- ${PWD}/aria2-downloads:/downloads
+      - "{{ appdata_dir }}/aria2/config:/config"
+      - "{{ cache_dir }}/data/downloads:/downloads"
     restart: unless-stopped
     networks:
       - internal
@@ -213,11 +213,7 @@ services:
     container_name: ariang
     environment:
       - PUID={{ ariang_uid }}
-      - PGID={{ media_gid }}
-      - ENABLE_AUTH=false
-      #- ENABLE_RCLONE=false
-      #- ARIA2_USER=admin
-      #- ARIA2_PWD=W6aRmwDhpTRFxeTsNBQVvDDRGpCsKoBu
+      - PGID={{ ariang_uid }}
     restart: unless-stopped
     networks:
       - internal

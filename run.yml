@@ -5,5 +5,4 @@
     - import_tasks: handlers/misc.yml
     - import_tasks: handlers/docker.yml
   tasks:
-    - import_tasks: tasks/storage.yml
-    - import_tasks: tasks/cockpit.yml
+    - import_tasks: tasks/ariang.yml

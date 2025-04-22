@@ -24,6 +24,7 @@
     - "{{ cache_dir }}/data/torrents/complete/tv"
     - "{{ cache_dir }}/data/torrents/incomplete/movies"
     - "{{ cache_dir }}/data/torrents/incomplete/tv"
+    - "{{ cache_dir }}/data/downloads"
 
 - name: Create appdata directories
   ansible.builtin.file:
@@ -32,6 +33,7 @@
     mode: '0755'
     owner: "{{ item.uid }}"
     group: "{{ item.gid | default(item.uid) }}"
+    recurse: yes
   loop:
     - path: '{{ appdata_dir }}/sabnzbd'
       uid: "{{ sabnzbd_uid }}"
@@ -58,3 +60,5 @@
       uid: '{{ zwavejs_uid }}'
     - path: '{{ appdata_dir }}/homepage'
       uid: '{{ homepage_uid }}'
+    - path: '{{ appdata_dir }}/aria2/config'
+      uid: '{{ aria2_uid }}'

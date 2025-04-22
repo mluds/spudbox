@@ -1,0 +1,6 @@
+- name: Configure aria2
+  template:
+    src: aria2.conf.j2
+    dest: "{{ appdata_dir }}/aria2/config/aria2.conf"
+    mode: '0644'
+  notify: restart aria2
