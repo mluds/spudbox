@@ -45,6 +45,7 @@ cockpit_port: 9090
 
 stash_uid: 1015
 stash_port: 9999
+stashvr_port: 9666
 
 admin_password_bcrypt: "{{ admin_password | password_hash('bcrypt') }}"
 

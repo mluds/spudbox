@@ -244,6 +244,16 @@ services:
       - "{{ appdata_dir }}/stash/blobs:/blobs"
       - "{{ appdata_dir }}/stash/generated:/generated"
 
+  stashvr:
+    image: ofl0w/stash-vr:latest
+    container_name: stashvr
+    restart: unless-stopped
+    networks:
+      - internal
+    environment:
+      - STASH_GRAPHQL_URL=http://stash:{{ stash_port }}/graphql
+      - STASH_API_KEY={{ stash_apikey }}
+
 networks:
   internal:
     driver: bridge
