@@ -72,3 +72,5 @@
       uid: '{{ stash_uid }}'
     - path: '{{ appdata_dir }}/stash/generated'
       uid: '{{ stash_uid }}'
+    - path: '{{ appdata_dir }}/tautulli'
+      uid: '{{ tautulli_uid }}'

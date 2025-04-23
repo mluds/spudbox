@@ -1,3 +1,5 @@
+timezone: America/New_York
+
 media_gid: 1337
 
 sabnzbd_uid: 1012
@@ -46,6 +48,9 @@ cockpit_port: 9090
 stash_uid: 1015
 stash_port: 9999
 stashvr_port: 9666
+
+tautulli_uid: 1016
+tautulli_port: 8181
 
 admin_password_bcrypt: "{{ admin_password | password_hash('bcrypt') }}"
 

@@ -1,8 +1,15 @@
+- name: Get Plex authentication token
+  plex_token:
+    username: "{{ plex_username }}"
+    password: "{{ plex_password }}"
+    fact_name: plex_token
+  vars:
+    ansible_python_interpreter: /opt/python-venv/bin/python
+
 - name: Configure Plex server
   plex_config:
     plex_url: "http://127.0.0.1:32400"
-    username: "{{ plex_username }}"
-    password: "{{ plex_password }}"
+    token: "{{ plex_token }}"
     access_url: "https://plex.{{ domain }}"
     library_sections:
       - name: "Movies"

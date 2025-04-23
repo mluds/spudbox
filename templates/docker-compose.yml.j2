@@ -10,7 +10,7 @@ services:
     environment:
       - PUID={{ sabnzbd_uid }}
       - PGID={{ media_gid }}
-      - TZ=America/New_York
+      - TZ={{ timezone }}
     networks:
       - internal
 
@@ -29,7 +29,7 @@ services:
     environment:
       - PUID={{ radarr_uid }}
       - PGID={{ media_gid }}
-      - TZ=America/New_York
+      - TZ={{ timezone }}
     networks:
       - internal
 
@@ -48,7 +48,7 @@ services:
     environment:
       - PUID={{ sonarr_uid }}
       - PGID={{ media_gid }}
-      - TZ=America/New_York
+      - TZ={{ timezone }}
     networks:
       - internal
 
@@ -66,7 +66,7 @@ services:
     environment:
       - PUID={{ bazarr_uid }}
       - PGID={{ media_gid }}
-      - TZ=America/New_York
+      - TZ={{ timezone }}
     networks:
       - internal
 
@@ -82,9 +82,22 @@ services:
     environment:
       - PUID={{ plex_uid }}
       - PGID={{ media_gid }}
-      - TZ=America/New_York
+      - TZ={{ timezone }} 
       - VERSION=docker
       - PLEX_CLAIM={{ plex_claim }}
+    networks:
+      - internal
+
+  tautulli:
+    image: ghcr.io/tautulli/tautulli
+    container_name: tautulli
+    restart: unless-stopped
+    volumes:
+      - "{{ appdata_dir }}/tautulli:/config"
+    environment:
+      - PUID={{ tautulli_uid }}
+      - PGID={{ tautulli_uid }}
+      - TZ={{ timezone }}
     networks:
       - internal
 
@@ -98,7 +111,7 @@ services:
     environment:
       - PUID={{ overseerr_uid }}
       - PGID={{ overseerr_uid }}
-      - TZ=America/New_York
+      - TZ={{ timezone }}
     networks:
       - internal
 
@@ -113,7 +126,7 @@ services:
     environment:
       - PUID={{ qbittorrent_uid }}
       - PGID={{ media_gid }}
-      - TZ=America/New_York
+      - TZ={{ timezone }}
       - WEBUI_PORT={{ qbittorrent_port }}
     networks:
       - internal
@@ -159,7 +172,7 @@ services:
     user: "{{ zwavejs_uid }}:dialout"
     environment:
       - SESSION_SECRET={{ zwavejs_session_secret }}
-      - TZ=America/New_York
+      - TZ={{ timezone }}
     networks:
       - internal
     devices:
@@ -200,7 +213,7 @@ services:
       - IPV6_MODE=false
       - UPDATE_TRACKERS=false
       - CUSTOM_TRACKER_URL=
-      - TZ=America/New_York
+      - TZ={{ timezone }}
     volumes:
       - "{{ appdata_dir }}/aria2/config:/config"
       - "{{ cache_dir }}/data/downloads:/downloads"

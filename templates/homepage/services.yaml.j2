@@ -4,6 +4,17 @@
       href: https://plex.{{ domain }}
       description: Media Server
       container: plex
+      widgets:
+        - type: plex
+          url: http://plex:{{ plex_port }}
+          key: "{{ plex_token }}"
+          fields: ["movies", "tv"]
+        - type: tautulli
+          url: http://tautulli:{{ tautulli_port }}
+          key: "{{ tautulli_apikey }}"
+          enableUser: true
+          showEpisodeNumber: true
+          expandOneStreamToTwoRows: false
   - Overseerr:
       icon: overseerr
       href: https://overseerr.{{ domain }}
@@ -13,6 +24,17 @@
       #   type: overseerr
       #   url: http://overseerr:{{ overseerr_port }}
       #   key: apikeyapikeyapikeyapikeyapikey
+  - Stash:
+      icon: stash
+      href: https://stash.{{ domain }}
+      description: Media Browser
+      container: stash
+      widget:
+        type: stash
+        url: http://stash:{{ stash_port }}
+        key: "{{ stash_apikey }}"
+        fields: ["scenes", "sceneSize"]
+- Media Management:
   - Sonarr:
       icon: sonarr
       href: https://sonarr.{{ domain }}
@@ -81,6 +103,11 @@
       icon: cockpit
       description: Linux Admin UI
       href: https://cockpit.{{ domain }}
+  - Tautulli:
+      icon: tautulli
+      href: https://tautulli.{{ domain }}
+      description: Plex Monitoring
+      container: tautulli
   - Caddy:
       icon: caddy
       description: Service Gateway
