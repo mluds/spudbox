@@ -13,7 +13,8 @@
     rule: allow
     port: "9090"
     proto: tcp
-    src: "172.18.0.1/16"
+    src: "{{ item }}"
+  loop: "{{ docker_cidrs }}"
     
 - name: Create globally-managed-devices.conf file
   copy:

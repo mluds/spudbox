@@ -154,12 +154,11 @@ services:
     container_name: homeassistant
     image: ghcr.io/home-assistant/home-assistant:stable
     user: "{{ homeassistant_uid }}:{{ homeassistant_uid }}"
+    network_mode: host
     volumes:
       - "{{ appdata_dir }}/homeassistant:/config"
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
-    networks:
-      - internal
 
 {% if zwavejs_enabled %}
   zwavejs:

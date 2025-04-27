@@ -52,6 +52,10 @@ stashvr_port: 9666
 tautulli_uid: 1016
 tautulli_port: 8181
 
+docker_cidrs:
+  - 172.17.0.0/16
+  - 172.18.0.0/16
+
 admin_password_bcrypt: "{{ admin_password | password_hash('bcrypt') }}"
 
 lan_cidr: 192.168.0.0/24

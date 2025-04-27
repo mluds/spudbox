@@ -47,7 +47,7 @@ overseerr.{{ domain }} {
   reverse_proxy overseerr:{{ overseerr_port }}
 }
 homeassistant.{{ domain }} {
-  reverse_proxy homeassistant:{{ homeassistant_port }}
+  reverse_proxy {{ ansible_host }}:{{ homeassistant_port }}
 }
 zwavejs.{{ domain }} {
   import common_auth
