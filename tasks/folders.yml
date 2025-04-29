@@ -41,6 +41,8 @@
       uid: "{{ radarr_uid }}"
     - path: '{{ appdata_dir }}/sonarr'
       uid: "{{ sonarr_uid }}"
+    - path: '{{ appdata_dir }}/whisparr'
+      uid: "{{ whisparr_uid }}"
     - path: '{{ appdata_dir }}/bazarr'
       uid: '{{ bazarr_uid }}'
     - path: '{{ appdata_dir }}/plex'

@@ -52,6 +52,24 @@ services:
     networks:
       - internal
 
+  whisparr:
+    image: ghcr.io/hotio/whisparr
+    container_name: whisparr
+    restart: unless-stopped
+    ports:
+      # Needed to access API from Ansible
+      - "127.0.0.1:{{ whisparr_port }}:{{ whisparr_port }}"
+    volumes:
+      - "{{ appdata_dir }}/whisparr:/config"
+      - "{{ storage_dir }}/data:/storage/data"
+      - "{{ cache_dir }}/data:/cache/data"
+    environment:
+      - PUID={{ whisparr_uid }}
+      - PGID={{ media_gid }}
+      - TZ={{ timezone }}
+    networks:
+      - internal
+
   bazarr:
     image: linuxserver/bazarr
     container_name: bazarr
