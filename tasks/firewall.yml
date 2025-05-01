@@ -31,6 +31,8 @@
       proto: tcp
     - port: '443'
       proto: udp
+    - port: '51820'  # wireguard
+      proto: udp
     - port: '21064:21100'  # HA HomeKit port range
       proto: tcp
 
