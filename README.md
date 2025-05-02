@@ -35,7 +35,7 @@ ansible-vault edit group_vars/all/vault.yml --vault-password-file .vault_pass
 
 Get client config 
 ```
-qrencode -t ansiutf8 < clients/mikes-iphone/client.conf
+sudo cat /etc/wireguard/clients/mikes-iphone/client.conf | qrencode -t ansiutf8
 ```
 
 ### Network Setup
