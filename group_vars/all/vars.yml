@@ -66,6 +66,7 @@ public_domain: public.spudbox.win
 wireguard_port: 51820
 wireguard_network_base: "10.42.0"
 wireguard_mask: '/24'
+wireguard_cidr: "{{ wireguard_network_base }}.0{{ wireguard_mask }}"
 wireguard_server_ip: "{{ wireguard_network_base }}.1"
 wireguard_clients:
   - name: mikes-iphone

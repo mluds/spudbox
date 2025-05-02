@@ -15,26 +15,31 @@
     direction: outgoing
     state: enabled
 
-- name: Open UFW ports
+- name: Open UFW ports from multiple CIDRs
   community.general.ufw:
     rule: allow
-    port: "{{ item.port }}"
-    proto: "{{ item.proto }}"
-    from_ip: "{{ lan_cidr }}"
+    port: "{{ item.0.port }}"
+    proto: "{{ item.0.proto }}"
+    from_ip: "{{ item.1 }}"
     state: enabled
-  loop:
-    - port: '22'
-      proto: tcp
-    - port: '80'
-      proto: tcp
-    - port: '443'
-      proto: tcp
-    - port: '443'
-      proto: udp
-    - port: '51820'  # wireguard
-      proto: udp
-    - port: '21064:21100'  # HA HomeKit port range
-      proto: tcp
+  loop: "{{ ports_to_open | product(allowed_cidrs) | list }}"
+  vars:
+    allowed_cidrs:
+      - "{{ lan_cidr }}"
+      - "{{ wireguard_cidr }}"
+    ports_to_open:
+      - port: '22'
+        proto: tcp
+      - port: '80'
+        proto: tcp
+      - port: '443'
+        proto: tcp
+      - port: '443'
+        proto: udp
+      - port: '51820'  # wireguard
+        proto: udp
+      - port: '21064:21100'  # HA HomeKit port range
+        proto: tcp
 
 - name: Allow port 8123 from Docker networks
   community.general.ufw:
