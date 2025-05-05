@@ -239,5 +239,66 @@ in {
         ];
       }
     ];
+    widgets = [
+      {
+        "greeting" = {
+          text_size = "2xl";
+          text = "SpudBox";
+        };
+      }
+      {
+        "resources" = {
+          cpu = true;
+          memory = true;
+          disk = "/data";
+          cputemp = true;
+          tempmin = 0;
+          tempmax = 100;
+          uptime = true;
+          units = "imperial";
+          refresh = 3000;
+          diskUnits = "bytes";
+          network = true;
+        };
+      }
+    ];
+    bookmarks = [
+      {
+        "Hosting" = [
+          {
+            "Cloudflare" = {
+              href = "https://dash.cloudflare.com/";
+              description = "DNS Provider";
+              icon = "cloudflare";
+            };
+          }
+          {
+            "Namecheap" = {
+              href = "https://ap.www.namecheap.com/";
+              description = "Domain Registrar";
+              icon = "namecheap";
+            };
+          }
+        ];
+      }
+      {
+        "Usenet" = [
+          {
+            "NZBGeek" = {
+              href = "https://nzbgeek.info/dashboard.php?myaccount";
+              description = "Usenet Indexer";
+              icon = "mdi-multimedia";
+            };
+          }
+          {
+            "Frugal" = {
+              href = "https://billing.frugalusenet.com/member";
+              description = "Usenet Provider";
+              icon = "mdi-multimedia";
+            };
+          }
+        ];
+      }
+    ];
   };
 }
