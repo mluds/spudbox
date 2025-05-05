@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   domain = "spudbox.win";
@@ -37,13 +42,17 @@ let
 
   hostIp = "192.168.42.129";
 
-  encodeBase64 = str:
-    builtins.readFile (pkgs.runCommand "encoded" {} ''
-      echo -n "${str}" | ${pkgs.coreutils}/bin/base64 -w0 > $out
-    '');
+  encodeBase64 =
+    str:
+    builtins.readFile (
+      pkgs.runCommand "encoded" { } ''
+        echo -n "${str}" | ${pkgs.coreutils}/bin/base64 -w0 > $out
+      ''
+    );
 
   aria2SecretEncoded = encodeBase64 aria2Secret;
-in {
+in
+{
   imports = [
     ./hardware-configuration.nix
   ];
@@ -96,7 +105,10 @@ in {
                   type = "plex";
                   url = "http://plex:${toString plexPort}";
                   key = "${plexToken}";
-                  fields = ["movies" "tv"];
+                  fields = [
+                    "movies"
+                    "tv"
+                  ];
                 }
                 {
                   type = "tautulli";
@@ -127,7 +139,10 @@ in {
                 type = "stash";
                 url = "http://stash:${toString stashPort}";
                 key = "${stashApiKey}";
-                fields = ["scenes" "sceneSize"];
+                fields = [
+                  "scenes"
+                  "sceneSize"
+                ];
               };
             };
           }
@@ -143,7 +158,11 @@ in {
               container = "sonarr";
               widget = {
                 type = "sonarr";
-                fields = ["wanted" "queued" "series"];
+                fields = [
+                  "wanted"
+                  "queued"
+                  "series"
+                ];
                 url = "http://sonarr:${toString sonarrPort}";
                 key = "${sonarrApiKey}";
                 enableQueue = false;
@@ -158,7 +177,12 @@ in {
               container = "radarr";
               widget = {
                 type = "radarr";
-                fields = ["wanted" "missing" "queued" "movies"];
+                fields = [
+                  "wanted"
+                  "missing"
+                  "queued"
+                  "movies"
+                ];
                 url = "http://radarr:${toString radarrPort}";
                 key = "${radarrApiKey}";
                 enableQueue = false;
@@ -173,7 +197,10 @@ in {
               container = "bazarr";
               widget = {
                 type = "bazarr";
-                fields = ["missingEpisodes" "missingMovies"];
+                fields = [
+                  "missingEpisodes"
+                  "missingMovies"
+                ];
                 url = "http://bazarr:${toString bazarrPort}";
                 key = "${bazarrApiKey}";
               };
@@ -205,7 +232,12 @@ in {
               widget = {
                 type = "qbittorrent";
                 url = "http://qbittorrent:${toString qbittorrentPort}";
-                fields = ["leech" "download" "seed" "upload"];
+                fields = [
+                  "leech"
+                  "download"
+                  "seed"
+                  "upload"
+                ];
                 enableLeechProgress = false;
               };
             };
@@ -256,7 +288,11 @@ in {
               container = "caddy";
               widget = {
                 type = "caddy";
-                fields = ["upstreams" "requests" "requests_failed"];
+                fields = [
+                  "upstreams"
+                  "requests"
+                  "requests_failed"
+                ];
                 url = "http://caddy:${toString caddyAdminPort}";
               };
             };
