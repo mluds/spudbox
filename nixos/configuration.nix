@@ -3,46 +3,46 @@
 let
   domain = "spudbox.win";
 
-  plex_port = 32400;
-  tautulli_port = 8181;
-  sonarr_port = 8989;
-  radarr_port = 7878;
-  bazarr_port = 6767;
-  whisparr_port = 6969;
-  sabnzbd_port = 8081;
-  qbittorrent_port = 8082;
-  caddy_admin_port = 2019;
-  overseerr_port = 5055;
-  homeassistant_port = 8123;
-  zwavejs_port = 8091;
-  homepage_port = 3000;
-  cockpit_port = 9090;
-  ariang_port = 6880;
-  aria2_port = 6800;
-  stash_port = 9999;
-  stashvr_port = 9666;
+  plexPort = 32400;
+  tautulliPort = 8181;
+  sonarrPort = 8989;
+  radarrPort = 7878;
+  bazarrPort = 6767;
+  whisparrPort = 6969;
+  sabnzbdPort = 8081;
+  qbittorrentPort = 8082;
+  caddyAdminPort = 2019;
+  overseerrPort = 5055;
+  homeassistantPort = 8123;
+  zwavejsPort = 8091;
+  homepagePort = 3000;
+  cockpitPort = 9090;
+  ariangPort = 6880;
+  aria2Port = 6800;
+  stashPort = 9999;
+  stashvrPort = 9666;
 
-  plex_token = "fix_me";
-  tautulli_apikey = "fix_me";
-  stash_apikey = "fix_me";
-  sonarr_api_key = "fix_me";
-  radarr_api_key = "fix_me";
-  bazarr_api_key = "fix_me";
-  sabnzbd_api_key = "fix_me";
-  cloudflare_api_token = "fix_me";
-  aria2_secret = "fix_me";
+  plexToken = "fix_me";
+  tautulliApiKey = "fix_me";
+  stashApiKey = "fix_me";
+  sonarrApiKey = "fix_me";
+  radarrApiKey = "fix_me";
+  bazarrApiKey = "fix_me";
+  sabnzbdApiKey = "fix_me";
+  cloudflareApiToken = "fix_me";
+  aria2Secret = "fix_me";
 
-  admin_username = "fix_me";
-  admin_password_hash = "fix_me";
+  adminUsername = "fix_me";
+  adminPasswordHash = "fix_me";
 
-  hostIP = "192.168.42.129";
+  hostIp = "192.168.42.129";
 
   encodeBase64 = str:
     builtins.readFile (pkgs.runCommand "encoded" {} ''
       echo -n "${str}" | ${pkgs.coreutils}/bin/base64 -w0 > $out
     '');
 
-  aria2_secret_encoded = encodeBase64 aria2_secret;
+  aria2SecretEncoded = encodeBase64 aria2Secret;
 in {
   imports = [
     ./hardware-configuration.nix
@@ -72,7 +72,7 @@ in {
   services.openssh.enable = true;
   services.homepage-dashboard = {
     enable = true;
-    listenPort = homepage_port;
+    listenPort = homepagePort;
     openFirewall = true;
     settings = {
       title = "SpudBox";
@@ -94,14 +94,14 @@ in {
               widgets = [
                 {
                   type = "plex";
-                  url = "http://plex:${toString plex_port}";
-                  key = "${plex_token}";
+                  url = "http://plex:${toString plexPort}";
+                  key = "${plexToken}";
                   fields = ["movies" "tv"];
                 }
                 {
                   type = "tautulli";
-                  url = "http://tautulli:${toString tautulli_port}";
-                  key = "${tautulli_apikey}";
+                  url = "http://tautulli:${toString tautulliPort}";
+                  key = "${tautulliApiKey}";
                   enableUser = true;
                   showEpisodeNumber = true;
                   expandOneStreamToTwoRows = false;
@@ -125,8 +125,8 @@ in {
               container = "stash";
               widget = {
                 type = "stash";
-                url = "http://stash:${toString stash_port}";
-                key = "${stash_apikey}";
+                url = "http://stash:${toString stashPort}";
+                key = "${stashApiKey}";
                 fields = ["scenes" "sceneSize"];
               };
             };
@@ -144,8 +144,8 @@ in {
               widget = {
                 type = "sonarr";
                 fields = ["wanted" "queued" "series"];
-                url = "http://sonarr:${toString sonarr_port}";
-                key = "${sonarr_api_key}";
+                url = "http://sonarr:${toString sonarrPort}";
+                key = "${sonarrApiKey}";
                 enableQueue = false;
               };
             };
@@ -159,8 +159,8 @@ in {
               widget = {
                 type = "radarr";
                 fields = ["wanted" "missing" "queued" "movies"];
-                url = "http://radarr:${toString radarr_port}";
-                key = "${radarr_api_key}";
+                url = "http://radarr:${toString radarrPort}";
+                key = "${radarrApiKey}";
                 enableQueue = false;
               };
             };
@@ -174,8 +174,8 @@ in {
               widget = {
                 type = "bazarr";
                 fields = ["missingEpisodes" "missingMovies"];
-                url = "http://bazarr:${toString bazarr_port}";
-                key = "${bazarr_api_key}";
+                url = "http://bazarr:${toString bazarrPort}";
+                key = "${bazarrApiKey}";
               };
             };
           }
@@ -191,8 +191,8 @@ in {
               container = "sabnzbd";
               widget = {
                 type = "sabnzbd";
-                url = "http://sabnzbd:${toString sabnzbd_port}";
-                key = "${sabnzbd_api_key}";
+                url = "http://sabnzbd:${toString sabnzbdPort}";
+                key = "${sabnzbdApiKey}";
               };
             };
           }
@@ -204,7 +204,7 @@ in {
               container = "qbittorrent";
               widget = {
                 type = "qbittorrent";
-                url = "http://qbittorrent:${toString qbittorrent_port}";
+                url = "http://qbittorrent:${toString qbittorrentPort}";
                 fields = ["leech" "download" "seed" "upload"];
                 enableLeechProgress = false;
               };
@@ -257,7 +257,7 @@ in {
               widget = {
                 type = "caddy";
                 fields = ["upstreams" "requests" "requests_failed"];
-                url = "http://caddy:${toString caddy_admin_port}";
+                url = "http://caddy:${toString caddyAdminPort}";
               };
             };
           }
@@ -267,7 +267,7 @@ in {
     widgets = [
       {
         "greeting" = {
-          text_size = "2xl";
+          textSize = "2xl";
           text = "SpudBox";
         };
       }
@@ -277,8 +277,8 @@ in {
           memory = true;
           disk = "/data";
           cputemp = true;
-          tempmin = 0;
-          tempmax = 100;
+          tempMin = 0;
+          tempMax = 100;
           uptime = true;
           units = "imperial";
           refresh = 3000;
@@ -329,19 +329,15 @@ in {
 
   services.caddy = {
     enable = false;
-    # FIX!
-    #package = pkgs.caddy.withPlugins (plugins: [ plugins.cloudflare ]);
     configFile = pkgs.writeText "Caddyfile" ''
       {
-        admin 0.0.0.0:${toString caddy_admin_port}
-        # Wait for latest version!!
-        #auto_https prefer_wildcard
+        admin 0.0.0.0:${toString caddyAdminPort}
       }
 
       *.${domain} {
         tls {
           issuer acme {
-            dns cloudflare ${cloudflare_api_token}
+            dns cloudflare ${cloudflareApiToken}
             resolvers 1.1.1.1
             disable_http_challenge
             disable_tlsalpn_challenge
@@ -352,62 +348,62 @@ in {
 
       (common_auth) {
         basic_auth {
-          ${admin_username} ${admin_password_hash}
+          ${adminUsername} ${adminPasswordHash}
         }
       }
 
       sonarr.${domain} {
-        reverse_proxy sonarr:${toString sonarr_port}
+        reverse_proxy sonarr:${toString sonarrPort}
       }
 
       radarr.${domain} {
-        reverse_proxy radarr:${toString radarr_port}
+        reverse_proxy radarr:${toString radarrPort}
       }
 
       whisparr.${domain} {
-        reverse_proxy whisparr:${toString whisparr_port}
+        reverse_proxy whisparr:${toString whisparrPort}
       }
 
       bazarr.${domain} {
-        reverse_proxy bazarr:${toString bazarr_port}
+        reverse_proxy bazarr:${toString bazarrPort}
       }
 
       qbittorrent.${domain} {
         import common_auth
-        reverse_proxy qbittorrent:${toString qbittorrent_port}
+        reverse_proxy qbittorrent:${toString qbittorrentPort}
       }
 
       sabnzbd.${domain} {
-        reverse_proxy sabnzbd:${toString sabnzbd_port}
+        reverse_proxy sabnzbd:${toString sabnzbdPort}
       }
 
       plex.${domain} {
-        reverse_proxy plex:${toString plex_port}
+        reverse_proxy plex:${toString plexPort}
       }
 
       tautulli.${domain} {
-        reverse_proxy tautulli:${toString tautulli_port}
+        reverse_proxy tautulli:${toString tautulliPort}
       }
 
       overseerr.${domain} {
-        reverse_proxy overseerr:${toString overseerr_port}
+        reverse_proxy overseerr:${toString overseerrPort}
       }
 
       homeassistant.${domain} {
-        reverse_proxy ${hostIP}:${toString homeassistant_port}
+        reverse_proxy ${hostIp}:${toString homeassistantPort}
       }
 
       zwavejs.${domain} {
         import common_auth
-        reverse_proxy zwavejs:${toString zwavejs_port}
+        reverse_proxy zwavejs:${toString zwavejsPort}
       }
 
       homepage.${domain} {
-        reverse_proxy homepage:${toString homepage_port}
+        reverse_proxy homepage:${toString homepagePort}
       }
 
       cockpit.${domain} {
-        reverse_proxy https://${hostIP}:${toString cockpit_port} {
+        reverse_proxy https://${hostIp}:${toString cockpitPort} {
           transport http {
             tls_insecure_skip_verify
           }
@@ -420,23 +416,23 @@ in {
         }
         handle @no_cookie {
           header Set-Cookie "visited=true; Path=/; Max-Age=31536000"
-          redir "https://ariang.${domain}/#!/settings/rpc/set/https/aria2.${domain}/443/jsonrpc/${aria2_secret_encoded}" 302
+          redir "https://ariang.${domain}/#!/settings/rpc/set/https/aria2.${domain}/443/jsonrpc/${aria2SecretEncoded}" 302
         }
         handle {
-          reverse_proxy ariang:${toString ariang_port}
+          reverse_proxy ariang:${toString ariangPort}
         }
       }
 
       aria2.${domain} {
-        reverse_proxy aria2:${toString aria2_port}
+        reverse_proxy aria2:${toString aria2Port}
       }
 
       stash.${domain} {
-        reverse_proxy stash:${toString stash_port}
+        reverse_proxy stash:${toString stashPort}
       }
 
       stashvr.${domain} {
-        reverse_proxy stashvr:${toString stashvr_port}
+        reverse_proxy stashvr:${toString stashvrPort}
       }
     '';
   };
