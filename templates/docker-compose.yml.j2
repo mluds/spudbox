@@ -97,6 +97,7 @@ services:
     volumes:
       - "{{ appdata_dir }}/plex:/config"
       - "{{ storage_dir }}/data:/storage/data"
+      - /dev/dri:/dev/dri
     environment:
       - PUID={{ plex_uid }}
       - PGID={{ media_gid }}
@@ -273,6 +274,7 @@ services:
       - "{{ appdata_dir }}/stash/cache:/cache"
       - "{{ appdata_dir }}/stash/blobs:/blobs"
       - "{{ appdata_dir }}/stash/generated:/generated"
+      - /dev/dri:/dev/dri
 
   stashvr:
     image: ofl0w/stash-vr:latest
