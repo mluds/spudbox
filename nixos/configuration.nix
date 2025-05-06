@@ -1,12 +1,11 @@
 {
   config,
-  lib,
   pkgs,
   ...
 }:
 
 let
-  domain = "spudbox.win";
+  domain = "dev.spudbox.win";
 
   plexPort = 32400;
   tautulliPort = 8181;
@@ -37,7 +36,8 @@ let
   cloudflareApiToken = "fix_me";
   aria2Secret = "fix_me";
 
-  adminUsername = "fix_me";
+  adminUsername = "admin";
+  adminPassword = "admin";
   adminPasswordHash = "fix_me";
 
   hostIp = "192.168.42.129";
@@ -68,15 +68,38 @@ in
   system.copySystemConfiguration = true;
   system.stateVersion = "24.11";
 
+  security.sudo = {
+    enable = true;
+    wheelNeedsPassword = false;
+  };
+
+  users.groups.media = {};
+  users.groups.sonarr = {};
+
   users.users.luds = {
     isNormalUser = true;
     extraGroups = [ "wheel" ];
     password = "a";
   };
 
+  users.users.sonarr = {
+    isSystemUser = true;
+    group = "sonarr";
+    extraGroups = [ "media" ];
+    createHome = false;
+    useDefaultShell = false;
+  };
+
   environment.systemPackages = with pkgs; [
     vim
+    pkgs.xmlstarlet
+    ed
   ];
+
+  networking.firewall = {
+    enable = true;
+    allowedTCPPorts = [ 80 443 ];
+  };
 
   services.openssh.enable = true;
   services.homepage-dashboard = {
@@ -472,4 +495,28 @@ in
       }
     '';
   };
+
+  services.sonarr = {
+    enable = true;
+    user = "sonarr";
+    openFirewall = true;
+  };
+
+  system.activationScripts.sonarrConfig = let
+    xmlstarlet = "${pkgs.xmlstarlet}/bin/xmlstarlet";
+    cfgFile = "${config.services.sonarr.dataDir}/config.xml";
+  in ''
+    ${xmlstarlet} ed -L \
+      --subnode '/Config[not(Authentication)]' -t elem -n Authentication \
+      --subnode '/Config/Authentication[not(Username)]' -t elem -n Username \
+      --subnode '/Config/Authentication[not(Password)]' -t elem -n Password \
+      -u "/Config/AuthenticationMethod" -v "Forms" \
+      -u "/Config/Authentication/Username" -v "${adminUsername}" \
+      -u "/Config/Authentication/Password" -v "${adminPassword}" \
+      -u "/Config/ApiKey" -v "${sonarrApiKey}" \
+      "${cfgFile}"
+    if ${config.systemd.package}/bin/systemctl -q is-active sonarr.service; then
+      ${config.systemd.package}/bin/systemctl restart sonarr.service
+    fi
+  '';
 }
