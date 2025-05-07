@@ -1,6 +1,7 @@
 {
   config,
   pkgs,
+  inputs,
   ...
 }:
 
@@ -36,8 +37,8 @@ let
   cloudflareApiToken = "fix_me";
   aria2Secret = "fix_me";
 
-  adminUsername = "admin";
-  adminPassword = "admin";
+  adminUsernamePath = config.sops.secrets.adminUsername.path;
+  adminPasswordPath = config.sops.secrets.adminPassword.path;
   adminPasswordHash = "fix_me";
 
   hostIp = "192.168.42.129";
@@ -53,9 +54,19 @@ let
   aria2SecretEncoded = encodeBase64 aria2Secret;
 in
 {
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
   imports = [
     ./hardware-configuration.nix
+    inputs.sops-nix.nixosModules.sops
   ];
+
+  sops = {
+    age.keyFile = "/var/lib/sops-nix/keys.txt";
+    defaultSopsFile = ./secrets.yaml;
+    secrets.adminUsername = {};
+    secrets.adminPassword = {};
+  };
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -64,8 +75,6 @@ in
 
   time.timeZone = "America/New_York";
   i18n.defaultLocale = "en_US.UTF-8";
-
-  system.copySystemConfiguration = true;
   system.stateVersion = "24.11";
 
   security.sudo = {
@@ -92,8 +101,10 @@ in
 
   environment.systemPackages = with pkgs; [
     vim
-    pkgs.xmlstarlet
+    xmlstarlet
     ed
+    binutils
+    cctools
   ];
 
   networking.firewall = {
@@ -407,7 +418,7 @@ in
 
       (common_auth) {
         basic_auth {
-          ${adminUsername} ${adminPasswordHash}
+          ${builtins.readFile adminUsernamePath} ${adminPasswordHash}
         }
       }
 
@@ -511,8 +522,8 @@ in
       --subnode '/Config/Authentication[not(Username)]' -t elem -n Username \
       --subnode '/Config/Authentication[not(Password)]' -t elem -n Password \
       -u "/Config/AuthenticationMethod" -v "Forms" \
-      -u "/Config/Authentication/Username" -v "${adminUsername}" \
-      -u "/Config/Authentication/Password" -v "${adminPassword}" \
+      -u "/Config/Authentication/Username" -v "$(cat ${adminUsernamePath})" \
+      -u "/Config/Authentication/Password" -v "$(cat ${adminPasswordPath})" \
       -u "/Config/ApiKey" -v "${sonarrApiKey}" \
       "${cfgFile}"
     if ${config.systemd.package}/bin/systemctl -q is-active sonarr.service; then
