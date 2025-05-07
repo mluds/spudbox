@@ -6,7 +6,16 @@
 }:
 
 let
+  encodeBase64 =
+    str:
+    builtins.readFile (
+      pkgs.runCommand "encoded" { } ''
+        echo -n "${str}" | ${pkgs.coreutils}/bin/base64 -w0 > $out
+      ''
+    );
+
   domain = "dev.spudbox.win";
+  hostIp = "192.168.42.130";
 
   plexPort = 32400;
   tautulliPort = 8181;
@@ -40,16 +49,6 @@ let
   adminUsernamePath = config.sops.secrets.adminUsername.path;
   adminPasswordPath = config.sops.secrets.adminPassword.path;
   adminPasswordHash = "fix_me";
-
-  hostIp = "192.168.42.130";
-
-  encodeBase64 =
-    str:
-    builtins.readFile (
-      pkgs.runCommand "encoded" { } ''
-        echo -n "${str}" | ${pkgs.coreutils}/bin/base64 -w0 > $out
-      ''
-    );
 
   aria2SecretEncoded = encodeBase64 aria2Secret;
 in
