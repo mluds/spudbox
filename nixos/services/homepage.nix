@@ -6,7 +6,7 @@ with config.my;
   services.homepage-dashboard = {
     enable = true;
     listenPort = homepagePort;
-    openFirewall = true;
+    openFirewall = false;
     settings = {
       title = "SpudBox";
       description = "Mike's Home Server";
@@ -28,7 +28,7 @@ with config.my;
                 {
                   type = "plex";
                   url = "http://plex:${toString plexPort}";
-                  # key = "${builtins.readFile plexToken}";
+                  # key = secrets.plexToken;  # TODO get plexToken from user and pass
                   fields = [
                     "movies"
                     "tv"
@@ -37,7 +37,7 @@ with config.my;
                 {
                   type = "tautulli";
                   url = "http://tautulli:${toString tautulliPort}";
-                  # key = "${builtins.readFile tautulliApiKey}";
+                  key = secrets.tautulliApiKey;
                   enableUser = true;
                   showEpisodeNumber = true;
                   expandOneStreamToTwoRows = false;
@@ -293,5 +293,13 @@ with config.my;
         ];
       }
     ];
+  };
+
+  systemd.services.homepage-dashboard = {
+    serviceConfig = {
+      Environment = [
+        "HOMEPAGE_ALLOWED_HOSTS=homepage.${domain}"
+      ];
+    };
   };
 }

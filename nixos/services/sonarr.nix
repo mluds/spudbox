@@ -14,7 +14,7 @@
   services.sonarr = {
     enable = true;
     user = "sonarr";
-    openFirewall = true;
+    openFirewall = false;
   };
 
   system.activationScripts.sonarrConfig = let

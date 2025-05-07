@@ -1,10 +1,9 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/24.11";
-    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs, sops-nix, ... } @ inputs:
+  outputs = { self, nixpkgs, ... } @ inputs:
     let
       secrets = builtins.fromJSON (builtins.readFile "${self}/secrets/default.json");
     in
