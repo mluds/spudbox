@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, secrets, ... }:
 
 {
   imports = [
@@ -7,6 +7,15 @@
     ./services/caddy.nix
     ./services/homepage.nix
     ./services/sonarr.nix
+  ];
+
+  environment.systemPackages = with pkgs; [
+    vim
+    xmlstarlet
+    ed
+    sqlite
+    python314
+    openssl_3
   ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -27,20 +36,14 @@
 
   users.groups.media = {};
 
-  users.users.luds = {
-    isNormalUser = true;
-    extraGroups = [ "wheel" ];
-    password = "a";
-  };
-
-  environment.systemPackages = with pkgs; [
-    vim
-    xmlstarlet
-    ed
-    sqlite
-    python314
-    openssl_3
-  ];
+  users.users = lib.listToAttrs (lib.forEach secrets.users (user: {
+    name = user.username;
+    value = {
+      isNormalUser = true;
+      password = user.password;
+      extraGroups = lib.optional user.superuser "wheel";
+    };
+  }));
 
   networking.firewall = {
     enable = true;

@@ -21,10 +21,17 @@
     stashPort = 9999;
     stashvrPort = 9666;
 
-    adminPasswordHash = "fix_me";
-
     encodeBase64 = str: builtins.readFile (pkgs.runCommand "encoded" {} ''
       echo -n "${str}" | ${pkgs.coreutils}/bin/base64 -w0 > $out
     '');
+
+    bcryptHash = password: pkgs.runCommand "bcrypt-hash" {
+      buildInputs = [ pkgs.mkpasswd ];
+      inherit password;
+      preferLocalBuild = true;
+      allowSubstitutes = false;
+    } ''
+      echo -n "$password" | mkpasswd -m bcrypt -s > $out
+    '';
   };
 }
