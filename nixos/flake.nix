@@ -6,13 +6,27 @@
   };
 
   outputs = { self, nixpkgs, sops-nix, ... } @ inputs: {
-    nixosConfigurations.spudbox = nixpkgs.lib.nixosSystem {
-      system = "aarch64-linux";
-      specialArgs = { inherit inputs; };
-      modules = [
-        ./configuration.nix
-        sops-nix.nixosModules.sops
-      ];
+    nixosConfigurations = {
+      "spudbox-dev" = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs = { inherit inputs; };
+        modules = [
+          sops-nix.nixosModules.sops
+          ./hosts/spudbox-dev/hardware.nix
+          ./environments/dev.nix
+          ./configuration.nix
+        ];
+      };
+
+      "spudbox-prod" = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = { inherit inputs; };
+        modules = [
+          sops-nix.nixosModules.sops
+          ./environments/prod.nix
+          ./configuration.nix
+        ];
+      };
     };
   };
 }
