@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ pkgs, ... }:
 
 {
   my = {
@@ -21,18 +21,6 @@
     stashPort = 9999;
     stashvrPort = 9666;
 
-    plexToken = "fix_me";
-    tautulliApiKey = "fix_me";
-    stashApiKey = "fix_me";
-    sonarrApiKey = "fix_me";
-    radarrApiKey = "fix_me";
-    bazarrApiKey = "fix_me";
-    sabnzbdApiKey = "fix_me";
-    cloudflareApiToken = "fix_me";
-    aria2Secret = "fix_me";
-
-    adminUsernamePath = config.sops.secrets.adminUsername.path;
-    adminPasswordPath = config.sops.secrets.adminPassword.path;
     adminPasswordHash = "fix_me";
 
     encodeBase64 = str: builtins.readFile (pkgs.runCommand "encoded" {} ''

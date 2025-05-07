@@ -1,6 +1,4 @@
-{ config, pkgs, ... }:
-
-with config.my;
+{ config, pkgs, secrets, ... }:
 
 {
   users.groups.sonarr = {};
@@ -33,9 +31,9 @@ with config.my;
       --subnode '/Config/Authentication[not(Username)]' -t elem -n Username \
       --subnode '/Config/Authentication[not(Password)]' -t elem -n Password \
       -u "/Config/AuthenticationMethod" -v "Forms" \
-      -u "/Config/Authentication/Username" -v "$(cat ${adminUsernamePath})" \
-      -u "/Config/Authentication/Password" -v "$(cat ${adminPasswordPath})" \
-      -u "/Config/ApiKey" -v "${sonarrApiKey}" \
+      -u "/Config/Authentication/Username" -v "${secrets.adminUsername}" \
+      -u "/Config/Authentication/Password" -v "${secrets.adminPassword}" \
+      -u "/Config/ApiKey" -v "${secrets.sonarrApiKey}" \
       "${cfgFile}"
     if ${config.systemd.package}/bin/systemctl -q is-active sonarr.service; then
       ${config.systemd.package}/bin/systemctl restart sonarr.service

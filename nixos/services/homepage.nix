@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, secrets, ... }:
 
 with config.my;
 
@@ -28,7 +28,7 @@ with config.my;
                 {
                   type = "plex";
                   url = "http://plex:${toString plexPort}";
-                  key = "${plexToken}";
+                  # key = "${builtins.readFile plexToken}";
                   fields = [
                     "movies"
                     "tv"
@@ -37,7 +37,7 @@ with config.my;
                 {
                   type = "tautulli";
                   url = "http://tautulli:${toString tautulliPort}";
-                  key = "${tautulliApiKey}";
+                  # key = "${builtins.readFile tautulliApiKey}";
                   enableUser = true;
                   showEpisodeNumber = true;
                   expandOneStreamToTwoRows = false;
@@ -62,7 +62,7 @@ with config.my;
               widget = {
                 type = "stash";
                 url = "http://stash:${toString stashPort}";
-                key = "${stashApiKey}";
+                key = secrets.stashApiKey;
                 fields = [
                   "scenes"
                   "sceneSize"
@@ -88,7 +88,7 @@ with config.my;
                   "series"
                 ];
                 url = "http://sonarr:${toString sonarrPort}";
-                key = "${sonarrApiKey}";
+                key = secrets.sonarrApiKey;
                 enableQueue = false;
               };
             };
@@ -108,7 +108,7 @@ with config.my;
                   "movies"
                 ];
                 url = "http://radarr:${toString radarrPort}";
-                key = "${radarrApiKey}";
+                key = secrets.radarrApiKey;
                 enableQueue = false;
               };
             };
@@ -126,7 +126,7 @@ with config.my;
                   "missingMovies"
                 ];
                 url = "http://bazarr:${toString bazarrPort}";
-                key = "${bazarrApiKey}";
+                key = secrets.bazarrApiKey;
               };
             };
           }
@@ -143,7 +143,7 @@ with config.my;
               widget = {
                 type = "sabnzbd";
                 url = "http://sabnzbd:${toString sabnzbdPort}";
-                key = "${sabnzbdApiKey}";
+                key = secrets.sabnzbdApiKey;
               };
             };
           }

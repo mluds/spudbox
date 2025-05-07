@@ -1,1 +1,1 @@
-nixos/secrets.json filter=git-crypt diff=git-crypt
+nixos/secrets/** filter=git-crypt diff=git-crypt

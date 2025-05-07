@@ -1,27 +1,15 @@
-{
-  pkgs,
-  inputs,
-  ...
-}:
+{ pkgs, ... }:
 
 {
   imports = [
     ./common/vars.nix
     ./environments/default.nix
-    inputs.sops-nix.nixosModules.sops
     ./services/caddy.nix
     ./services/homepage.nix
     ./services/sonarr.nix
   ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
-
-  sops = {
-    age.keyFile = "/var/lib/sops-nix/keys.txt";
-    defaultSopsFile = ./secrets.yaml;
-    secrets.adminUsername = {};
-    secrets.adminPassword = {};
-  };
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;

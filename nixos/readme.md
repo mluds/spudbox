@@ -16,32 +16,15 @@ reboot
 ```
 
 ### Deploy Updates
-
-Add this to `/etc/nix/nix.conf`:
 ```
-extra-experimental-features = nix-command flakes
-```
-
-```
-nix profile install nixpkgs#nixos-rebuild
-```
-
-```
-scp -i /Users/mludwig/.ssh/spudnet ./nixos/* luds@nix-dev:~/tmp/ && \
-ssh -i /Users/mludwig/.ssh/spudnet luds@nix-dev "cd ~/tmp && sudo nixos-rebuild switch --flake .#spudbox"
+scp -r -i /Users/mludwig/.ssh/spudnet ./nixos/* luds@nix-dev:~/tmp/ && \
+ssh -i /Users/mludwig/.ssh/spudnet luds@nix-dev "cd ~/tmp && sudo nixos-rebuild switch --flake .#spudbox-dev"
 ```
 
 ### Secrets
 ```
-brew install age
-mkdir -p ~/.config/sops/age
-age-keygen -o ~/.config/sops/age/keys.txt
-sops --encrypt --in-place secrets.yaml
-ssh -i /Users/mludwig/.ssh/spudnet luds@nix-dev "sudo mkdir -p /var/lib/sops-nix && sudo chmod 777 /var/lib/sops-nix"
-scp -i /Users/mludwig/.ssh/spudnet ~/.config/sops/age/keys.txt luds@nix-dev:/var/lib/sops-nix/keys.txt
-ssh -i /Users/mludwig/.ssh/spudnet luds@nix-dev "sudo chown -R root:root /var/lib/sops-nix & sudo chmod 600 /var/lib/sops-nix"
-```
-
-```
-SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops secrets.yaml
+brew install git-crypt
+git-crypt init
+# Save this to password manager
+git-crypt export-key - | base64
 ```
