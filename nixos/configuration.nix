@@ -41,7 +41,7 @@ let
   adminPasswordPath = config.sops.secrets.adminPassword.path;
   adminPasswordHash = "fix_me";
 
-  hostIp = "192.168.42.129";
+  hostIp = "192.168.42.130";
 
   encodeBase64 =
     str:
@@ -82,6 +82,8 @@ in
     wheelNeedsPassword = false;
   };
 
+  programs.nix-ld.enable = true;
+
   users.groups.media = {};
   users.groups.sonarr = {};
 
@@ -103,8 +105,9 @@ in
     vim
     xmlstarlet
     ed
-    binutils
-    cctools
+    sqlite
+    python314
+    openssl_3
   ];
 
   networking.firewall = {
@@ -515,8 +518,13 @@ in
 
   system.activationScripts.sonarrConfig = let
     xmlstarlet = "${pkgs.xmlstarlet}/bin/xmlstarlet";
+    sqlite = "${pkgs.sqlite}/bin/sqlite3";
     cfgFile = "${config.services.sonarr.dataDir}/config.xml";
+    dbFile = "${config.services.sonarr.dataDir}/sonarr.db";
   in ''
+    if [ -f "${dbFile}" ]; then
+      ${sqlite} "${dbFile}" "DELETE FROM \"Users\";"
+    fi
     ${xmlstarlet} ed -L \
       --subnode '/Config[not(Authentication)]' -t elem -n Authentication \
       --subnode '/Config/Authentication[not(Username)]' -t elem -n Username \

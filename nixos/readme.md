@@ -21,13 +21,8 @@ nix --extra-experimental-features nix-command --extra-experimental-features flak
 ```
 
 ```
-export NIX_SSHOPTS="-i /Users/mludwig/.ssh/spudnet"
-nixos-rebuild switch \
-  --flake .#spudbox \
-  --target-host luds@nix-dev \
-  --build-host luds@nix-dev \
-  --use-remote-sudo \
-  --fast
+scp -i /Users/mludwig/.ssh/spudnet ./nixos/* luds@nix-dev:~/tmp/ && \
+ssh -i /Users/mludwig/.ssh/spudnet luds@nix-dev "cd ~/tmp && sudo nixos-rebuild switch --flake .#spudbox"
 ```
 
 ### Secrets
