@@ -107,3 +107,7 @@ samba_groups:
   - name: smb_media
     users:
       - luds
+
+backup_retention_days: 7
+backup_retention_weeks: 4
+backup_retention_months: 6

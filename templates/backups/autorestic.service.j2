@@ -1,0 +1,12 @@
+[Unit]
+Description=Autorestic
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=autorestic -c {{ appdata_dir }}/autorestic/config.yml --ci cron
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

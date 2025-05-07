@@ -8,3 +8,4 @@ storage_drives:
     partition: /dev/sda1
     mount: /mnt/disk2
 zwavejs_enabled: false
+backup_path: /mnt/

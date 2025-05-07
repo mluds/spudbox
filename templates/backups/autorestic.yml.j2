@@ -1,0 +1,17 @@
+version: 2
+
+global:
+  forget:
+    keep-daily: {{ backup_retention_days }}
+    keep-weekly: {{ backup_retention_weeks }}
+    keep-monthly: {{ backup_retention_months }}
+
+locations:
+  appdata:
+    from: {{ appdata_dir }}
+    to: local
+
+backends:
+  local:
+    type: local
+    path: {{ backup_path }}
