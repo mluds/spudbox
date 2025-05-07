@@ -16,8 +16,14 @@ reboot
 ```
 
 ### Deploy Updates
+
+Add this to `/etc/nix/nix.conf`:
 ```
-nix --extra-experimental-features nix-command --extra-experimental-features flakes profile install nixpkgs#nixos-rebuild
+extra-experimental-features = nix-command flakes
+```
+
+```
+nix profile install nixpkgs#nixos-rebuild
 ```
 
 ```
