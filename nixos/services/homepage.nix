@@ -23,11 +23,10 @@ with config.my;
               icon = "plex";
               href = "https://plex.${domain}";
               description = "Media Server";
-              container = "plex";
               widgets = [
                 {
                   type = "plex";
-                  url = "http://plex:${toString plexPort}";
+                  url = "http://localhost:${toString plexPort}";
                   # key = secrets.plexToken;  # TODO get plexToken from user and pass
                   fields = [
                     "movies"
@@ -36,7 +35,7 @@ with config.my;
                 }
                 {
                   type = "tautulli";
-                  url = "http://tautulli:${toString tautulliPort}";
+                  url = "http://localhost:${toString tautulliPort}";
                   key = secrets.tautulliApiKey;
                   enableUser = true;
                   showEpisodeNumber = true;
@@ -50,24 +49,6 @@ with config.my;
               icon = "overseerr";
               href = "https://overseerr.${domain}";
               description = "Media Requests";
-              container = "overseerr";
-            };
-          }
-          {
-            "Stash" = {
-              icon = "stash";
-              href = "https://stash.${domain}";
-              description = "Media Browser";
-              container = "stash";
-              widget = {
-                type = "stash";
-                url = "http://stash:${toString stashPort}";
-                key = secrets.stashApiKey;
-                fields = [
-                  "scenes"
-                  "sceneSize"
-                ];
-              };
             };
           }
         ];
@@ -79,7 +60,6 @@ with config.my;
               icon = "sonarr";
               href = "https://sonarr.${domain}";
               description = "TV Show Management";
-              container = "sonarr";
               widget = {
                 type = "sonarr";
                 fields = [
@@ -87,7 +67,7 @@ with config.my;
                   "queued"
                   "series"
                 ];
-                url = "http://sonarr:${toString sonarrPort}";
+                url = "http://localhost:${toString sonarrPort}";
                 key = secrets.sonarrApiKey;
                 enableQueue = false;
               };
@@ -98,7 +78,6 @@ with config.my;
               icon = "radarr";
               href = "https://radarr.${domain}";
               description = "Movie Management";
-              container = "radarr";
               widget = {
                 type = "radarr";
                 fields = [
@@ -107,7 +86,7 @@ with config.my;
                   "queued"
                   "movies"
                 ];
-                url = "http://radarr:${toString radarrPort}";
+                url = "http://localhost:${toString radarrPort}";
                 key = secrets.radarrApiKey;
                 enableQueue = false;
               };
@@ -118,14 +97,13 @@ with config.my;
               icon = "bazarr";
               href = "https://bazarr.${domain}";
               description = "Subtitles Management";
-              container = "bazarr";
               widget = {
                 type = "bazarr";
                 fields = [
                   "missingEpisodes"
                   "missingMovies"
                 ];
-                url = "http://bazarr:${toString bazarrPort}";
+                url = "http://localhost:${toString bazarrPort}";
                 key = secrets.bazarrApiKey;
               };
             };
@@ -139,10 +117,9 @@ with config.my;
               icon = "sabnzbd";
               href = "https://sabnzbd.${domain}";
               description = "Usenet Downloader";
-              container = "sabnzbd";
               widget = {
                 type = "sabnzbd";
-                url = "http://sabnzbd:${toString sabnzbdPort}";
+                url = "http://localhost:${toString sabnzbdPort}";
                 key = secrets.sabnzbdApiKey;
               };
             };
@@ -152,10 +129,9 @@ with config.my;
               icon = "qbittorrent";
               href = "https://qbittorrent.${domain}";
               description = "Torrent Downloader";
-              container = "qbittorrent";
               widget = {
                 type = "qbittorrent";
-                url = "http://qbittorrent:${toString qbittorrentPort}";
+                url = "http://localhost:${toString qbittorrentPort}";
                 fields = [
                   "leech"
                   "download"
@@ -175,7 +151,6 @@ with config.my;
               icon = "home-assistant";
               href = "https://homeassistant.${domain}";
               description = "Home Automation";
-              container = "homeassistant";
             };
           }
           {
@@ -183,7 +158,6 @@ with config.my;
               icon = "zwavejs2mqtt";
               href = "https://zwavejs.${domain}";
               description = "Z-Wave Network Manager";
-              container = "zwavejs";
             };
           }
         ];
@@ -202,14 +176,12 @@ with config.my;
               icon = "tautulli";
               href = "https://tautulli.${domain}";
               description = "Plex Monitoring";
-              container = "tautulli";
             };
           }
           {
             "Caddy" = {
               icon = "caddy";
               description = "Service Gateway";
-              container = "caddy";
               widget = {
                 type = "caddy";
                 fields = [
@@ -217,7 +189,7 @@ with config.my;
                   "requests"
                   "requests_failed"
                 ];
-                url = "http://caddy:${toString caddyAdminPort}";
+                url = "http://localhost:${toString caddyAdminPort}";
               };
             };
           }
