@@ -7,6 +7,7 @@
     ./services/caddy.nix
     ./services/homepage.nix
     ./services/sonarr.nix
+    ./services/sabnzbd.nix
   ];
 
   environment.systemPackages = with pkgs; [
@@ -33,6 +34,7 @@
   time.timeZone = "America/New_York";
   i18n.defaultLocale = "en_US.UTF-8";
   system.stateVersion = "24.11";
+  nixpkgs.config.allowUnfree = true;
 
   users.groups.media = {};
 

@@ -21,6 +21,17 @@
     stashPort = 9999;
     stashvrPort = 9666;
 
+    usenetServerHosts = [
+      "news.frugalusenet.com"
+      "eunews.frugalusenet.com"
+      "newswest.frugalusenet.com"
+      "aunews.frugalusenet.com"
+      "sanews.frugalusenet.com"
+      "asnews.frugalusenet.com"
+      "bonus.frugalusenet.com"
+    ];
+    usenetServerPort = 563;
+
     encodeBase64 = str: builtins.readFile (pkgs.runCommand "encoded" {} ''
       echo -n "${str}" | ${pkgs.coreutils}/bin/base64 -w0 > $out
     '');
