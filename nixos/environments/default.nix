@@ -1,7 +1,13 @@
 { pkgs, ... }:
 
-{
+let
+  storageDir = "/mnt/storage";
+  cacheDir = "/mnt/cache";
+  appdataDir = "${cacheDir}/appdata";
+in {
   my = {
+    inherit storageDir cacheDir appdataDir;
+
     plexPort = 32400;
     tautulliPort = 8181;
     sonarrPort = 8989;

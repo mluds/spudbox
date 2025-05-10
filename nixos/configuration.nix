@@ -1,4 +1,6 @@
-{ pkgs, lib, secrets, ... }:
+{ config, pkgs, lib, secrets, ... }:
+
+with config.my;
 
 {
   imports = [
@@ -36,8 +38,12 @@
   system.stateVersion = "24.11";
   nixpkgs.config.allowUnfree = true;
 
-  users.groups.media = {};
+  networking.firewall = {
+    enable = true;
+    allowedTCPPorts = [ 80 443 ];
+  };
 
+  users.groups.media = {};
   users.users = lib.listToAttrs (lib.forEach secrets.users (user: {
     name = user.username;
     value = {
@@ -45,10 +51,59 @@
       password = user.password;
       extraGroups = lib.optional user.superuser "wheel";
     };
-  }));
-
-  networking.firewall = {
-    enable = true;
-    allowedTCPPorts = [ 80 443 ];
+  })) // {
+    media = {
+      isSystemUser = true;
+      group = "media";
+      createHome = false;
+      useDefaultShell = false;
+    };
   };
+
+  systemd.tmpfiles.rules =
+  let
+    mediaDirs = [
+      "${storageDir}/data/media/movies"
+      "${storageDir}/data/media/tv"
+      "${storageDir}/data/misc"
+      "${cacheDir}/data"
+      "${cacheDir}/data/usenet"
+      "${cacheDir}/data/usenet/complete"
+      "${cacheDir}/data/usenet/complete/movies"
+      "${cacheDir}/data/usenet/complete/tv"
+      "${cacheDir}/data/usenet/incomplete"
+      "${cacheDir}/data/usenet/incomplete/movies"
+      "${cacheDir}/data/usenet/incomplete/tv"
+      "${cacheDir}/data/torrents"
+      "${cacheDir}/data/torrents/complete"
+      "${cacheDir}/data/torrents/complete/movies"
+      "${cacheDir}/data/torrents/complete/tv"
+      "${cacheDir}/data/torrents/incomplete"
+      "${cacheDir}/data/torrents/incomplete/movies"
+      "${cacheDir}/data/torrents/incomplete/tv"
+      "${cacheDir}/data/downloads"
+      "${cacheDir}/appdata"
+    ];
+
+    appdataDirs = [
+      { path = "${appdataDir}/sabnzbd"; uid = "sabnzbd"; gid = "sabnzbd"; }
+      { path = "${appdataDir}/radarr"; uid = "radarr"; gid = "radarr"; }
+      { path = "${appdataDir}/sonarr"; uid = "sonarr"; gid = "sonarr"; }
+      { path = "${appdataDir}/whisparr"; uid = "whisparr"; gid = "whisparr"; }
+      { path = "${appdataDir}/bazarr"; uid = "bazarr"; gid = "bazarr"; }
+      { path = "${appdataDir}/plex"; uid = "plex"; gid = "media"; }
+      { path = "${appdataDir}/overseerr"; uid = "overseerr"; gid = "overseerr"; }
+      { path = "${appdataDir}/qbittorrent/qBittorrent"; uid = "qbittorrent"; gid = "qbittorrent"; }
+      { path = "${appdataDir}/caddy/conf"; uid = "caddy"; gid = "caddy"; }
+      { path = "${appdataDir}/caddy/data"; uid = "caddy"; gid = "caddy"; }
+      { path = "${appdataDir}/homeassistant"; uid = "homeassistant"; gid = "homeassistant"; }
+      { path = "${appdataDir}/zwavejs"; uid = "zwavejs"; gid = "zwavejs"; }
+      { path = "${appdataDir}/homepage"; uid = "homepage"; gid = "homepage"; }
+      { path = "${appdataDir}/aria2/config"; uid = "aria2"; gid = "aria2"; }
+      { path = "${appdataDir}/tautulli"; uid = "tautulli"; gid = "tautulli"; }
+    ];
+  in
+    (map (path: "d ${path} 0775 media media - -") mediaDirs)
+    ++
+    (map (dir: "d ${dir.path} 0755 ${dir.uid} ${dir.gid} - -") appdataDirs);
 }

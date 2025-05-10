@@ -16,9 +16,12 @@ with config.my;
   services.sabnzbd = {
     enable = true;
     user = "sabnzbd";
-    group = "sabnzbd";
     openFirewall = false;
-    configFile = pkgs.writeText "sabnzbd.ini" ''
+    configFile = "/var/lib/sabnzbd/sabnzbd.ini";
+  };
+
+  system.activationScripts.sabnzbdConfig = let
+    initialConfig = pkgs.writeText "sabnzbd.ini" ''
       __version__ = 19
       __encoding__ = utf-8
       [misc]
@@ -57,9 +60,9 @@ with config.my;
       nzb_key = ${secrets.sabnzbdNzbKey}
       socks5_proxy_url = ""
       permissions = "775"
-      download_dir = /cache/data/usenet/incomplete
+      download_dir = ${cacheDir}/data/usenet/incomplete
       download_free = ""
-      complete_dir = /cache/data/usenet/complete
+      complete_dir = ${cacheDir}/data/usenet/complete
       complete_free = ""
       fulldisk_autoresume = 0
       script_dir = ""
@@ -398,5 +401,11 @@ with config.my;
       newzbin = ""
       priority = -100
     '';
-  };
+  in ''
+    if [ ! -e "/var/lib/sabnzbd/sabnzbd.ini" ]; then
+      cp ${initialConfig} /var/lib/sabnzbd/sabnzbd.ini
+    fi
+    chown sabnzbd:sabnzbd /var/lib/sabnzbd/sabnzbd.ini
+    chmod 660 /var/lib/sabnzbd/sabnzbd.ini
+  '';
 }
