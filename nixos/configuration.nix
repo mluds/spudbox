@@ -8,8 +8,9 @@ with config.my;
     ./environments/default.nix
     ./services/caddy.nix
     ./services/homepage.nix
-    ./services/sonarr.nix
     ./services/sabnzbd.nix
+    ./services/servarr/sonarr.nix
+    ./services/servarr/radarr.nix
   ];
 
   environment.systemPackages = with pkgs; [

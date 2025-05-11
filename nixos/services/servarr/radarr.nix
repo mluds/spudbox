@@ -1,0 +1,147 @@
+{ config, pkgs, secrets, ... }:
+
+with config.my;
+
+let
+  quality = import ./qualityDefinitions.nix;
+in {
+  users.groups.radarr = {};
+
+  users.users.radarr = {
+    isSystemUser = true;
+    group = "radarr";
+    extraGroups = [ "media" ];
+    createHome = false;
+    useDefaultShell = false;
+  };
+
+  services.radarr = {
+    enable = true;
+    user = "radarr";
+    openFirewall = false;
+  };
+
+  system.activationScripts.radarrConfig = let
+    xmlstarlet = "${pkgs.xmlstarlet}/bin/xmlstarlet";
+    sqlite = "${pkgs.sqlite}/bin/sqlite3";
+    cfgFile = "${config.services.radarr.dataDir}/config.xml";
+    dbFile = "${config.services.radarr.dataDir}/radarr.db";
+  in ''
+    if [ -f "${dbFile}" ]; then
+      ${sqlite} "${dbFile}" "DELETE FROM \"Users\";"
+    fi
+    ${xmlstarlet} ed -L \
+      --subnode '/Config[not(Authentication)]' -t elem -n Authentication \
+      --subnode '/Config/Authentication[not(Username)]' -t elem -n Username \
+      --subnode '/Config/Authentication[not(Password)]' -t elem -n Password \
+      -u "/Config/AuthenticationMethod" -v "Forms" \
+      -u "/Config/Authentication/Username" -v "${secrets.adminUsername}" \
+      -u "/Config/Authentication/Password" -v "${secrets.adminPassword}" \
+      -u "/Config/ApiKey" -v "${secrets.radarrApiKey}" \
+      "${cfgFile}"
+    if ${config.systemd.package}/bin/systemctl -q is-active radarr.service; then
+      ${config.systemd.package}/bin/systemctl restart radarr.service
+    fi
+  '';
+
+  systemd.services.radarr-post-config = {
+    wantedBy = [ "multi-user.target" ];
+    after = [ "radarr.service" ];
+    requires = [ "radarr.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      User = "radarr";
+      Group = "radarr";
+    };
+    path = with pkgs; [ curl jq ];
+    script = ''
+      echo "Waiting for Radarr to start..."
+      while ! curl -sSf "http://localhost:${toString radarrPort}/login" >/dev/null; do
+        sleep 2
+      done
+
+      echo "Adding root folder..."
+      curl -X POST "http://localhost:${toString radarrPort}/api/v3/rootfolder" \
+        -H "X-Api-Key: ${secrets.radarrApiKey}" \
+        -H "Content-Type: application/json" \
+        -d '{"name": "Movies", "path": "${storageDir}/data/media/movies"}' \
+        --fail --silent --show-error || echo "Root folder may already exist"
+
+      echo "Configuring NZBGeek..."
+      curl -X POST "http://localhost:${toString radarrPort}/api/v3/indexer" \
+        -H "X-Api-Key: ${secrets.radarrApiKey}" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "name": "NZBGeek",
+          "implementationName": "Newznab",
+          "implementation": "Newznab",
+          "configContract": "NewznabSettings",
+          "enable": true,
+          "protocol": "usenet",
+          "enableRss": true,
+          "enableAutomaticSearch": true,
+          "enableInteractiveSearch": true,
+          "supportsRss": true,
+          "supportsSearch": true,
+          "fields": [
+            {"name": "baseUrl", "value": "https://api.nzbgeek.info/"},
+            {"name": "apiPath", "value": "/api"},
+            {"name": "apiKey", "value": "${secrets.nzbgeekApiKey}"},
+            {"name": "categories", "value": [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060]}
+          ]
+        }' \
+        --fail --silent --show-error || echo "NZBGeek may already be configured"
+
+      echo "Configuring SABnzbd..."
+      curl -X POST "http://localhost:${toString radarrPort}/api/v3/downloadclient" \
+        -H "X-Api-Key: ${secrets.radarrApiKey}" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "name": "SABnzbd",
+          "enable": true,
+          "protocol": "usenet",
+          "implementation": "Sabnzbd",
+          "configContract": "SabnzbdSettings",
+          "fields": [
+            {"name": "host", "value": "localhost"},
+            {"name": "port", "value": ${toString sabnzbdPort}},
+            {"name": "apiKey", "value": "${secrets.sabnzbdApiKey}"},
+            {"name": "category", "value": "movies"}
+          ]
+        }' \
+        --fail --silent --show-error || echo "SABnzbd may already be configured"
+
+      echo "Updating quality profiles..."
+      qualityDefs=$(curl -sS "http://localhost:${toString radarrPort}/api/v3/qualitydefinition" \
+        -H "X-Api-Key: ${secrets.radarrApiKey}")
+
+      echo '${builtins.toJSON quality.qualitySettings}' > /tmp/quality_settings.json
+
+      echo "$qualityDefs" | jq --argjson settings "$(cat /tmp/quality_settings.json)" '
+        map(
+          . as $def |
+          ($def.quality.name) as $name |
+          if $settings | has($name) then
+            $def * {
+              minSize: $settings[$name].minSize,
+              maxSize: $settings[$name].maxSize,
+              preferredSize: $settings[$name].preferredSize
+            }
+          else
+            $def
+          end
+        )
+      ' | jq -c '.[]' | while read def; do
+        id=$(jq -r '.id' <<< "$def")
+        echo "Updating $id..."
+        curl -X PUT "http://localhost:${toString radarrPort}/api/v3/qualitydefinition/$id" \
+          -H "X-Api-Key: ${secrets.radarrApiKey}" \
+          -H "Content-Type: application/json" \
+          -d "$def" \
+          --fail --silent --show-error || echo "Failed to update $id"
+      done
+      rm -f /tmp/quality_settings.json
+    '';
+  };
+}
