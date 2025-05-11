@@ -118,9 +118,9 @@ in {
       qualityDefs=$(curl -sS "http://localhost:${toString sonarrPort}/api/v3/qualitydefinition" \
         -H "X-Api-Key: ${secrets.sonarrApiKey}")
 
-      echo '${builtins.toJSON quality.qualitySettings}' > /tmp/quality_settings.json
+      echo '${builtins.toJSON quality.qualitySettings}' > /tmp/quality_settings_sonarr.json
 
-      echo "$qualityDefs" | jq --argjson settings "$(cat /tmp/quality_settings.json)" '
+      echo "$qualityDefs" | jq --argjson settings "$(cat /tmp/quality_settings_sonarr.json)" '
         map(
           . as $def |
           ($def.quality.name) as $name |
@@ -143,7 +143,7 @@ in {
           -d "$def" \
           --fail --silent --show-error || echo "Failed to update $id"
       done
-      rm -f /tmp/quality_settings.json
+      rm -f /tmp/quality_settings_sonarr.json
 
       echo "Applying quality profile..."
       curl -X PUT "http://localhost:${toString sonarrPort}/api/v3/qualityprofile/1" \

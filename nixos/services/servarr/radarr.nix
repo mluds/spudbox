@@ -116,9 +116,9 @@ in {
       qualityDefs=$(curl -sS "http://localhost:${toString radarrPort}/api/v3/qualitydefinition" \
         -H "X-Api-Key: ${secrets.radarrApiKey}")
 
-      echo '${builtins.toJSON quality.qualitySettings}' > /tmp/quality_settings.json
+      echo '${builtins.toJSON quality.qualitySettings}' > /tmp/quality_settings_radarr.json
 
-      echo "$qualityDefs" | jq --argjson settings "$(cat /tmp/quality_settings.json)" '
+      echo "$qualityDefs" | jq --argjson settings "$(cat /tmp/quality_settings_radarr.json)" '
         map(
           . as $def |
           ($def.quality.name) as $name |
@@ -141,7 +141,7 @@ in {
           -d "$def" \
           --fail --silent --show-error || echo "Failed to update $id"
       done
-      rm -f /tmp/quality_settings.json
+      rm -f /tmp/quality_settings_radarr.json
     '';
   };
 }
