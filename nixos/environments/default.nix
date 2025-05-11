@@ -17,7 +17,7 @@ in {
     sabnzbdPort = 8081;
     qbittorrentPort = 8082;
     caddyAdminPort = 2019;
-    overseerrPort = 5055;
+    jellyseerrPort = 5055;
     homeassistantPort = 8123;
     zwavejsPort = 8091;
     homepagePort = 3000;

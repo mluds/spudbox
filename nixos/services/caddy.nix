@@ -65,8 +65,8 @@ with config.my;
         reverse_proxy localhost:${toString tautulliPort}
       }
 
-      overseerr.${domain} {
-        reverse_proxy localhost:${toString overseerrPort}
+      jellyseerr.${domain} {
+        reverse_proxy localhost:${toString jellyseerrPort}
       }
 
       homeassistant.${domain} {

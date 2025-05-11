@@ -45,10 +45,16 @@ with config.my;
             };
           }
           {
-            "Overseerr" = {
-              icon = "overseerr";
-              href = "https://overseerr.${domain}";
+            "Jellyseerr" = {
+              icon = "jellyseerr";
+              href = "https://jellyseerr.${domain}";
               description = "Media Requests";
+              widget = {
+                type = "jellyseerr";
+                url = "http://localhost:${toString jellyseerrPort}";
+                key = secrets.jellyseerr.apiKey;
+                fields = ["pending" "approved" "available"];
+              };
             };
           }
         ];

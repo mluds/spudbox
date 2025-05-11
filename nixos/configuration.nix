@@ -11,6 +11,7 @@ with config.my;
     ./services/sabnzbd.nix
     ./services/servarr/sonarr.nix
     ./services/servarr/radarr.nix
+    ./services/servarr/jellyseerr.nix
   ];
 
   environment.systemPackages = with pkgs; [
@@ -20,6 +21,8 @@ with config.my;
     sqlite
     python314
     openssl_3
+    jq
+    curl
   ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -93,7 +96,7 @@ with config.my;
       { path = "${appdataDir}/whisparr"; uid = "whisparr"; gid = "whisparr"; }
       { path = "${appdataDir}/bazarr"; uid = "bazarr"; gid = "bazarr"; }
       { path = "${appdataDir}/plex"; uid = "plex"; gid = "media"; }
-      { path = "${appdataDir}/overseerr"; uid = "overseerr"; gid = "overseerr"; }
+      { path = "${appdataDir}/jellyseerr"; uid = "jellyseerr"; gid = "jellyseerr"; }
       { path = "${appdataDir}/qbittorrent/qBittorrent"; uid = "qbittorrent"; gid = "qbittorrent"; }
       { path = "${appdataDir}/caddy/conf"; uid = "caddy"; gid = "caddy"; }
       { path = "${appdataDir}/caddy/data"; uid = "caddy"; gid = "caddy"; }
