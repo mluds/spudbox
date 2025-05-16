@@ -9,6 +9,7 @@ with config.my;
     ./services/caddy.nix
     ./services/homepage.nix
     ./services/sabnzbd.nix
+    ./services/plex.nix
     ./services/servarr/sonarr.nix
     ./services/servarr/radarr.nix
     ./services/servarr/jellyseerr.nix
