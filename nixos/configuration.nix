@@ -12,6 +12,7 @@ with config.my;
     ./services/plex.nix
     ./services/servarr/sonarr.nix
     ./services/servarr/radarr.nix
+    ./services/servarr/bazarr.nix
     ./services/servarr/jellyseerr.nix
   ];
 
