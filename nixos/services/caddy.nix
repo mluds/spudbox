@@ -48,9 +48,12 @@ with config.my;
         reverse_proxy localhost:${toString bazarrPort}
       }
 
-      qbittorrent.${domain} {
-        import common_auth
-        reverse_proxy localhost:${toString qbittorrentPort}
+      prowlarr.${domain} {
+        reverse_proxy localhost:${toString prowlarrPort}
+      }
+
+      transmission.${domain} {
+        reverse_proxy localhost:${toString transmissionPort}
       }
 
       sabnzbd.${domain} {

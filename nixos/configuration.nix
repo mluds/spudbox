@@ -10,10 +10,12 @@ with config.my;
     ./services/homepage.nix
     ./services/sabnzbd.nix
     ./services/plex.nix
+    ./services/transmission.nix
     ./services/servarr/sonarr.nix
     ./services/servarr/radarr.nix
     ./services/servarr/bazarr.nix
     ./services/servarr/jellyseerr.nix
+    ./services/servarr/prowlarr.nix
   ];
 
   environment.systemPackages = with pkgs; [

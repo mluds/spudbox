@@ -114,6 +114,24 @@ with config.my;
               };
             };
           }
+          {
+            "Prowlarr" = {
+              icon = "prowlarr";
+              href = "https://prowlarr.${domain}";
+              description = "Torrent Index Management";
+              widget = {
+                type = "prowlarr";
+                fields = [
+                  "numberOfGrabs"
+                  "numberOfQueries"
+                  "numberOfFailGrabs"
+                  "numberOfFailQueries"
+                ];
+                url = "http://localhost:${toString prowlarrPort}";
+                key = secrets.prowlarrApiKey;
+              };
+            };
+          }
         ];
       }
       {
@@ -131,19 +149,22 @@ with config.my;
             };
           }
           {
-            "qBittorrent" = {
-              icon = "qbittorrent";
-              href = "https://qbittorrent.${domain}";
+            "Transmission" = {
+              icon = "transmission";
+              href = "https://transmission.${domain}";
               description = "Torrent Downloader";
               widget = {
-                type = "qbittorrent";
-                url = "http://localhost:${toString qbittorrentPort}";
+                type = "transmission";
+                url = "http://localhost:${toString transmissionPort}";
+                username = secrets.adminUsername;
+                password = secrets.adminPassword;
                 fields = [
                   "leech"
                   "download"
                   "seed"
                   "upload"
                 ];
+                rpcUrl = "/transmission/";
                 enableLeechProgress = false;
               };
             };

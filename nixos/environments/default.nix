@@ -26,6 +26,8 @@ in {
     aria2Port = 6800;
     stashPort = 9999;
     stashvrPort = 9666;
+    transmissionPort = 9091;
+    prowlarrPort = 9696;
 
     usenetServerHosts = [
       "news.frugalusenet.com"
