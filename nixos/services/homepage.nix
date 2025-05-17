@@ -234,7 +234,7 @@ with config.my;
         "resources" = {
           cpu = true;
           memory = true;
-          disk = "/data";
+          disk = "/mnt";
           cputemp = true;
           tempMin = 0;
           tempMax = 100;
