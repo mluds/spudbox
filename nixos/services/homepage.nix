@@ -3,6 +3,15 @@
 with config.my;
 
 {
+  systemd.services.homepage-dashboard = {
+    serviceConfig = {
+      Group = "media";
+      Environment = [
+        "HOMEPAGE_ALLOWED_HOSTS=homepage.${domain}"
+        "HOMEPAGE_FILE_PLEX_TOKEN=/var/lib/secrets/plex/token"
+      ];
+    };
+  };
   services.homepage-dashboard = {
     enable = true;
     listenPort = homepagePort;
@@ -27,7 +36,7 @@ with config.my;
                 {
                   type = "plex";
                   url = "http://localhost:${toString plexPort}";
-                  # key = secrets.plexToken;  # TODO get plexToken from user and pass
+                  key = "{{HOMEPAGE_FILE_PLEX_TOKEN}}";
                   fields = [
                     "movies"
                     "tv"
@@ -292,13 +301,5 @@ with config.my;
         ];
       }
     ];
-  };
-
-  systemd.services.homepage-dashboard = {
-    serviceConfig = {
-      Environment = [
-        "HOMEPAGE_ALLOWED_HOSTS=homepage.${domain}"
-      ];
-    };
   };
 }
