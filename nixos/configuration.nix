@@ -25,23 +25,22 @@ with config.my;
       content = {
         type = "gpt";
         partitions = {
-          root = {
-            size = "100%";
-            offset = "512MB";
-            content = {
-              type = "filesystem";
-              format = "ext4";
-              mountpoint = "/";
-            };
-          };
           ESP = {
-            size = "511MB";
-            offset = "1MB";
+            type = "EF00";
+            size = "500M";
             content = {
               type = "filesystem";
               format = "vfat";
               mountpoint = "/boot";
               mountOptions = [ "umask=077" ];
+            };
+          };
+          root = {
+            size = "100%";
+            content = {
+              type = "filesystem";
+              format = "ext4";
+              mountpoint = "/";
             };
           };
         };
