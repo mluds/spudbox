@@ -1,4 +1,4 @@
-{ config, pkgs, lib, secrets, ... }:
+{ config, pkgs, lib, secrets, disko, ... }:
 
 with config.my;
 
@@ -17,6 +17,37 @@ with config.my;
     ./services/servarr/jellyseerr.nix
     ./services/servarr/prowlarr.nix
   ];
+
+  disko.devices = {
+    disk.boot = {
+      type = "disk";
+      device = bootDrive;
+      content = {
+        type = "gpt";
+        partitions = {
+          root = {
+            size = "100%";
+            offset = "512MB";
+            content = {
+              type = "filesystem";
+              format = "ext4";
+              mountpoint = "/";
+            };
+          };
+          ESP = {
+            size = "511MB";
+            offset = "1MB";
+            content = {
+              type = "filesystem";
+              format = "vfat";
+              mountpoint = "/boot";
+              mountOptions = [ "umask=077" ];
+            };
+          };
+        };
+      };
+    };
+  };
 
   environment.systemPackages = with pkgs; [
     vim
@@ -57,6 +88,7 @@ with config.my;
     value = {
       isNormalUser = true;
       password = user.password;
+      openssh.authorizedKeys.keys = [ user.sshPublicKey ];
       extraGroups = lib.optional user.superuser "wheel";
     };
   })) // {
