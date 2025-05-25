@@ -11,6 +11,16 @@
     in
     {
       nixosConfigurations = {
+        "spudbox-dev-install" = nixpkgs.lib.nixosSystem {
+          system = "aarch64-linux";
+          specialArgs = { inherit inputs secrets; };
+          modules = [
+            disko.nixosModules.disko
+            ./environments/dev.nix
+            ./install.nix
+          ];
+        };
+
         "spudbox-dev" = nixpkgs.lib.nixosSystem {
           system = "aarch64-linux";
           specialArgs = { inherit inputs secrets; };
