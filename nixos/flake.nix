@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -16,7 +16,6 @@
           specialArgs = { inherit inputs secrets; };
           modules = [
             disko.nixosModules.disko
-            ./hosts/spudbox-dev/hardware.nix
             ./environments/dev.nix
             ./configuration.nix
           ];
