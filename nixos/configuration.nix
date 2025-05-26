@@ -4,6 +4,7 @@ with config.my;
 
 {
   imports = [
+    ./storage.nix
     ./common/vars.nix
     ./environments/default.nix
     ./services/caddy.nix
@@ -11,6 +12,7 @@ with config.my;
     ./services/sabnzbd.nix
     ./services/plex.nix
     ./services/transmission.nix
+    ./services/tautulli.nix
     ./services/servarr/sonarr.nix
     ./services/servarr/radarr.nix
     ./services/servarr/bazarr.nix
@@ -35,8 +37,14 @@ with config.my;
   boot.loader.efi.canTouchEfiVariables = true;
   networking.networkmanager.enable = true;
   programs.nix-ld.enable = true;
-  services.openssh.enable = true;
-    security.sudo = {
+  services.openssh = {
+    enable = true;
+    settings = {
+      PasswordAuthentication = false;
+      PermitRootLogin = "no";
+    };
+  };
+  security.sudo = {
     enable = true;
     wheelNeedsPassword = false;
   };
@@ -49,6 +57,24 @@ with config.my;
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 80 443 ];
+  };
+
+  users.groups.media = {};
+  users.users = lib.listToAttrs (lib.forEach secrets.users (user: {
+    name = user.username;
+    value = {
+      isNormalUser = true;
+      password = user.password;
+      openssh.authorizedKeys.keys = [ user.sshPublicKey ];
+      extraGroups = lib.optional user.superuser "wheel";
+    };
+  })) // {
+    media = {
+      isSystemUser = true;
+      group = "media";
+      createHome = false;
+      useDefaultShell = false;
+    };
   };
 
   systemd.tmpfiles.rules =
