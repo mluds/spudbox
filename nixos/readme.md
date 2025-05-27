@@ -42,18 +42,19 @@ nixos-install --root /mnt
 reboot
 ```
 
-SSH in again and run these commands:
+Now run these commands from the deployment host to install the full system:
 ```
-scp -r ./nixos/* root@${HOST_IP}:~/deploy/ && \
-ssh root@${HOST_IP} "cd ~/deploy && nixos-rebuild switch --flake .#spudbox-dev"
+rm ~/.ssh/known_hosts
+scp -o StrictHostKeyChecking=accept-new -r ./nixos/* root@${HOST_IP}:~/deploy/
+ssh root@${HOST_IP} "cd ~/deploy && nixos-rebuild switch --impure --flake .#spudbox-dev"
 ```
 
 After this, root login will be disabled and you must login using one of the users specified in `secrets/defaults.json`.
 
-### Deployment
+### Deploy Updates
 ```
-scp -r -i ~/.ssh/spudnet ./nixos/* admin@nix-dev:~/deploy/ && \
-ssh -i ~/.ssh/spudnet admin@nix-dev "cd ~/deploy && sudo nixos-rebuild switch --flake .#spudbox-dev"
+scp -r -i ~/.ssh/spudnet ./nixos/* luds@${HOST_IP}:~/deploy/
+ssh -i ~/.ssh/spudnet luds@${HOST_IP} "cd ~/deploy && sudo nixos-rebuild switch --flake .#spudbox-dev"
 ```
 
 ### Secrets
