@@ -1,4 +1,4 @@
-{ config, pkgs, lib, secrets, disko, ... }:
+{ config, pkgs, lib, secrets, ... }:
 
 with config.my;
 

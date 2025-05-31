@@ -26,16 +26,24 @@ mount /dev/disk/by-label/nixos /mnt
 mkdir -p /mnt/boot
 mount -o umask=077 /dev/disk/by-label/boot /mnt/boot
 nixos-generate-config --root /mnt
-cat > /mnt/etc/nixos/configuration.nix <<'EOF'
+cat > /mnt/etc/nixos/configuration.nix <<EOF
 { config, lib, pkgs, ... }:
 {
   system.stateVersion = "25.05";
-  imports = [ ./hardware-configuration.nix ];
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
   services.openssh.enable = true;
   services.openssh.settings.PasswordAuthentication = true;
   services.openssh.settings.PermitRootLogin = "yes";
+  fileSystems."/" = {
+    device = "${BOOT_DEV}p1";
+    fsType = "ext4";
+  };
+  fileSystems."/boot" = {
+    device = "${BOOT_DEV}p2";
+    fsType = "vfat";
+    options = [ "fmask=0077" "dmask=0077" ];
+  };
 }
 EOF
 nixos-install --root /mnt
@@ -44,8 +52,8 @@ reboot
 
 Now run these commands from the deployment host to install the full system:
 ```
-rm ~/.ssh/known_hosts
-scp -o StrictHostKeyChecking=accept-new -r ./nixos/* root@${HOST_IP}:~/deploy/
+rm -f ~/.ssh/known_hosts && \
+scp -o StrictHostKeyChecking=accept-new -r ./nixos/* root@${HOST_IP}:~/deploy/ && \
 ssh root@${HOST_IP} "cd ~/deploy && nixos-rebuild switch --impure --flake .#spudbox-dev"
 ```
 
