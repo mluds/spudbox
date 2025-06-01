@@ -1,61 +1,81 @@
-## SpudNet
-
-### Supported OS
-
-Ubuntu 24.04 LTS
-
-### SSH Key
-
+### Installation
+Boot from the NixOS ISO and run these commands to get an initial SSH connection.
 ```
-ssh-keygen -o -a 100 -t ed25519 -f ~/.ssh/spudnet
-ssh-copy-id -i ~/.ssh/spudnet luds@192.168.0.42
+sudo passwd
+ip a
 ```
 
-### Run
-
-First run requires `--ask-become-pass`.
-
-Remember to generate a new Plex claim before the first run: https://plex.tv/claim
-
+Run this from the deployment host.
 ```
-ansible-playbook run.yml --limit spudbox_dev --vault-password-file .vault_pass
+export HOST_IP="<IP ADDRESS>"
+rm ~/.ssh/known_hosts
+ssh -o StrictHostKeyChecking=accept-new root@${HOST_IP}
 ```
 
-### Post-Install
-
-1. In Plex settings, add `plex.{{ domain }}` under Network -> "Custom server access URLs".
-
-### Vault
-
+Run these commands. You will be prompted for a password.
+Just use a simple password to SSH in again, as it will be disabled in the next step.
 ```
-ansible-vault edit group_vars/all/vault.yml --vault-password-file .vault_pass
+export BOOT_DEV=/dev/nvme0n1
+parted $BOOT_DEV -- mklabel gpt
+parted -s -a optimal $BOOT_DEV -- mkpart root ext4 512MB 100%
+parted -s $BOOT_DEV -- mkpart ESP fat32 1MB 512MB
+parted -s $BOOT_DEV -- set 2 esp on
+mkfs.ext4 -L nixos ${BOOT_DEV}p1
+mkfs.fat -F 32 -n boot ${BOOT_DEV}p2
+mount /dev/disk/by-label/nixos /mnt
+mkdir -p /mnt/boot
+mount -o umask=077 /dev/disk/by-label/boot /mnt/boot
+nixos-generate-config --root /mnt
+cat > /mnt/etc/nixos/configuration.nix <<EOF
+{ config, lib, pkgs, ... }:
+{
+  system.stateVersion = "25.05";
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+  services.openssh.enable = true;
+  services.openssh.settings.PasswordAuthentication = true;
+  services.openssh.settings.PermitRootLogin = "yes";
+  fileSystems."/" = {
+    device = "${BOOT_DEV}p1";
+    fsType = "ext4";
+  };
+  fileSystems."/boot" = {
+    device = "${BOOT_DEV}p2";
+    fsType = "vfat";
+    options = [ "fmask=0077" "dmask=0077" ];
+  };
+}
+EOF
+nixos-install --root /mnt
+reboot
 ```
 
-### Wireguard
-
-Get client config 
+Now run these commands from the deployment host to install the full system:
 ```
-sudo cat /etc/wireguard/clients/mikes-iphone/client.conf | qrencode -t ansiutf8
-```
-
-### Network Setup
-
-Under `/etc/netplan/`:
-```
-network:
-  version: 2
-  ethernets:
-    eno1:
-      addresses:
-        - 192.168.0.42/24
-      routes:
-        - to: default
-          via: 192.168.0.1
-      nameservers:
-        addresses: [8.8.8.8, 8.8.4.4]
-      optional: false
+rm -f ~/.ssh/known_hosts && \
+scp -o StrictHostKeyChecking=accept-new -r ./* root@${HOST_IP}:~/deploy/ && \
+ssh root@${HOST_IP} "cd ~/deploy && nixos-rebuild switch --impure --flake .#spudbox-dev"
 ```
 
+After this, root login will be disabled and you must login using one of the users specified in `secrets/defaults.json`.
+
+### Deploy Updates
 ```
-sudo netplan apply
+scp -r -i ~/.ssh/spudnet ./* luds@${HOST_IP}:~/deploy/ && \
+ssh -i ~/.ssh/spudnet luds@${HOST_IP} "cd ~/deploy && sudo nixos-rebuild switch --impure --flake .#spudbox-dev"
+```
+
+### Secrets
+Initial setup:
+```
+brew install git-crypt
+git-crypt init
+# Save this to password manager
+git-crypt export-key - | base64
+```
+
+Unlocking:
+```
+echo -n "<GIT CRYPT KEY>" | base64 -d > ~/git-crypt-key
+git-crypt unlock ~/git-crypt-key
 ```

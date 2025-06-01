@@ -1,8 +1,0 @@
-[Interface]
-PrivateKey = {{ item.private_key }}
-Address = {{ item.ip }}{{ wireguard_mask }}
-
-[Peer]
-PublicKey = {{ wireguard_server_public_key }}
-Endpoint = {{ public_domain }}:{{ wireguard_port }}
-AllowedIPs = {{ wireguard_server_ip }}/32,{{ lan_cidr }}

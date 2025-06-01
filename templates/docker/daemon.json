@@ -1,4 +1,0 @@
-{
-    "dns": ["8.8.8.8", "8.8.4.4"],
-    "data-root": "{{ cache_drives[0].mount }}/system/docker"
-}
