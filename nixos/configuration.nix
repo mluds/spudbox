@@ -2,7 +2,53 @@
 
 with config.my;
 
-{
+let
+  mediaDirs = [
+    "${storageDir}/data/media/movies"
+    "${storageDir}/data/media/tv"
+    "${storageDir}/data/misc"
+    "${cacheDir}/data"
+    "${cacheDir}/data/usenet"
+    "${cacheDir}/data/usenet/complete"
+    "${cacheDir}/data/usenet/complete/movies"
+    "${cacheDir}/data/usenet/complete/tv"
+    "${cacheDir}/data/usenet/incomplete"
+    "${cacheDir}/data/usenet/incomplete/movies"
+    "${cacheDir}/data/usenet/incomplete/tv"
+    "${cacheDir}/data/torrents"
+    "${cacheDir}/data/torrents/complete"
+    "${cacheDir}/data/torrents/complete/movies"
+    "${cacheDir}/data/torrents/complete/tv"
+    "${cacheDir}/data/torrents/incomplete"
+    "${cacheDir}/data/torrents/incomplete/movies"
+    "${cacheDir}/data/torrents/incomplete/tv"
+    "${cacheDir}/data/downloads"
+    "${cacheDir}/appdata"
+  ];
+
+  appdataDirs = [
+    # { path = "${appdataDir}/sabnzbd"; uid = "sabnzbd"; gid = "sabnzbd"; }
+  ];
+
+  createDirsScript = pkgs.writeScript "create-media-dirs.sh" ''
+    #!${pkgs.bash}/bin/bash
+    set -euo pipefail
+
+    ${lib.concatMapStringsSep "\n" (dir: ''
+      echo "Creating media directory: ${dir}"
+      mkdir -p "${dir}"
+      chown media:media "${dir}"
+      chmod 0775 "${dir}"
+    '') mediaDirs}
+
+    ${lib.concatMapStringsSep "\n" (dir: ''
+      echo "Creating appdata directory: ${dir.path} (owner: ${dir.uid}:${dir.gid})"
+      mkdir -p "${dir.path}"
+      chown ${dir.uid}:${dir.gid} "${dir.path}"
+      chmod 0755 "${dir.path}"
+    '') appdataDirs}
+  '';
+in {
   imports = [
     ./storage.nix
     ./common/vars.nix
@@ -77,50 +123,14 @@ with config.my;
     };
   };
 
-  systemd.tmpfiles.rules =
-  let
-    mediaDirs = [
-      "${storageDir}/data/media/movies"
-      "${storageDir}/data/media/tv"
-      "${storageDir}/data/misc"
-      "${cacheDir}/data"
-      "${cacheDir}/data/usenet"
-      "${cacheDir}/data/usenet/complete"
-      "${cacheDir}/data/usenet/complete/movies"
-      "${cacheDir}/data/usenet/complete/tv"
-      "${cacheDir}/data/usenet/incomplete"
-      "${cacheDir}/data/usenet/incomplete/movies"
-      "${cacheDir}/data/usenet/incomplete/tv"
-      "${cacheDir}/data/torrents"
-      "${cacheDir}/data/torrents/complete"
-      "${cacheDir}/data/torrents/complete/movies"
-      "${cacheDir}/data/torrents/complete/tv"
-      "${cacheDir}/data/torrents/incomplete"
-      "${cacheDir}/data/torrents/incomplete/movies"
-      "${cacheDir}/data/torrents/incomplete/tv"
-      "${cacheDir}/data/downloads"
-      "${cacheDir}/appdata"
-    ];
-
-    appdataDirs = [
-      { path = "${appdataDir}/sabnzbd"; uid = "sabnzbd"; gid = "sabnzbd"; }
-      { path = "${appdataDir}/radarr"; uid = "radarr"; gid = "radarr"; }
-      { path = "${appdataDir}/sonarr"; uid = "sonarr"; gid = "sonarr"; }
-      { path = "${appdataDir}/whisparr"; uid = "whisparr"; gid = "whisparr"; }
-      { path = "${appdataDir}/bazarr"; uid = "bazarr"; gid = "bazarr"; }
-      { path = "${appdataDir}/plex"; uid = "plex"; gid = "media"; }
-      { path = "${appdataDir}/jellyseerr"; uid = "jellyseerr"; gid = "jellyseerr"; }
-      { path = "${appdataDir}/qbittorrent/qBittorrent"; uid = "qbittorrent"; gid = "qbittorrent"; }
-      { path = "${appdataDir}/caddy/conf"; uid = "caddy"; gid = "caddy"; }
-      { path = "${appdataDir}/caddy/data"; uid = "caddy"; gid = "caddy"; }
-      { path = "${appdataDir}/homeassistant"; uid = "homeassistant"; gid = "homeassistant"; }
-      { path = "${appdataDir}/zwavejs"; uid = "zwavejs"; gid = "zwavejs"; }
-      { path = "${appdataDir}/homepage"; uid = "homepage"; gid = "homepage"; }
-      { path = "${appdataDir}/aria2/config"; uid = "aria2"; gid = "aria2"; }
-      { path = "${appdataDir}/tautulli"; uid = "tautulli"; gid = "tautulli"; }
-    ];
-  in
-    (map (path: "d ${path} 0775 media media - -") mediaDirs)
-    ++
-    (map (dir: "d ${dir.path} 0755 ${dir.uid} ${dir.gid} - -") appdataDirs);
+  systemd.services.create-dirs = {
+    description = "Create directories";
+    after = [ "local-fs.target" ];
+    requires = [ "local-fs.target" ];
+    serviceConfig = {
+      Type = "exec";
+      ExecStart = "${createDirsScript}";
+    };
+    wantedBy = [ "multi-user.target" ];
+  };
 }

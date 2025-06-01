@@ -61,8 +61,8 @@ After this, root login will be disabled and you must login using one of the user
 
 ### Deploy Updates
 ```
-scp -r -i ~/.ssh/spudnet ./nixos/* luds@${HOST_IP}:~/deploy/
-ssh -i ~/.ssh/spudnet luds@${HOST_IP} "cd ~/deploy && sudo nixos-rebuild switch --flake .#spudbox-dev"
+scp -r -i ~/.ssh/spudnet ./nixos/* luds@${HOST_IP}:~/deploy/ && \
+ssh -i ~/.ssh/spudnet luds@${HOST_IP} "cd ~/deploy && sudo nixos-rebuild switch --impure --flake .#spudbox-dev"
 ```
 
 ### Secrets
