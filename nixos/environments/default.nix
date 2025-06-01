@@ -21,7 +21,6 @@ in {
     homeassistantPort = 8123;
     zwavejsPort = 8091;
     homepagePort = 3000;
-    cockpitPort = 9090;
     ariangPort = 6880;
     aria2Port = 6800;
     stashPort = 9999;

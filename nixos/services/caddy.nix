@@ -101,14 +101,6 @@ with config.my;
         reverse_proxy localhost:${toString homepagePort}
       }
 
-      cockpit.${domain} {
-        reverse_proxy https://localhost:${toString cockpitPort} {
-          transport http {
-            tls_insecure_skip_verify
-          }
-        }
-      }
-
       ariang.${domain} {
         @no_cookie {
           not header Cookie *visited=*

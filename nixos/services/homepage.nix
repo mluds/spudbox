@@ -201,13 +201,6 @@ with config.my;
       {
         "System" = [
           {
-            "Cockpit" = {
-              icon = "cockpit";
-              description = "Linux Admin UI";
-              href = "https://cockpit.${domain}";
-            };
-          }
-          {
             "Tautulli" = {
               icon = "tautulli";
               href = "https://tautulli.${domain}";
