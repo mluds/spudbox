@@ -20,9 +20,9 @@ in {
   systemd.services.prowlarr-config = {
     description = "Configure Prowlarr";
     after = [ "prowlarr.service" ];
-    requires = [ "prowlarr.service" ];
     path = with pkgs; [ xmlstarlet ];
     serviceConfig = {
+      User = "root";
       Type = "exec";
       ExecStart = "${configScript}/bin/prowlarr-config";
     };
