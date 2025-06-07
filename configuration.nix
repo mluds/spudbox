@@ -106,22 +106,29 @@ in {
   };
 
   users.groups.media = {};
-  users.users = lib.listToAttrs (lib.forEach secrets.users (user: {
-    name = user.username;
-    value = {
-      isNormalUser = true;
-      password = user.password;
-      openssh.authorizedKeys.keys = [ user.sshPublicKey ];
-      extraGroups = lib.optional user.superuser "wheel";
-    };
-  })) // {
-    media = {
-      isSystemUser = true;
-      group = "media";
-      createHome = false;
-      useDefaultShell = false;
-    };
-  };
+  users.users = lib.mkMerge [
+    (lib.listToAttrs (lib.forEach secrets.users (user: {
+      name = user.username;
+      value = {
+        isNormalUser = true;
+        password = user.password;
+        openssh.authorizedKeys.keys = [ user.sshPublicKey ];
+        extraGroups = lib.optional user.superuser "wheel";
+      };
+    })))
+    {
+      media = {
+        isSystemUser = true;
+        group = "media";
+        createHome = false;
+        useDefaultShell = false;
+      };
+    }
+    {
+      root.password = secrets.rootPassword;
+    }
+  ];
+  users.mutableUsers = false;
 
   systemd.services.create-dirs = {
     description = "Create directories";
