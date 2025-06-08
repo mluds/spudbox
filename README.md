@@ -87,7 +87,7 @@ After this, root login will be disabled and you must login using one of the user
 ### Deploy Updates
 ```bash
 scp -r -i ~/.ssh/spudnet ./* luds@${HOST_IP}:~/deploy/ && \
-ssh -i ~/.ssh/spudnet luds@${HOST_IP} "cd ~/deploy && sudo nixos-rebuild switch --impure --flake .#${FLAKE}"
+ssh -i ~/.ssh/spudnet luds@${HOST_IP} "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --impure --flake .#${FLAKE}"
 ```
 
 ### Secrets
