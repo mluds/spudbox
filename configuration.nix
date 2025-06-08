@@ -76,6 +76,7 @@ in {
     openssl_3
     jq
     curl
+    hdparm
   ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
