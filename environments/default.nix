@@ -27,6 +27,7 @@ in {
     stashvrPort = 9666;
     transmissionPort = 9091;
     prowlarrPort = 9696;
+    audiobookshelfPort = 8000;
 
     usenetServerHosts = [
       "news.frugalusenet.com"

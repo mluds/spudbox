@@ -101,6 +101,11 @@ with config.my;
         reverse_proxy localhost:${toString homepagePort}
       }
 
+      audiobookshelf.${domain} {
+        encode gzip zstd
+        reverse_proxy localhost:${toString audiobookshelfPort}
+      }
+
       ariang.${domain} {
         @no_cookie {
           not header Cookie *visited=*

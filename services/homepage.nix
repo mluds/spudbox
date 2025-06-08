@@ -66,6 +66,19 @@ with config.my;
               };
             };
           }
+          {
+            "Audiobookshelf" = {
+              icon = "audiobookshelf";
+              href = "https://audiobookshelf.${domain}";
+              description = "Audiobook Server";
+              widget = {
+                type = "audiobookshelf";
+                url = "http://localhost:${toString audiobookshelfPort}";
+                key = "TODO";
+                fields = [ "podcasts" "podcastsDuration" "books" "booksDuration" ];
+              };
+            };
+          }
         ];
       }
       {

@@ -14,7 +14,7 @@ let
 in {
   services.prowlarr = {
     enable = true;
-    openFirewall = true;
+    openFirewall = false;
   };
 
   systemd.services.prowlarr-config = {

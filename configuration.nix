@@ -64,6 +64,7 @@ in {
     ./services/servarr/bazarr.nix
     ./services/servarr/jellyseerr.nix
     ./services/servarr/prowlarr.nix
+    ./services/audiobookshelf.nix
   ];
 
   environment.systemPackages = with pkgs; [
