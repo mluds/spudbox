@@ -249,7 +249,7 @@ with config.my;
         "resources" = {
           cpu = true;
           memory = true;
-          disk = "/mnt";
+          disk = storageDir;
           cputemp = true;
           tempMin = 0;
           tempMax = 100;
