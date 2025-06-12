@@ -84,6 +84,15 @@ ssh root@${HOST_IP} "cd ~/deploy && nixos-rebuild switch --impure --flake .#${FL
 
 After this, root login will be disabled and you must login using one of the users specified in `secrets/defaults.json`.
 
+### Manual Steps
+
+Claim the Plex server by opening an SSH tunnel.
+```
+ssh -i ~/.ssh/spudnet -L 32400:localhost:32400 luds@192.168.0.42
+```
+
+Then visit http://localhost:324000/web in a browser and follow the setup. (Plex _requires_ claiming from localhost)
+
 ### Deploy Updates
 ```bash
 scp -r -i ~/.ssh/spudnet ./* luds@${HOST_IP}:~/deploy/ && \

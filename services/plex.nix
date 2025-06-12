@@ -80,13 +80,6 @@ in {
     openFirewall = true;
   };
 
-  systemd.services.plex.serviceConfig = {
-    Environment = [
-      # Get a fresh claim token from: https://plex.tv/claim
-      "PLEX_CLAIM=${secrets.plexClaim}"
-    ];
-  };
-
   systemd.tmpfiles.rules = [
     "d /var/lib/secrets 0750 root media -"
     "d /var/lib/secrets/plex 0750 root media -"
