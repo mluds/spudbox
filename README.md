@@ -103,6 +103,10 @@ Open Sonarr. Go to Library Import, click the path, then click Import.
 
 Open Radarr. Go to Library Import, click the path, then click Import.
 
+#### Jellyseerr
+
+Open Jellyseerr. Follow the setup steps. Plex, Sonarr, and Radarr settings should be pre-filled.
+
 ### Deploy Updates
 ```bash
 scp -r -i ~/.ssh/spudnet ./* luds@${HOST_IP}:~/deploy/ && \

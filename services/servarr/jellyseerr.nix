@@ -118,7 +118,7 @@ in
     after = [ "jellyseerr.service" ];
     path = with pkgs; [ curl jq ];
     serviceConfig = {
-      Type = "oneshot";
+      Type = "exec";
       User = "root";
       ExecStart = "${configMerger}/bin/jellyseerr-config-merger";
     };
