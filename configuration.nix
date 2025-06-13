@@ -37,8 +37,8 @@ let
     ${lib.concatMapStringsSep "\n" (dir: ''
       echo "Creating media directory: ${dir}"
       mkdir -p "${dir}"
-      chown media:media "${dir}"
-      chmod 0775 "${dir}"
+      chown -R media:media "${dir}"
+      chmod -R 0775 "${dir}"
     '') mediaDirs}
 
     ${lib.concatMapStringsSep "\n" (dir: ''
