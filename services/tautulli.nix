@@ -3,27 +3,46 @@
 with config.my;
 
 let
-  configScript = pkgs.writeScriptBin "tautulli-config-updater" ''
-    #!${pkgs.python3}/bin/python3
+  configScript = pkgs.writeText "tautulli-config.py" ''
     from os import getenv, path, urandom
-    import base64
     import configparser
+    from base64 import b64encode
     from hashlib import pbkdf2_hmac
+    from hmac import compare_digest
     import subprocess
     import time
 
-    def generate_pbkdf2_hash():
-      password = getenv('TAUTULLI_ADMIN_PASSWORD')
-      # salt = base64.b64decode(getenv('TAUTULLI_SALT'))
-      salt = urandom(16)
-      iterations = int(getenv('TAUTULLI_ITERATIONS', '600000'))
-      print(password)
+    def main():
+      while not path.exists(getenv('TAUTULLI_CONFIG')):
+        print("Waiting for initial Tautulli config:", getenv('TAUTULLI_CONFIG'))
+        time.sleep(5)
 
-      hashed = pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations)
-      salt_b64 = base64.b64encode(salt).decode()
-      hashed_b64 = base64.b64encode(hashed).decode()
-      formatted = "PBKDF2$sha256$" + str(iterations) + "$" + salt_b64 + "$" + hashed_b64
-      return formatted
+      print("Stopping Tautulli service...")
+      subprocess.run(["systemctl", "stop", "tautulli"], check=False)
+
+      print("Waiting for service to stop...")
+      time.sleep(5)
+
+      print("Updating configuration...")
+      update_config()
+
+      print("Starting Tautulli service...")
+      subprocess.run(["systemctl", "start", "tautulli"], check=True)
+
+    SALT_LENGTH = 16
+    KEY_LENGTH = 24
+    HASH_FUNCTION = 'sha256'
+    COST_FACTOR = 600000
+
+    def make_hash(password):
+      if isinstance(password, str):
+        password = password.encode('utf-8')
+      salt = b64encode(urandom(SALT_LENGTH))
+      return 'PBKDF2''${}''${}''${}''${}'.format(
+        HASH_FUNCTION,
+        COST_FACTOR,
+        salt.decode('utf-8'),
+        b64encode(pbkdf2_hmac(HASH_FUNCTION, password, salt, COST_FACTOR, KEY_LENGTH)).decode('utf-8'))
 
     def update_config():
       cfg_path = getenv('TAUTULLI_CONFIG')
@@ -37,30 +56,15 @@ let
 
       parser['General']['api_key'] = getenv('TAUTULLI_API_KEY')
       parser['General']['http_username'] = getenv('TAUTULLI_ADMIN_USERNAME')
-      parser['General']['http_password'] = generate_pbkdf2_hash()
+      parser['General']['http_password'] = make_hash(getenv('TAUTULLI_ADMIN_PASSWORD'))
       parser['General']['http_port'] = getenv('TAUTULLI_PORT')
-      parser['General']['pms_port'] = getenv('PLEX_PORT')
-      parser['General']['pms_url'] = f"http://localhost:{getenv('PLEX_PORT')}"
       parser['General']['first_run_complete'] = '1';
+      parser['PMS']['pms_ip'] = '127.0.0.1';
+      parser['PMS']['pms_port'] = getenv('PLEX_PORT')
+      parser['PMS']['pms_url'] = f"http://127.0.0.1:{getenv('PLEX_PORT')}"
 
       with open(cfg_path, 'w') as configfile:
         parser.write(configfile)
-
-    def main():
-      while not path.exists(getenv('TAUTULLI_CONFIG')):
-        time.sleep(1)
-
-      print("Stopping Tautulli service...")
-      subprocess.run(["systemctl", "stop", "tautulli"], check=False)
-
-      print("Waiting for service to stop...")
-      time.sleep(2)
-
-      print("Updating configuration...")
-      update_config()
-
-      print("Starting Tautulli service...")
-      subprocess.run(["systemctl", "start", "tautulli"], check=True)
 
     if __name__ == "__main__":
       main()
@@ -70,15 +74,13 @@ in {
     enable = true;
   };
 
-  systemd.services.tautulli-config-update = {
+  systemd.services.tautulli-config = {
     description = "Update Tautulli configuration";
-    after = [ "tautulli.service" ];
-    requires = [ "tautulli.service" ];
 
     serviceConfig = {
       Type = "exec";
       User = "root";
-      ExecStart = "${configScript}/bin/tautulli-config-updater";
+      ExecStart = "${pkgs.python3}/bin/python ${configScript}";
     };
 
     environment = {
@@ -86,9 +88,8 @@ in {
       PLEX_PORT = toString plexPort;
       TAUTULLI_PORT = toString tautulliPort;
       TAUTULLI_ADMIN_USERNAME = secrets.adminUsername;
-      TAUTULLI_API_KEY = secrets.tautulliApiKey;
       TAUTULLI_ADMIN_PASSWORD = secrets.adminPassword;
-      TAUTULLI_SALT = "1cduJ6RzGVo5CY2nxK5rZQ==";  # openssl rand -base64 16
+      TAUTULLI_API_KEY = secrets.tautulliApiKey;
     };
   };
 }
