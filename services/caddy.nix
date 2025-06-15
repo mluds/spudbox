@@ -130,6 +130,10 @@ with config.my;
       stashvr.${domain} {
         reverse_proxy localhost:${toString stashvrPort}
       }
+
+      ttyd.${domain} {
+        reverse_proxy localhost:${toString ttydPort}
+      }
     '';
   };
 }
