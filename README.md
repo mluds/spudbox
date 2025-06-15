@@ -107,6 +107,10 @@ Open Radarr. Go to Library Import, click the path, then click Import.
 
 Open Jellyseerr. Follow the setup steps. Plex, Sonarr, and Radarr settings should be pre-filled.
 
+#### Tautulli
+
+Open Tautulli. Go to Settings > Plex Media Server. Click "Fetch New Token".
+
 ### Deploy Updates
 ```bash
 scp -r -i ~/.ssh/spudnet ./* luds@${HOST_IP}:~/deploy/ && \
