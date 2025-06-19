@@ -38,13 +38,17 @@ let
       key="${secrets.audiobookshelfTokenSecret}"
     )
 
+    apikey_path = "/var/lib/secrets/audiobookshelf/apikey"
+    parent_dir = os.path.dirname(apikey_path)
+    os.makedirs(parent_dir, exist_ok=True)
+    with open(apikey_path, "w") as f:
+      f.write(token)
+
     def main():
       os.system("systemctl stop audiobookshelf")
       run_sql_script()
       os.system("systemctl start audiobookshelf")
       wait_for_port(host, port)
-      api_token = get_api_token()
-      print(api_token)
 
     def wait_for_file(file_path, timeout=30, check_interval=1):
       elapsed = 0
@@ -97,18 +101,6 @@ let
       conn.commit()
       print("Database initialization completed successfully.")
       return True
-
-    def get_api_token():
-      credentials = {"username": "admin", "password": admin_password}
-      headers = {"Content-Type": "application/json"}
-      response = requests.post(
-        login_url,
-        data=json.dumps(credentials),
-        headers=headers,
-        timeout=10
-      )
-      user_data = response.json().get("user", {})
-      return user_data.get("token")
 
     if __name__ == "__main__":
       main()

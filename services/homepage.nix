@@ -9,6 +9,7 @@ with config.my;
       Environment = [
         "HOMEPAGE_ALLOWED_HOSTS=homepage.${domain}"
         "HOMEPAGE_FILE_PLEX_TOKEN=/var/lib/secrets/plex/token"
+        "HOMEPAGE_FILE_ABS_API_KEY=/var/lib/secrets/audiobookshelf/apikey"
       ];
     };
   };
@@ -74,8 +75,8 @@ with config.my;
               widget = {
                 type = "audiobookshelf";
                 url = "http://localhost:${toString audiobookshelfPort}";
-                key = "TODO";
-                fields = [ "podcasts" "podcastsDuration" "books" "booksDuration" ];
+                key = "{{HOMEPAGE_FILE_ABS_API_KEY}}";
+                fields = [ "books" "booksDuration" ];
               };
             };
           }
