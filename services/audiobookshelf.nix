@@ -6,7 +6,7 @@ let
   dbFile = "/var/lib/audiobookshelf/config/absdatabase.sqlite";
 
   configScript = let
-    pythonEnv = pkgs.python3.withPackages (ps: [ ps.requests ps.bcrypt ]);
+    pythonEnv = pkgs.python3.withPackages (ps: [ ps.requests ps.bcrypt ps.pyjwt ]);
   in pkgs.writeScriptBin "audiobookshelf-config" ''
     #!${pythonEnv}/bin/python
 
@@ -18,6 +18,7 @@ let
     import bcrypt
     import time
     import socket
+    import jwt
 
     admin_password = os.getenv("ADMIN_PASSWORD")
     salt = bcrypt.gensalt(rounds=8, prefix=b"2a")
@@ -30,6 +31,12 @@ let
     base_url = f"http://{host}:{port}"
     login_url = urljoin(base_url, "/login")
     user_id = "d3b07384-1138-4e19-8878-669fc7a4c34a"
+    username = "${secrets.adminUsername}"
+
+    token = jwt.encode(
+      payload={ "userId": user_id, "username": username },
+      key="${secrets.audiobookshelfTokenSecret}"
+    )
 
     def main():
       os.system("systemctl stop audiobookshelf")
@@ -72,11 +79,11 @@ let
           permissions, bookmarks, extraData, createdAt, updatedAt
         ) VALUES (
           '{user_id}',
-          'admin',
+          '{username}',
           ''',
           '{pash}',
           'root',
-          NULL,
+          '{token}',
           1,
           0,
           NULL,
@@ -112,6 +119,14 @@ in {
     enable = true;
     openFirewall = false;
     port = audiobookshelfPort;
+  };
+
+  systemd.services.audiobookshelf = {
+    serviceConfig = {
+      Environment = [
+        "TOKEN_SECRET=${secrets.audiobookshelfTokenSecret}"
+      ];
+    };
   };
 
   systemd.services.audiobookshelf-config = {
