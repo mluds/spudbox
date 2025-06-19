@@ -42,6 +42,7 @@ let
       -H "Content-Type: application/json" \
       -d '{
         "name": "NZBGeek",
+        "priority": 1,
         "implementationName": "Newznab",
         "implementation": "Newznab",
         "configContract": "NewznabSettings",
@@ -67,6 +68,7 @@ let
       -H "Content-Type: application/json" \
       -d '{
         "name": "SABnzbd",
+        "priority": 1,
         "enable": true,
         "protocol": "usenet",
         "implementation": "Sabnzbd",
