@@ -17,19 +17,18 @@ let
     new_config = yaml.safe_load(os.environ['NEW_CONFIG'])
     
     try:
-        with open(config_path, 'r') as f:
-            existing_config = yaml.safe_load(f) or {}
+      with open(config_path, 'r') as f:
+        existing_config = yaml.safe_load(f) or {}
     except FileNotFoundError:
-        existing_config = {}
+      existing_config = {}
 
     merged_config = always_merger.merge(existing_config, new_config)
     
     with open(config_path, 'w') as f:
-        yaml.dump(merged_config, f, sort_keys=False)
-    
-    # Restart service if config changed
+      yaml.dump(merged_config, f, sort_keys=False)
+
     if existing_config != merged_config:
-        os.system("systemctl restart bazarr")
+      os.system("systemctl restart bazarr")
   '';
 
   configTemplate = pkgs.writeText "bazarr-config-template.yaml" (lib.generators.toYAML {} {

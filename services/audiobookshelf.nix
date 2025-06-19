@@ -1,73 +1,98 @@
-{ config, pkgs, ... }:
+{ config, pkgs, secrets, ... }:
 
 with config.my;
 
 let
   dbFile = "/var/lib/audiobookshelf/config/absdatabase.sqlite";
-  sqlFile = pkgs.writeText "audiobookshelf-init.sql" ''
-    DELETE FROM users;
-    INSERT INTO users (
-      id, username, email, pash, type, token, isActive, isLocked, lastSeen,
-      permissions, bookmarks, extraData, createdAt, updatedAt
-    ) VALUES (
-      'd3b07384-1138-4e19-8878-669fc7a4c34a',
-      'admin',
-      ''',
-      '$2a$08$N9SPPCdrbt8IzWvF6Nqr/OEB9vzgBidy7VxSF6upQgbD.wB2N2GVa',
-      'root',
-      NULL,
-      1,
-      0,
-      NULL,
-      '{"download":true,"update":true,"delete":true,"upload":true,"createEreader":true,"accessAllLibraries":true,"accessAllTags":true,"accessExplicitContent":true,"selectedTagsNotAccessible":false,"librariesAccessible":[],"itemTagsSelected":[]}',
-      '[]',
-      '{"seriesHideFromContinueListening":[]}',
-      datetime('now') || ' +00:00',
-      datetime('now') || ' +00:00'
-    );
-  '';
 
   configScript = let
-    pythonEnv = pkgs.python3.withPackages (ps: [ ps.requests ]);
+    pythonEnv = pkgs.python3.withPackages (ps: [ ps.requests ps.bcrypt ]);
   in pkgs.writeScriptBin "audiobookshelf-config" ''
     #!${pythonEnv}/bin/python
 
     import os
     import sqlite3
     import requests
-    import time
     import json
     from urllib.parse import urljoin
+    import bcrypt
+    import time
+    import socket
+
+    admin_password = os.getenv("ADMIN_PASSWORD")
+    salt = bcrypt.gensalt(rounds=8, prefix=b"2a")
+    hashed = bcrypt.hashpw(admin_password.encode('utf-8'), salt)
+    pash = hashed.decode()
 
     db_path = "${dbFile}"
-    sql_path = "${sqlFile}"
-    base_url = "http://localhost:${toString audiobookshelfPort}"
+    host = 'localhost'
+    port = '${toString audiobookshelfPort}'
+    base_url = f"http://{host}:{port}"
     login_url = urljoin(base_url, "/login")
     user_id = "d3b07384-1138-4e19-8878-669fc7a4c34a"
 
-    def run_sql_script():
-      if not os.path.exists(db_path):
-        print(f"Database file not found: {db_path}")
-        return False
+    def main():
+      os.system("systemctl stop audiobookshelf")
+      run_sql_script()
+      os.system("systemctl start audiobookshelf")
+      wait_for_port(host, port)
+      api_token = get_api_token()
+      print(api_token)
 
-      try:
-        with open(sql_path, 'r') as sql_file:
-          sql_script = sql_file.read()
-        
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.executescript(sql_script)
-        conn.commit()
-        print("Database initialization completed successfully.")
-        return True
-      except sqlite3.Error as e:
-        print(f"SQLite error: {e}")
-        return False
-      finally:
-        conn.close()
+    def wait_for_file(file_path, timeout=30, check_interval=1):
+      elapsed = 0
+      while elapsed < timeout:
+        if os.path.exists(file_path):
+          return True
+        time.sleep(check_interval)
+        elapsed += check_interval
+      return False
+
+    def wait_for_port(host, port, timeout=30, retry_interval=1):
+      start_time = time.time()
+      while time.time() - start_time < timeout:
+        try:
+          with socket.create_connection((host, port), timeout=1):
+            return True
+        except (ConnectionRefusedError, socket.timeout, OSError):
+          time.sleep(retry_interval)
+        except Exception as e:
+          print(f"Unexpected error: {e}")
+          break
+      return False
+
+    def run_sql_script():
+      conn = sqlite3.connect(db_path)
+      cursor = conn.cursor()
+
+      cursor.execute("DELETE FROM users;")
+      cursor.execute(f"""
+        INSERT INTO users (
+          id, username, email, pash, type, token, isActive, isLocked, lastSeen,
+          permissions, bookmarks, extraData, createdAt, updatedAt
+        ) VALUES (
+          '{user_id}',
+          'admin',
+          ''',
+          '{pash}',
+          'root',
+          NULL,
+          1,
+          0,
+          NULL,
+          '{{"download":true,"update":true,"delete":true,"upload":true,"createEreader":true,"accessAllLibraries":true,"accessAllTags":true,"accessExplicitContent":true,"selectedTagsNotAccessible":false,"librariesAccessible":[],"itemTagsSelected":[]}}',
+          '[]',
+          '{{"seriesHideFromContinueListening":[]}}',
+          datetime('now') || ' +00:00',
+          datetime('now') || ' +00:00'
+        );
+      """)
+      conn.commit()
+      print("Database initialization completed successfully.")
+      return True
 
     def get_api_token():
-      credentials = {"username": "admin", "password": "admin"}
+      credentials = {"username": "admin", "password": admin_password}
       headers = {"Content-Type": "application/json"}
       response = requests.post(
         login_url,
@@ -75,14 +100,11 @@ let
         headers=headers,
         timeout=10
       )
-      print(response.json())
       user_data = response.json().get("user", {})
       return user_data.get("token")
 
     if __name__ == "__main__":
-      run_sql_script()
-      api_token = get_api_token()
-      print(api_token)
+      main()
   '';
 
 in {
@@ -94,12 +116,13 @@ in {
 
   systemd.services.audiobookshelf-config = {
     description = "Configure Audiobookshelf";
-    after = [ "audiobookshelf.service" ];
-    requires = [ "audiobookshelf.service" ];
     serviceConfig = {
       User = "root";
       Type = "exec";
       ExecStart = "${configScript}/bin/audiobookshelf-config";
+      Environment = [
+        "ADMIN_PASSWORD=${secrets.adminPassword}"
+      ];
     };
   };
 }
