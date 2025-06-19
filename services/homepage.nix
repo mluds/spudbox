@@ -85,38 +85,29 @@ with config.my;
       {
         "Media Management" = [
           {
-            "Sonarr" = {
-              icon = "sonarr";
-              href = "https://sonarr.${domain}";
-              description = "TV Show Management";
-              widget = {
-                type = "sonarr";
-                fields = [
-                  "wanted"
-                  "queued"
-                  "series"
-                ];
-                url = "http://localhost:${toString sonarrPort}";
-                key = secrets.sonarrApiKey;
-                enableQueue = false;
-              };
-            };
-          }
-          {
             "Radarr" = {
               icon = "radarr";
               href = "https://radarr.${domain}";
               description = "Movie Management";
               widget = {
                 type = "radarr";
-                fields = [
-                  "wanted"
-                  "missing"
-                  "queued"
-                  "movies"
-                ];
+                fields = [ "movies" "wanted" "missing" "queued" ];
                 url = "http://localhost:${toString radarrPort}";
                 key = secrets.radarrApiKey;
+                enableQueue = false;
+              };
+            };
+          }
+          {
+            "Sonarr" = {
+              icon = "sonarr";
+              href = "https://sonarr.${domain}";
+              description = "TV Show Management";
+              widget = {
+                type = "sonarr";
+                fields = [ "series" "wanted" "queued" ];
+                url = "http://localhost:${toString sonarrPort}";
+                key = secrets.sonarrApiKey;
                 enableQueue = false;
               };
             };
