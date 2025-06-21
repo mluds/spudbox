@@ -31,7 +31,6 @@ let
     password = ${secrets.adminPassword}
     bandwidth_max = ""
     cache_limit = 1G
-    web_dir = /var/lib/sabnzbd/Glitter
     web_color = Auto
     https_cert = server.cert
     https_key = server.key
@@ -54,7 +53,7 @@ let
     dirscan_dir = ""
     dirscan_speed = 5
     password_file = ""
-    log_dir = /var/log/sabnzbd
+    log_dir = /var/lib/sabnzbd/logs
     max_art_tries = 3
     top_only = 0
     sfv_check = 1
@@ -398,17 +397,10 @@ let
 in {
   users.groups.sabnzbd = {};
 
-  users.users.sabnzbd = {
-    isSystemUser = true;
-    group = "sabnzbd";
-    extraGroups = [ "media" ];
-    createHome = false;
-    useDefaultShell = false;
-  };
-
   services.sabnzbd = {
     enable = true;
     user = "sabnzbd";
+    group = "media";
     openFirewall = false;
     configFile = "/var/lib/sabnzbd/sabnzbd.ini";
   };
