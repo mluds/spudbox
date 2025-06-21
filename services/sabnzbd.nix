@@ -386,6 +386,8 @@ let
 
   configScript = pkgs.writeScriptBin "sabnzbd-config" ''
     #!/bin/sh
+    mkdir -p /var/log/sabnzbd
+    chown -R sabnzbd:sabnzbd /var/log/sabnzbd
     cp ${config} /var/lib/sabnzbd/sabnzbd.ini
     chown sabnzbd:sabnzbd /var/lib/sabnzbd/sabnzbd.ini
     chmod 660 /var/lib/sabnzbd/sabnzbd.ini
