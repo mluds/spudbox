@@ -79,8 +79,18 @@ let
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
       1, None, 0,
-      '[{"id": 1, "language": "en", "audio_exclude": "False", "hi": "False", "forced": "False"}, {"id": 2, "language": "zh", "audio_exclude": "False", "hi": "False", "forced": "False"}]',
+      '[{"id": 1, "language": "en", "audio_exclude": "False", "hi": "False", "forced": "False"}]',
       'Default', '[]', '[]', None
+    ))
+    cursor.execute("""
+      INSERT INTO table_languages_profiles (
+        "profileId", cutoff, "originalFormat", items, name,
+        "mustContain", "mustNotContain", tag
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+      2, None, 0,
+      '[{"id": 1, "language": "en", "audio_exclude": "False", "hi": "False", "forced": "False"}, {"id": 2, "language": "zh", "audio_exclude": "False", "hi": "False", "forced": "False"}]',
+      'English and Chinese', '[]', '[]', None
     ))
     conn.commit()
 
@@ -105,6 +115,8 @@ let
       use_subsync = true;
       use_subsync_movie_threshold = false;
       use_subsync_threshold = false;
+      force_audio = true;
+      no_fix_framerate = false;
     };
     auth = {
       type = "form";
@@ -126,7 +138,7 @@ let
       username = secrets.opensubtitlesUsername;
       password = secrets.opensubtitlesPassword;
       include_ai_translated = false;
-      use_hash = true;
+      use_hash = false;
     };
     assrt = {
       token = secrets.assrtApiToken;
