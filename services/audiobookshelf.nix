@@ -49,8 +49,10 @@ let
       run_sql_script()
       os.system("systemctl start audiobookshelf")
       wait_for_port(host, port)
+      create_library()
+      create_users()
 
-    def wait_for_file(file_path, timeout=30, check_interval=1):
+    def wait_for_file(file_path, timeout=300, check_interval=3):
       elapsed = 0
       while elapsed < timeout:
         if os.path.exists(file_path):
@@ -101,6 +103,35 @@ let
       conn.commit()
       print("Database initialization completed successfully.")
       return True
+    
+    def create_library():
+      headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+      }
+      lib_name = "Audiobooks"
+      libraries = requests.get(f"{base_url}/api/libraries", headers=headers).json()["libraries"]
+      audiobooks_exists = any(lib["name"] == lib_name for lib in libraries)
+      if audiobooks_exists:
+        print("Audiobooks library already exists")
+      else:
+        print("Audiobooks library not found, creating...")
+        new_library = {
+          "name": lib_name,
+          "folders": [{"fullPath": "/mnt/storage/data/media/audiobooks"}],
+          "icon": "audiobookshelf",
+          "mediaType": "book",
+          "provider": "google"
+        }
+        response = requests.post(f"{base_url}/api/libraries", headers=headers, json=new_library)
+        response.raise_for_status()
+        id = response.json()['id']
+        response = requests.post(f"{base_url}/api/libraries/{id}/scan", headers=headers)
+        response.raise_for_status()
+        print("Library created successfully!")
+
+    def create_users():
+      pass
 
     if __name__ == "__main__":
       main()

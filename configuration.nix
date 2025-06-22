@@ -6,6 +6,7 @@ let
   mediaDirs = [
     "${storageDir}/data/media/movies"
     "${storageDir}/data/media/tv"
+    "${storageDir}/data/media/audiobooks"
     "${storageDir}/data/misc"
     "${cacheDir}/data"
     "${cacheDir}/data/usenet"
