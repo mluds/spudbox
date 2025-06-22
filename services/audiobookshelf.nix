@@ -38,6 +38,11 @@ let
       key="${secrets.audiobookshelfTokenSecret}"
     )
 
+    headers = {
+      "Authorization": f"Bearer {token}",
+      "Content-Type": "application/json"
+    }
+
     apikey_path = "/var/lib/secrets/audiobookshelf/apikey"
     parent_dir = os.path.dirname(apikey_path)
     os.makedirs(parent_dir, exist_ok=True)
@@ -105,10 +110,6 @@ let
       return True
     
     def create_library():
-      headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json"
-      }
       lib_name = "Audiobooks"
       libraries = requests.get(f"{base_url}/api/libraries", headers=headers).json()["libraries"]
       audiobooks_exists = any(lib["name"] == lib_name for lib in libraries)
@@ -131,7 +132,24 @@ let
         print("Library created successfully!")
 
     def create_users():
-      pass
+      users_json = os.getenv("AUDIOBOOKSHELF_USERS", "[]")
+      users = json.loads(users_json)
+      existing_users = requests.get(f"{base_url}/api/users", headers=headers).json()["users"]
+      existing_usernames = [user['username'] for user in existing_users]
+      for user in users:
+        username = user['username']
+        if username in existing_usernames:
+          print(f"User {username} already exists")
+          continue
+        new_user = {
+          "username": username,
+          "password": user['password'],
+          "type": "admin" if user['superuser'] else "user",
+          "isActive": True
+        }
+        response = requests.post(f"{base_url}/api/users", headers=headers, json=new_user)
+        response.raise_for_status()
+        print(f"Created user {username}")
 
     if __name__ == "__main__":
       main()
@@ -160,6 +178,11 @@ in {
       ExecStart = "${configScript}/bin/audiobookshelf-config";
       Environment = [
         "ADMIN_PASSWORD=${secrets.adminPassword}"
+        "AUDIOBOOKSHELF_USERS='${
+          builtins.toJSON (map (user: {
+            inherit (user) username password superuser;
+          }) secrets.users)
+        }'"
       ];
     };
   };
