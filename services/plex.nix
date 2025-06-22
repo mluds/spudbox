@@ -65,18 +65,11 @@ let
   '';
 in {
   users.groups.plex = {};
-  users.users.plex = {
-    isSystemUser = true;
-    group = "plex";
-    extraGroups = [ "media" ];
-    createHome = false;
-    useDefaultShell = false;
-  };
 
   services.plex = {
     enable = true;
     user = "plex";
-    group = "plex";
+    group = "media";
     openFirewall = true;
   };
 
