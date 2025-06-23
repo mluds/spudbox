@@ -160,6 +160,7 @@ in {
     enable = true;
     openFirewall = false;
     port = audiobookshelfPort;
+    group = "media";
   };
 
   systemd.services.audiobookshelf = {
