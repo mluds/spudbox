@@ -37,7 +37,7 @@ let
       --fail --silent --show-error || echo "Root folder may already exist"
 
     echo "Configuring media management settings..."
-    curl -X PUT "http://localhost:${toString radarrPort}/api/v3/config/mediamanagement/0" \
+    curl -X PUT "http://localhost:${toString radarrPort}/api/v3/config/mediamanagement/1" \
       -H "X-Api-Key: ${secrets.radarrApiKey}" \
       -H "Content-Type: application/json" \
       -d '{
@@ -52,7 +52,7 @@ let
         "rescanAfterRefresh": "always",
         "autoRenameFolders": false,
         "pathsDefaultStatic": false,
-        "setPermissionsLinux": false,
+        "setPermissionsLinux": true,
         "chmodFolder": "775",
         "chownGroup": "",
         "skipFreeSpaceCheckWhenImporting": false,

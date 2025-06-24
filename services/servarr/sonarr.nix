@@ -36,6 +36,36 @@ let
       -d '{"name": "TV", "path": "${storageDir}/data/media/tv"}' \
       --fail --silent --show-error || echo "Root folder may already exist"
 
+    echo "Configuring media management settings..."
+    curl -X PUT "http://localhost:${toString sonarrPort}/api/v3/config/mediamanagement/1" \
+      -H "X-Api-Key: ${secrets.sonarrApiKey}" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "id": 1,
+        "autoUnmonitorPreviouslyDownloadedMovies": false,
+        "recycleBin": "",
+        "recycleBinCleanupDays": 7,
+        "downloadPropersAndRepacks": "preferAndUpgrade",
+        "createEmptyMovieFolders": false,
+        "deleteEmptyFolders": false,
+        "fileDate": "none",
+        "rescanAfterRefresh": "always",
+        "autoRenameFolders": false,
+        "pathsDefaultStatic": false,
+        "setPermissionsLinux": true,
+        "chmodFolder": "775",
+        "chownGroup": "",
+        "skipFreeSpaceCheckWhenImporting": false,
+        "minimumFreeSpaceWhenImporting": 100,
+        "copyUsingHardlinks": true,
+        "useScriptImport": false,
+        "scriptImportPath": "",
+        "importExtraFiles": false,
+        "extraFileExtensions": "srt",
+        "enableMediaInfo": true
+      }' \
+      --fail --silent --show-error || echo "Media management may already be configured"
+
     echo "Configuring NZBGeek..."
     curl -X POST "http://localhost:${toString sonarrPort}/api/v3/indexer" \
       -H "X-Api-Key: ${secrets.sonarrApiKey}" \
@@ -121,19 +151,10 @@ let
       --fail --silent --show-error
   '';
 in {
-  users.groups.sonarr = {};
-
-  users.users.sonarr = {
-    isSystemUser = true;
-    group = "sonarr";
-    extraGroups = [ "media" ];
-    createHome = false;
-    useDefaultShell = false;
-  };
-
   services.sonarr = {
     enable = true;
     user = "sonarr";
+    group = "media";
     openFirewall = false;
   };
 
