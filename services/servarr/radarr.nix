@@ -36,6 +36,36 @@ let
       -d '{"name": "Movies", "path": "${storageDir}/data/media/movies"}' \
       --fail --silent --show-error || echo "Root folder may already exist"
 
+    echo "Configuring media management settings..."
+    curl -X PUT "http://localhost:${toString radarrPort}/api/v3/config/mediamanagement/0" \
+      -H "X-Api-Key: ${secrets.radarrApiKey}" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "id": 1,
+        "autoUnmonitorPreviouslyDownloadedMovies": false,
+        "recycleBin": "",
+        "recycleBinCleanupDays": 7,
+        "downloadPropersAndRepacks": "preferAndUpgrade",
+        "createEmptyMovieFolders": false,
+        "deleteEmptyFolders": false,
+        "fileDate": "none",
+        "rescanAfterRefresh": "always",
+        "autoRenameFolders": false,
+        "pathsDefaultStatic": false,
+        "setPermissionsLinux": false,
+        "chmodFolder": "775",
+        "chownGroup": "",
+        "skipFreeSpaceCheckWhenImporting": false,
+        "minimumFreeSpaceWhenImporting": 100,
+        "copyUsingHardlinks": true,
+        "useScriptImport": false,
+        "scriptImportPath": "",
+        "importExtraFiles": false,
+        "extraFileExtensions": "srt",
+        "enableMediaInfo": true
+      }' \
+      --fail --silent --show-error || echo "Media management may already be configured"
+
     echo "Configuring NZBGeek..."
     curl -X POST "http://localhost:${toString radarrPort}/api/v3/indexer" \
       -H "X-Api-Key: ${secrets.radarrApiKey}" \
@@ -114,19 +144,10 @@ let
     rm -f /tmp/quality_settings_radarr.json
   '';
 in {
-  users.groups.radarr = {};
-
-  users.users.radarr = {
-    isSystemUser = true;
-    group = "radarr";
-    extraGroups = [ "media" ];
-    createHome = false;
-    useDefaultShell = false;
-  };
-
   services.radarr = {
     enable = true;
     user = "radarr";
+    group = "media";
     openFirewall = false;
   };
 
