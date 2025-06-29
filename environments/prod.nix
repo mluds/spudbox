@@ -8,5 +8,8 @@
     storageDrives = [
       { device = "/dev/sda"; partition = "/dev/sda1"; mount = "/mnt/storage1"; }
     ];
+    backupDrives = [
+      { device = "/dev/sdc"; partition = "/dev/sdc1"; mount = "/mnt/backup1"; }
+    ];
   };
 }

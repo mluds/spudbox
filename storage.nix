@@ -9,18 +9,30 @@ let
     DEVICE="$1"
     PARTITION="$2"
 
-    # Wait for base device to appear
-    lsblk "$DEVICE" >/dev/null 2>&1 || sleep 5
+    echo "Waiting for base device $DEVICE..."
+    COUNT=0
+    while [ ! -e "$DEVICE" ] && [ $COUNT -lt 30 ]; do
+      sleep 1
+      COUNT=$((COUNT+1))
+    done
+    if [ ! -e "$DEVICE" ]; then
+      echo "ERROR: Base device $DEVICE not found!"
+      exit 1
+    fi
 
-    # Check if partition device exists
+    # Check if partition exists
     if [ ! -e "$PARTITION" ]; then
       echo "Creating partition on $DEVICE"
       echo -e "g\nn\n1\n\n\nw" | fdisk "$DEVICE"
-      partprobe "$DEVICE"
 
-      # Wait for partition device node
+      # Force kernel to re-read partition table
+      blockdev --rereadpt "$DEVICE" || true
+      udevadm settle -t 5  # Wait for udev events
+
+      # Wait longer for partition device
+      echo "Waiting for partition $PARTITION..."
       COUNT=0
-      while [ ! -e "$PARTITION" ] && [ $COUNT -lt 10 ]; do
+      while [ ! -e "$PARTITION" ] && [ $COUNT -lt 30 ]; do
         sleep 1
         COUNT=$((COUNT+1))
       done
@@ -34,20 +46,18 @@ let
     if ! xfs_admin -l "$PARTITION" >/dev/null 2>&1; then
       echo "Creating XFS filesystem on $PARTITION"
       mkfs.xfs -f "$PARTITION"
-
-      # Verify filesystem creation
       if ! xfs_admin -l "$PARTITION" >/dev/null 2>&1; then
-        echo "ERROR: XFS creation failed on $PARTITION!"
+        echo "ERROR: XFS creation failed!"
         exit 1
       else
         echo "XFS filesystem verified"
       fi
     else
-      echo "XFS filesystem already exists on $PARTITION"
+      echo "XFS filesystem already exists"
     fi
   '';
 
-  allDrives = cacheDrives ++ storageDrives;
+  allDrives = cacheDrives ++ storageDrives ++ backupDrives;
 in {
   boot.supportedFilesystems = [ "xfs" "fuse.mergerfs" ];
   environment.systemPackages = with pkgs; [
@@ -62,7 +72,6 @@ in {
     name = "ensure-partition-${lib.replaceStrings ["/"] ["-"] drive.device}";
     value = {
       description = "Ensure partition and filesystem for ${drive.device}";
-      before = [ "local-fs.target" ];
       path = with pkgs; [ util-linux parted xfsprogs ];
       serviceConfig = {
         Type = "exec";
@@ -92,6 +101,12 @@ in {
       fsType = "fuse.mergerfs";
       options = [ "defaults" "allow_other" "use_ino" "cache.files=partial" ];
       depends = map (d: d.mount) storageDrives;
+    };
+    "${backupDir}" = {
+      device = lib.concatStringsSep ":" (map (d: d.mount) backupDrives);
+      fsType = "fuse.mergerfs";
+      options = [ "defaults" "allow_other" "use_ino" "cache.files=partial" ];
+      depends = map (d: d.mount) backupDrives;
     };
   };
 

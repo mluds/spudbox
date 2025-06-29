@@ -1,12 +1,14 @@
 { pkgs, ... }:
 
 let
-  storageDir = "/mnt/storage";
   cacheDir = "/mnt/cache";
   appdataDir = "${cacheDir}/appdata";
 in {
   my = {
-    inherit storageDir cacheDir appdataDir;
+    inherit cacheDir appdataDir;
+    storageDir = "/mnt/storage";
+    backupDir = "/mnt/backup";
+    backupDrives = [];
 
     plexPort = 32400;
     tautulliPort = 8181;
