@@ -1,7 +1,23 @@
 { config, pkgs, ... }:
 
-{
-  environment.systemPackages = with pkgs; [ autorestic restic ];
+let
+  autoresticCustom = pkgs.stdenv.mkDerivation rec {
+    name = "autoresticCustom";
+    version = "1.8.4";
+    src = pkgs.fetchurl {
+      url = "https://github.com/mluds/autorestic/releases/download/v${version}/autorestic_${version}_linux_amd64.bz2";
+      sha256 = "1m4g1y8vr8mczjfwlnxp1a8k7m8jzz58dn3a3yyv53ggj4ayfx3c";
+    };
+    nativeBuildInputs = [ pkgs.bzip2 ];
+    dontUnpack = true;
+    installPhase = ''
+      mkdir -p $out/bin
+      bzip2 -dc $src > $out/bin/autorestic
+      chmod +x $out/bin/autorestic
+    '';
+  };
+in {
+  environment.systemPackages = with pkgs; [ autoresticCustom restic ];
   system.activationScripts.autorestic-config = ''
     mkdir -p /var/lib/autorestic
     cat > /var/lib/autorestic/config.yml <<'EOF'
@@ -11,12 +27,12 @@
       varlib:
         from: /var/lib
         to: local-backup
+        forget: prune
         options:
           forget:
             keep-daily: 7
             keep-weekly: 4
             keep-monthly: 12
-            forgetoption: prune
         hooks:
           before:
             - systemctl stop homepage-dashboard
@@ -61,15 +77,13 @@
     serviceConfig = {
       Type = "oneshot";
       User = "root";
-      ExecStartPre = "${pkgs.autorestic}/bin/autorestic -c /var/lib/autorestic/config.yml --ci check";
-      ExecStart = "${pkgs.autorestic}/bin/autorestic -c /var/lib/autorestic/config.yml --ci backup -a";
+      ExecStart = "${autoresticCustom}/bin/autorestic -c /var/lib/autorestic/config.yml --ci backup -a";
       TimeoutStopSec = "infinity";
     };
-    after = [ "network.target" ];
-    requires = [ "network.target" ];
     preStart = ''
       mkdir -p /mnt/backup
       chmod 700 /mnt/backup
+      ${autoresticCustom}/bin/autorestic -c /var/lib/autorestic/config.yml --ci check
     '';
   };
 
