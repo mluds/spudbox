@@ -396,6 +396,7 @@ let
   '';
 in {
   users.groups.sabnzbd = {};
+  users.users.sabnzbd.extraGroups = [ "media" ];
 
   services.sabnzbd = {
     enable = true;
@@ -404,6 +405,8 @@ in {
     openFirewall = false;
     configFile = "/var/lib/sabnzbd/sabnzbd.ini";
   };
+
+  systemd.services.sabnzbd.serviceConfig.UMask = "0002";
 
   systemd.services.sabnzbd-config = {
     description = "Initialize SABnzbd configuration";

@@ -9,13 +9,6 @@ let
     "${storageDir}/data/media/audiobooks"
     "${storageDir}/data/misc"
     "${cacheDir}/data"
-    "${cacheDir}/data/usenet"
-    "${cacheDir}/data/usenet/complete"
-    "${cacheDir}/data/usenet/complete/movies"
-    "${cacheDir}/data/usenet/complete/tv"
-    "${cacheDir}/data/usenet/incomplete"
-    "${cacheDir}/data/usenet/incomplete/movies"
-    "${cacheDir}/data/usenet/incomplete/tv"
     "${cacheDir}/data/torrents"
     "${cacheDir}/data/torrents/complete"
     "${cacheDir}/data/torrents/complete/movies"
@@ -25,6 +18,16 @@ let
     "${cacheDir}/data/torrents/incomplete/tv"
     "${cacheDir}/data/downloads"
     "${cacheDir}/appdata"
+  ];
+
+  usenetDirs = [
+    "${cacheDir}/data/usenet"
+    "${cacheDir}/data/usenet/complete"
+    "${cacheDir}/data/usenet/complete/movies"
+    "${cacheDir}/data/usenet/complete/tv"
+    "${cacheDir}/data/usenet/incomplete"
+    "${cacheDir}/data/usenet/incomplete/movies"
+    "${cacheDir}/data/usenet/incomplete/tv"
   ];
 
   appdataDirs = [
@@ -41,6 +44,13 @@ let
       chown -R media:media "${dir}"
       chmod -R 0775 "${dir}"
     '') mediaDirs}
+
+    ${lib.concatMapStringsSep "\n" (dir: ''
+      echo "Creating usenet directory: ${dir}"
+      mkdir -p "${dir}"
+      chown -R sabnzbd:media "${dir}"
+      chmod -R 0775 "${dir}"
+    '') usenetDirs}
 
     ${lib.concatMapStringsSep "\n" (dir: ''
       echo "Creating appdata directory: ${dir.path} (owner: ${dir.uid}:${dir.gid})"
