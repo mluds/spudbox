@@ -11,5 +11,6 @@
     backupDrives = [
       { device = "/dev/sdc"; partition = "/dev/sdc1"; mount = "/mnt/backup1"; }
     ];
+    external_interface = "eno1";
   };
 }

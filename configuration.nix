@@ -68,6 +68,7 @@ in {
     ./services/audiobookshelf.nix
     ./services/ttyd.nix
     ./services/backup.nix
+    ./services/wireguard.nix
   ];
 
   environment.systemPackages = with pkgs; [
@@ -80,6 +81,7 @@ in {
     jq
     curl
     hdparm
+    lsof
   ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];

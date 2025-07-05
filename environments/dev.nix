@@ -8,5 +8,6 @@
     storageDrives = [
       { device = "/dev/nvme0n3"; partition = "/dev/nvme0n3p1"; mount = "/mnt/storage1"; }
     ];
+    external_interface = "eth0";
   };
 }

@@ -111,6 +111,13 @@ Open Jellyseerr. Follow the setup steps. Plex, Sonarr, and Radarr settings shoul
 
 Open Tautulli. Go to Settings > Plex Media Server. Click "Fetch New Token".
 
+#### Wireguard
+
+Use this command to generate the QR code for client setup:
+```
+qrencode -t ansiutf8 < /etc/wireguard/clients/mikes-iphone/client.conf
+```
+
 ### Deploy Updates
 ```bash
 scp -r -i ~/.ssh/spudnet ./* luds@${HOST_IP}:~/deploy/ && \
