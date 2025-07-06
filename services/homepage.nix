@@ -24,10 +24,50 @@ with config.my;
       theme = "dark";
       headerStyle = "underlined";
       disableCollapse = true;
+      useEqualHeights = true;
+      layout = [
+        {
+          Services = {
+            header = false;
+            style = "row";
+            columns = 4;
+          };
+        }
+        {
+          Bookmarks = {
+            header = false;
+            style = "row";
+            columns = 4;
+          };
+        }
+      ];
     };
+    widgets = [
+      {
+        "greeting" = {
+          textSize = "2xl";
+          text = "SpudBox";
+        };
+      }
+      {
+        "resources" = {
+          cpu = true;
+          memory = true;
+          disk = storageDir;
+          cputemp = true;
+          tempMin = 0;
+          tempMax = 100;
+          uptime = true;
+          units = "imperial";
+          refresh = 3000;
+          diskUnits = "bytes";
+          network = true;
+        };
+      }
+    ];
     services = [
       {
-        "Media" = [
+        Services = [
           {
             "Plex" = {
               icon = "plex";
@@ -80,10 +120,6 @@ with config.my;
               };
             };
           }
-        ];
-      }
-      {
-        "Media Management" = [
           {
             "Radarr" = {
               icon = "radarr";
@@ -146,10 +182,6 @@ with config.my;
               };
             };
           }
-        ];
-      }
-      {
-        "Downloaders" = [
           {
             "SABnzbd" = {
               icon = "sabnzbd";
@@ -183,28 +215,6 @@ with config.my;
               };
             };
           }
-        ];
-      }
-      {
-        "Home Automation" = [
-          {
-            "Home Assistant" = {
-              icon = "home-assistant";
-              href = "https://homeassistant.${domain}";
-              description = "Home Automation";
-            };
-          }
-          {
-            "Z-Wave JS UI" = {
-              icon = "zwavejs2mqtt";
-              href = "https://zwavejs.${domain}";
-              description = "Z-Wave Network Manager";
-            };
-          }
-        ];
-      }
-      {
-        "System" = [
           {
             "ttyd" = {
               icon = "terminal";
@@ -237,32 +247,9 @@ with config.my;
         ];
       }
     ];
-    widgets = [
-      {
-        "greeting" = {
-          textSize = "2xl";
-          text = "SpudBox";
-        };
-      }
-      {
-        "resources" = {
-          cpu = true;
-          memory = true;
-          disk = storageDir;
-          cputemp = true;
-          tempMin = 0;
-          tempMax = 100;
-          uptime = true;
-          units = "imperial";
-          refresh = 3000;
-          diskUnits = "bytes";
-          network = true;
-        };
-      }
-    ];
     bookmarks = [
       {
-        Hosting = [
+        Bookmarks = [
           {
             Cloudflare = [
               {
@@ -281,10 +268,6 @@ with config.my;
               }
             ];
           }
-        ];
-      }
-      {
-        Usenet = [
           {
             NZBGeek = [
               {

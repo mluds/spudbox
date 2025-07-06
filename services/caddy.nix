@@ -40,10 +40,6 @@ with config.my;
         reverse_proxy localhost:${toString radarrPort}
       }
 
-      whisparr.${domain} {
-        reverse_proxy localhost:${toString whisparrPort}
-      }
-
       bazarr.${domain} {
         reverse_proxy localhost:${toString bazarrPort}
       }
@@ -88,15 +84,6 @@ with config.my;
         reverse_proxy localhost:${toString jellyseerrPort}
       }
 
-      homeassistant.${domain} {
-        reverse_proxy ${hostIp}:${toString homeassistantPort}
-      }
-
-      zwavejs.${domain} {
-        import common_auth
-        reverse_proxy localhost:${toString zwavejsPort}
-      }
-
       homepage.${domain} {
         reverse_proxy localhost:${toString homepagePort}
       }
@@ -104,31 +91,6 @@ with config.my;
       audiobookshelf.${domain} {
         encode gzip zstd
         reverse_proxy localhost:${toString audiobookshelfPort}
-      }
-
-      ariang.${domain} {
-        @no_cookie {
-          not header Cookie *visited=*
-        }
-        handle @no_cookie {
-          header Set-Cookie "visited=true; Path=/; Max-Age=31536000"
-          redir "https://ariang.${domain}/#!/settings/rpc/set/https/aria2.${domain}/443/jsonrpc/${encodeBase64 secrets.aria2Secret}" 302
-        }
-        handle {
-          reverse_proxy localhost:${toString ariangPort}
-        }
-      }
-
-      aria2.${domain} {
-        reverse_proxy localhost:${toString aria2Port}
-      }
-
-      stash.${domain} {
-        reverse_proxy localhost:${toString stashPort}
-      }
-
-      stashvr.${domain} {
-        reverse_proxy localhost:${toString stashvrPort}
       }
 
       ttyd.${domain} {
