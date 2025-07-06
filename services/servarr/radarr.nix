@@ -142,6 +142,13 @@ let
         --fail --silent --show-error || echo "Failed to update $id"
     done
     rm -f /tmp/quality_settings_radarr.json
+
+    echo "Applying Any quality profile..."
+    curl -X PUT "http://localhost:${toString radarrPort}/api/v3/qualityprofile/1" \
+      -H "X-Api-Key: ${secrets.radarrApiKey}" \
+      -H "Content-Type: application/json" \
+      -d '${builtins.toJSON quality.radarrQualityProfile}' \
+      --fail --silent --show-error
   '';
 in {
   services.radarr = {
