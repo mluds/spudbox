@@ -35,11 +35,9 @@ in {
     usenetServerHosts = [
       "news.frugalusenet.com"
       "eunews.frugalusenet.com"
-      "newswest.frugalusenet.com"
-      "aunews.frugalusenet.com"
-      "sanews.frugalusenet.com"
       "asnews.frugalusenet.com"
       "bonus.frugalusenet.com"
+      "usnews.blocknews.net"
     ];
     usenetServerPort = 563;
 
