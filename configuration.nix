@@ -79,6 +79,7 @@ in {
     ./services/ttyd.nix
     ./services/backup.nix
     ./services/wireguard.nix
+    ./services/drive-check.nix
   ];
 
   environment.systemPackages = with pkgs; [
