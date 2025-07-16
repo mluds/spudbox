@@ -9,6 +9,7 @@ in {
     storageDir = "/mnt/storage";
     backupDir = "/mnt/backup";
     backupDrives = [];
+    secretsDir = "/var/lib/secrets";
 
     plexPort = 32400;
     tautulliPort = 8181;

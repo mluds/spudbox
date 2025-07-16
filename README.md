@@ -121,6 +121,7 @@ qrencode -t ansiutf8 < /etc/wireguard/clients/mikes-iphone/client.conf
 ### Deploy Updates
 ```bash
 scp -r -i ~/.ssh/spudnet ./* luds@${HOST_IP}:~/deploy/ && \
+ssh -i ~/.ssh/spudnet luds@${HOST_IP} "sudo cp -r ~/deploy/secrets/* /var/lib/secrets/ && rm -R ~/deploy/secrets/" && \
 ssh -i ~/.ssh/spudnet luds@${HOST_IP} "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --impure --flake .#${FLAKE}"
 ```
 

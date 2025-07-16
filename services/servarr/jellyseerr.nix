@@ -33,7 +33,7 @@ let
         name = "Radarr";
         hostname = "localhost";
         port = 7878;
-        apiKey = secrets.radarrApiKey;
+        apiKey = "__RADARR_API_KEY__";  # Placeholder value
         useSsl = false;
         activeProfileId = 1;
         activeProfileName = "Any";
@@ -73,6 +73,8 @@ let
   });
   configMerger = pkgs.writeScriptBin "jellyseerr-config-merger" ''
     #!/bin/sh
+    set -e
+    
     echo "Waiting for Jellyseerr to start..."
     until curl -sSf http://localhost:${toString jellyseerrPort}/settings/main >/dev/null; do
       sleep 2
@@ -84,8 +86,17 @@ let
       ${partialSettingsFile} \
       > /var/lib/jellyseerr/config/settings.json.tmp
 
-    mv /var/lib/jellyseerr/config/settings.json.tmp /var/lib/jellyseerr/config/settings.json
+    echo "Reading Radarr API key from secrets file..."
+    RADARR_API_KEY=$(tr -d '\n' < ${secretsDir}/radarr/api-key)
+
+    echo "Injecting Radarr API key into configuration..."
+    jq --arg key "$RADARR_API_KEY" \
+       '.radarr[0].apiKey = $key' \
+       /var/lib/jellyseerr/config/settings.json.tmp \
+       > /var/lib/jellyseerr/config/settings.json
+
     chown jellyseerr:jellyseerr /var/lib/jellyseerr/config/settings.json
+    rm -f /var/lib/jellyseerr/config/settings.json.tmp
     systemctl try-reload-or-restart jellyseerr
   '';
 in
@@ -116,7 +127,7 @@ in
   systemd.services.jellyseerr-config = {
     description = "Jellyseerr Configuration Merger";
     after = [ "jellyseerr.service" ];
-    path = with pkgs; [ curl jq ];
+    path = with pkgs; [ curl jq coreutils ];
     serviceConfig = {
       Type = "exec";
       User = "root";

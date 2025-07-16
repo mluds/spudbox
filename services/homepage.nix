@@ -6,10 +6,12 @@ with config.my;
   systemd.services.homepage-dashboard = {
     serviceConfig = {
       Group = "media";
+      SupplementaryGroups = "radarr";
       Environment = [
         "HOMEPAGE_ALLOWED_HOSTS=homepage.${domain}"
-        "HOMEPAGE_FILE_PLEX_TOKEN=/var/lib/secrets/plex/token"
-        "HOMEPAGE_FILE_ABS_API_KEY=/var/lib/secrets/audiobookshelf/apikey"
+        "HOMEPAGE_FILE_PLEX_TOKEN=${secretsDir}/plex/token"
+        "HOMEPAGE_FILE_ABS_API_KEY=${secretsDir}/audiobookshelf/apikey"
+        "HOMEPAGE_FILE_RADARR_API_KEY=${secretsDir}/radarr/api-key"
       ];
     };
   };
@@ -129,7 +131,7 @@ with config.my;
                 type = "radarr";
                 fields = [ "movies" "wanted" "missing" "queued" ];
                 url = "http://localhost:${toString radarrPort}";
-                key = secrets.radarrApiKey;
+                key = "{{HOMEPAGE_FILE_RADARR_API_KEY}}";
                 enableQueue = false;
               };
             };

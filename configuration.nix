@@ -34,7 +34,7 @@ let
     # { path = "${appdataDir}/sabnzbd"; uid = "sabnzbd"; gid = "sabnzbd"; }
   ];
 
-  createDirsScript = pkgs.writeScript "create-media-dirs.sh" ''
+  createDirsScript = pkgs.writeScript "create-dirs.sh" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
 
@@ -58,6 +58,9 @@ let
       chown ${dir.uid}:${dir.gid} "${dir.path}"
       chmod 0755 "${dir.path}"
     '') appdataDirs}
+
+    chown root:root ${secretsDir}; chmod 711 ${secretsDir}
+    chown -R radarr:radarr ${secretsDir}/radarr; chmod -R 550 ${secretsDir}/radarr
   '';
 in {
   imports = [

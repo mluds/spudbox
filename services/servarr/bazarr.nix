@@ -11,6 +11,8 @@ let
     import sqlite3
     import yaml
     import os
+    import time
+    import sys
     from deepmerge import always_merger
 
     def wait_for_file(file_path, timeout=300, check_interval=3):
@@ -49,6 +51,18 @@ let
 
     config_path = os.environ['CONFIG_PATH']
     new_config = yaml.safe_load(os.environ['NEW_CONFIG'])
+
+    # Wait for Radarr API key file
+    radarr_key_path = "${secretsDir}/radarr/api-key"
+    wait_for_file(radarr_key_path):
+
+    # Read Radarr API key and update configuration
+    with open(radarr_key_path, 'r') as f:
+      radarr_api_key = f.read().strip()
+    if 'radarr' in new_config:
+      new_config['radarr']['apikey'] = radarr_api_key
+    else:
+      new_config['radarr'] = {'apikey': radarr_api_key}
 
     wait_for_file(config_path)
 
@@ -127,7 +141,6 @@ let
     radarr = {
       ip = "localhost";
       port = toString radarrPort;
-      apikey = secrets.radarrApiKey;
     };
     sonarr = {
       ip = "localhost";

@@ -8,6 +8,8 @@ let
   dbFile = "${config.services.radarr.dataDir}/radarr.db";
   configScript = pkgs.writeScriptBin "radarr-config" ''
     #!/bin/sh
+    RADARR_API_KEY=$(cat /var/lib/secrets/radarr/api-key)
+
     if [ -f "${dbFile}" ]; then
       sqlite3 "${dbFile}" "DELETE FROM \"Users\";"
     fi
@@ -18,7 +20,7 @@ let
       -u "/Config/AuthenticationMethod" -v "Forms" \
       -u "/Config/Authentication/Username" -v "${secrets.adminUsername}" \
       -u "/Config/Authentication/Password" -v "${secrets.adminPassword}" \
-      -u "/Config/ApiKey" -v "${secrets.radarrApiKey}" \
+      -u "/Config/ApiKey" -v "$RADARR_API_KEY" \
       "${cfgFile}"
     if systemctl -q is-active radarr.service; then
       systemctl restart radarr.service
@@ -31,14 +33,14 @@ let
 
     echo "Adding root folder..."
     curl -X POST "http://localhost:${toString radarrPort}/api/v3/rootfolder" \
-      -H "X-Api-Key: ${secrets.radarrApiKey}" \
+      -H "X-Api-Key: $RADARR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{"name": "Movies", "path": "${storageDir}/data/media/movies"}' \
       --fail --silent --show-error || echo "Root folder may already exist"
 
     echo "Configuring media management settings..."
     curl -X PUT "http://localhost:${toString radarrPort}/api/v3/config/mediamanagement/1" \
-      -H "X-Api-Key: ${secrets.radarrApiKey}" \
+      -H "X-Api-Key: $RADARR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
         "id": 1,
@@ -68,7 +70,7 @@ let
 
     echo "Configuring NZBGeek..."
     curl -X POST "http://localhost:${toString radarrPort}/api/v3/indexer" \
-      -H "X-Api-Key: ${secrets.radarrApiKey}" \
+      -H "X-Api-Key: $RADARR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
         "name": "NZBGeek",
@@ -94,7 +96,7 @@ let
 
     echo "Configuring SABnzbd..."
     curl -X POST "http://localhost:${toString radarrPort}/api/v3/downloadclient" \
-      -H "X-Api-Key: ${secrets.radarrApiKey}" \
+      -H "X-Api-Key: $RADARR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
         "name": "SABnzbd",
@@ -114,7 +116,7 @@ let
 
     echo "Updating quality profiles..."
     qualityDefs=$(curl -sS "http://localhost:${toString radarrPort}/api/v3/qualitydefinition" \
-      -H "X-Api-Key: ${secrets.radarrApiKey}")
+      -H "X-Api-Key: $RADARR_API_KEY")
 
     echo '${builtins.toJSON quality.qualitySettings}' > /tmp/quality_settings_radarr.json
 
@@ -136,7 +138,7 @@ let
       id=$(jq -r '.id' <<< "$def")
       echo "Updating $id..."
       curl -X PUT "http://localhost:${toString radarrPort}/api/v3/qualitydefinition/$id" \
-        -H "X-Api-Key: ${secrets.radarrApiKey}" \
+        -H "X-Api-Key: $RADARR_API_KEY" \
         -H "Content-Type: application/json" \
         -d "$def" \
         --fail --silent --show-error || echo "Failed to update $id"
@@ -145,12 +147,20 @@ let
 
     echo "Applying Any quality profile..."
     curl -X PUT "http://localhost:${toString radarrPort}/api/v3/qualityprofile/1" \
-      -H "X-Api-Key: ${secrets.radarrApiKey}" \
+      -H "X-Api-Key: $RADARR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '${builtins.toJSON quality.radarrQualityProfile}' \
       --fail --silent --show-error
   '';
 in {
+  users.groups.radarr = {};
+  users.users.radarr = {
+    isSystemUser = true;
+    group = "media";
+    extraGroups = [ "radarr" ];
+    createHome = false;
+    useDefaultShell = false;
+  };
   services.radarr = {
     enable = true;
     user = "radarr";
