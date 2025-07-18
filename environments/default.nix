@@ -42,6 +42,14 @@ in {
     ];
     usenetServerPort = 563;
 
+    users = [
+      {
+        username = "luds";
+        sshPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEEhpJNrO3TZHAOEk4InRTfy2rtlzY6vrD7grcfb4zte";
+        superuser = true;
+      }
+    ];
+
     encodeBase64 = str: builtins.readFile (pkgs.runCommand "encoded" {} ''
       echo -n "${str}" | ${pkgs.coreutils}/bin/base64 -w0 > $out
     '');

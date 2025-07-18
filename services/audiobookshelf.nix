@@ -132,6 +132,7 @@ let
         print("Library created successfully!")
 
     def create_users():
+      secrets_dir = os.getenv("SECRETS_DIR")
       users_json = os.getenv("AUDIOBOOKSHELF_USERS", "[]")
       users = json.loads(users_json)
       existing_users = requests.get(f"{base_url}/api/users", headers=headers).json()["users"]
@@ -141,9 +142,12 @@ let
         if username in existing_usernames:
           print(f"User {username} already exists")
           continue
+        password_file = os.path.join(secrets_dir, "users", username, "plaintext")
+        with open(password_file, 'r') as f:
+          password = f.read().strip()
         new_user = {
           "username": username,
-          "password": user['password'],
+          "password": password,
           "type": "admin" if user['superuser'] else "user",
           "isActive": True
         }
@@ -181,9 +185,10 @@ in {
         "ADMIN_PASSWORD=${secrets.adminPassword}"
         "AUDIOBOOKSHELF_USERS='${
           builtins.toJSON (map (user: {
-            inherit (user) username password superuser;
-          }) secrets.users)
+            inherit (user) username superuser;
+          }) users)
         }'"
+        "SECRETS_DIR=${secretsDir}"
       ];
     };
   };

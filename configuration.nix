@@ -128,11 +128,11 @@ in {
 
   users.groups.media = {};
   users.users = lib.mkMerge [
-    (lib.listToAttrs (lib.forEach secrets.users (user: {
+    (lib.listToAttrs (lib.forEach users (user: {
       name = user.username;
       value = {
         isNormalUser = true;
-        password = user.password;
+        hashedPasswordFile = "${secretsDir}/users/${user.username}/hashed";
         openssh.authorizedKeys.keys = [ user.sshPublicKey ];
         extraGroups = lib.optional user.superuser "wheel";
       };
@@ -146,7 +146,7 @@ in {
       };
     }
     {
-      root.password = secrets.rootPassword;
+      root.hashedPasswordFile = "${secretsDir}/users/root/hashed";
     }
   ];
   users.mutableUsers = false;
