@@ -8,6 +8,8 @@ let
   dbFile = "${config.services.sonarr.dataDir}/sonarr.db";
   configScript = pkgs.writeScriptBin "sonarr-config" ''
     #!/bin/sh
+    SONARR_API_KEY=$(cat /var/lib/secrets/sonarr/api-key)
+
     if [ -f "${dbFile}" ]; then
       sqlite3 "${dbFile}" "DELETE FROM \"Users\";"
     fi
@@ -18,7 +20,7 @@ let
       -u "/Config/AuthenticationMethod" -v "Forms" \
       -u "/Config/Authentication/Username" -v "${secrets.adminUsername}" \
       -u "/Config/Authentication/Password" -v "${secrets.adminPassword}" \
-      -u "/Config/ApiKey" -v "${secrets.sonarrApiKey}" \
+      -u "/Config/ApiKey" -v "$SONARR_API_KEY" \
       "${cfgFile}"
     if systemctl -q is-active sonarr.service; then
       systemctl restart sonarr.service
@@ -31,14 +33,14 @@ let
 
     echo "Adding root folder..."
     curl -X POST "http://localhost:${toString sonarrPort}/api/v3/rootfolder" \
-      -H "X-Api-Key: ${secrets.sonarrApiKey}" \
+      -H "X-Api-Key: $SONARR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{"name": "TV", "path": "${storageDir}/data/media/tv"}' \
       --fail --silent --show-error || echo "Root folder may already exist"
 
     echo "Configuring media management settings..."
     curl -X PUT "http://localhost:${toString sonarrPort}/api/v3/config/mediamanagement/1" \
-      -H "X-Api-Key: ${secrets.sonarrApiKey}" \
+      -H "X-Api-Key: $SONARR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
         "id": 1,
@@ -68,7 +70,7 @@ let
 
     echo "Configuring NZBGeek..."
     curl -X POST "http://localhost:${toString sonarrPort}/api/v3/indexer" \
-      -H "X-Api-Key: ${secrets.sonarrApiKey}" \
+      -H "X-Api-Key: $SONARR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
         "name": "NZBGeek",
@@ -95,7 +97,7 @@ let
 
     echo "Configuring SABnzbd..."
     curl -X POST "http://localhost:${toString sonarrPort}/api/v3/downloadclient" \
-      -H "X-Api-Key: ${secrets.sonarrApiKey}" \
+      -H "X-Api-Key: $SONARR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '{
         "name": "SABnzbd",
@@ -114,7 +116,7 @@ let
 
     echo "Updating quality profiles..."
     qualityDefs=$(curl -sS "http://localhost:${toString sonarrPort}/api/v3/qualitydefinition" \
-      -H "X-Api-Key: ${secrets.sonarrApiKey}")
+      -H "X-Api-Key: $SONARR_API_KEY")
 
     echo '${builtins.toJSON quality.qualitySettings}' > /tmp/quality_settings_sonarr.json
 
@@ -136,7 +138,7 @@ let
       id=$(jq -r '.id' <<< "$def")
       echo "Updating $id..."
       curl -X PUT "http://localhost:${toString sonarrPort}/api/v3/qualitydefinition/$id" \
-        -H "X-Api-Key: ${secrets.sonarrApiKey}" \
+        -H "X-Api-Key: $SONARR_API_KEY" \
         -H "Content-Type: application/json" \
         -d "$def" \
         --fail --silent --show-error || echo "Failed to update $id"
@@ -145,7 +147,7 @@ let
 
     echo "Applying quality profile..."
     curl -X PUT "http://localhost:${toString sonarrPort}/api/v3/qualityprofile/1" \
-      -H "X-Api-Key: ${secrets.sonarrApiKey}" \
+      -H "X-Api-Key: $SONARR_API_KEY" \
       -H "Content-Type: application/json" \
       -d '${builtins.toJSON quality.qualityProfile}' \
       --fail --silent --show-error

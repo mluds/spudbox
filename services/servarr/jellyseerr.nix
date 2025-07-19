@@ -33,7 +33,7 @@ let
         name = "Radarr";
         hostname = "localhost";
         port = 7878;
-        apiKey = "__RADARR_API_KEY__";  # Placeholder value
+        apiKey = "__RADARR_API_KEY__";
         useSsl = false;
         activeProfileId = 1;
         activeProfileName = "Any";
@@ -53,7 +53,7 @@ let
         name = "Sonarr";
         hostname = "localhost";
         port = sonarrPort;
-        apiKey = secrets.sonarrApiKey;
+        apiKey = "__SONARR_API_KEY__";
         useSsl = false;
         baseUrl = "";
         activeProfileId = 1;
@@ -86,12 +86,17 @@ let
       ${partialSettingsFile} \
       > /var/lib/jellyseerr/config/settings.json.tmp
 
-    echo "Reading Radarr API key from secrets file..."
+    echo "Reading API keys from secrets files..."
     RADARR_API_KEY=$(tr -d '\n' < ${secretsDir}/radarr/api-key)
+    SONARR_API_KEY=$(tr -d '\n' < ${secretsDir}/sonarr/api-key)
 
-    echo "Injecting Radarr API key into configuration..."
+    echo "Injecting API keys into configuration..."
     jq --arg key "$RADARR_API_KEY" \
        '.radarr[0].apiKey = $key' \
+       /var/lib/jellyseerr/config/settings.json.tmp \
+       > /var/lib/jellyseerr/config/settings.json
+    jq --arg key "$SONARR_API_KEY" \
+       '.sonarr[0].apiKey = $key' \
        /var/lib/jellyseerr/config/settings.json.tmp \
        > /var/lib/jellyseerr/config/settings.json
 

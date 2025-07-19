@@ -54,7 +54,7 @@ let
 
     # Wait for Radarr API key file
     radarr_key_path = "${secretsDir}/radarr/api-key"
-    wait_for_file(radarr_key_path):
+    wait_for_file(radarr_key_path)
 
     # Read Radarr API key and update configuration
     with open(radarr_key_path, 'r') as f:
@@ -63,6 +63,18 @@ let
       new_config['radarr']['apikey'] = radarr_api_key
     else:
       new_config['radarr'] = {'apikey': radarr_api_key}
+
+    # Wait for Sonarr API key file
+    sonarr_key_path = "${secretsDir}/sonarr/api-key"
+    wait_for_file(sonarr_key_path)
+
+    # Read Sonarr API key and update configuration
+    with open(sonarr_key_path, 'r') as f:
+      sonarr_api_key = f.read().strip()
+    if 'sonarr' in new_config:
+      new_config['sonarr']['apikey'] = sonarr_api_key
+    else:
+      new_config['sonarr'] = {'apikey': sonarr_api_key}
 
     wait_for_file(config_path)
 
@@ -145,7 +157,6 @@ let
     sonarr = {
       ip = "localhost";
       port = toString sonarrPort;
-      apikey = secrets.sonarrApiKey;
     };
     opensubtitlescom = {
       username = secrets.opensubtitlesUsername;

@@ -12,6 +12,7 @@ with config.my;
         "HOMEPAGE_FILE_PLEX_TOKEN=${secretsDir}/plex/token"
         "HOMEPAGE_FILE_ABS_API_KEY=${secretsDir}/audiobookshelf/apikey"
         "HOMEPAGE_FILE_RADARR_API_KEY=${secretsDir}/radarr/api-key"
+        "HOMEPAGE_FILE_SONARR_API_KEY=${secretsDir}/sonarr/api-key"
       ];
     };
   };
@@ -145,7 +146,7 @@ with config.my;
                 type = "sonarr";
                 fields = [ "series" "wanted" "queued" ];
                 url = "http://localhost:${toString sonarrPort}";
-                key = secrets.sonarrApiKey;
+                key = "{{HOMEPAGE_FILE_SONARR_API_KEY}}";
                 enableQueue = false;
               };
             };
