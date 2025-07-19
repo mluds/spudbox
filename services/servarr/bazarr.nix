@@ -52,29 +52,22 @@ let
     config_path = os.environ['CONFIG_PATH']
     new_config = yaml.safe_load(os.environ['NEW_CONFIG'])
 
-    # Wait for Radarr API key file
-    radarr_key_path = "${secretsDir}/radarr/api-key"
-    wait_for_file(radarr_key_path)
+    # Read API keys and update configuration
+    services = [
+      ('auth', 'bazarr'),
+      ('radarr', 'radarr'),
+      ('sonarr', 'sonarr')
+    ]
+    for key, service in services:
+        key_path = f"${secretsDir}/{service}/api-key"
+        wait_for_file(key_path)
 
-    # Read Radarr API key and update configuration
-    with open(radarr_key_path, 'r') as f:
-      radarr_api_key = f.read().strip()
-    if 'radarr' in new_config:
-      new_config['radarr']['apikey'] = radarr_api_key
-    else:
-      new_config['radarr'] = {'apikey': radarr_api_key}
-
-    # Wait for Sonarr API key file
-    sonarr_key_path = "${secretsDir}/sonarr/api-key"
-    wait_for_file(sonarr_key_path)
-
-    # Read Sonarr API key and update configuration
-    with open(sonarr_key_path, 'r') as f:
-      sonarr_api_key = f.read().strip()
-    if 'sonarr' in new_config:
-      new_config['sonarr']['apikey'] = sonarr_api_key
-    else:
-      new_config['sonarr'] = {'apikey': sonarr_api_key}
+        with open(key_path, 'r') as f:
+            api_key = f.read().strip()
+        if service in new_config:
+            new_config[key]['apikey'] = api_key
+        else:
+            new_config[key] = {'apikey': api_key}
 
     wait_for_file(config_path)
 
@@ -148,7 +141,6 @@ let
       type = "form";
       username = secrets.adminUsername;
       password = adminPasswordMD5;
-      apikey = secrets.bazarrApiKey;
     };
     radarr = {
       ip = "localhost";

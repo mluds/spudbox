@@ -13,6 +13,7 @@ with config.my;
         "HOMEPAGE_FILE_ABS_API_KEY=${secretsDir}/audiobookshelf/apikey"
         "HOMEPAGE_FILE_RADARR_API_KEY=${secretsDir}/radarr/api-key"
         "HOMEPAGE_FILE_SONARR_API_KEY=${secretsDir}/sonarr/api-key"
+        "HOMEPAGE_FILE_BAZARR_API_KEY=${secretsDir}/bazarr/api-key"
       ];
     };
   };
@@ -163,7 +164,7 @@ with config.my;
                   "missingMovies"
                 ];
                 url = "http://localhost:${toString bazarrPort}";
-                key = secrets.bazarrApiKey;
+                key = "{{HOMEPAGE_FILE_BAZARR_API_KEY}}";
               };
             };
           }
