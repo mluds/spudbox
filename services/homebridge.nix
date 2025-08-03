@@ -1,5 +1,7 @@
 { config, pkgs, ... }:
 
+with config.my;
+
 {
   systemd.tmpfiles.rules = [
     "d /var/lib/homebridge 0755 root root -"
@@ -7,8 +9,7 @@
   ];
 
   networking.firewall = {
-    allowedTCPPorts = [ 8581 ];  # Homebridge default port
-    # allowedUDPPorts = [ 5353 ];    # mDNS for device discovery
+    allowedTCPPorts = [ homebridgePort ];
   };
 
   systemd.services.homebridge = {

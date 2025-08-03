@@ -220,6 +220,13 @@ with config.my;
             };
           }
           {
+            "Homebridge" = {
+              icon = "homebridge";
+              href = "https://homebridge.${domain}";
+              description = "Apple Home Integration";
+            };
+          }
+          {
             "ttyd" = {
               icon = "terminal";
               href = "https://ttyd.${domain}";

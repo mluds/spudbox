@@ -88,6 +88,10 @@ with config.my;
         reverse_proxy localhost:${toString homepagePort}
       }
 
+      homebridge.${domain} {
+        reverse_proxy localhost:${toString homebridgePort}
+      }
+
       audiobookshelf.${domain} {
         encode gzip zstd
         reverse_proxy localhost:${toString audiobookshelfPort}

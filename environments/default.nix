@@ -32,6 +32,7 @@ in {
     prowlarrPort = 9696;
     audiobookshelfPort = 8000;
     ttydPort = 7681;
+    homebridgePort = 8581;
 
     usenetServerHosts = [
       "news.frugalusenet.com"
