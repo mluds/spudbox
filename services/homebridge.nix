@@ -9,7 +9,11 @@ with config.my;
   ];
 
   networking.firewall = {
-    allowedTCPPorts = [ homebridgePort ];
+    allowedTCPPorts = [
+      homebridgePort
+      51509  # homebridge bonjour
+      44749  # homebridge dummy
+    ];
   };
 
   systemd.services.homebridge = {
