@@ -84,7 +84,7 @@ let
     jq -s '.[0] * .[1]' \
       /var/lib/jellyseerr/config/settings.json \
       ${partialSettingsFile} \
-      > /var/lib/jellyseerr/config/settings.json.tmp
+      > /var/lib/jellyseerr/config/settings.json.tmp1
 
     echo "Reading API keys from secrets files..."
     RADARR_API_KEY=$(tr -d '\n' < ${secretsDir}/radarr/api-key)
@@ -93,15 +93,15 @@ let
     echo "Injecting API keys into configuration..."
     jq --arg key "$RADARR_API_KEY" \
        '.radarr[0].apiKey = $key' \
-       /var/lib/jellyseerr/config/settings.json.tmp \
-       > /var/lib/jellyseerr/config/settings.json
+       /var/lib/jellyseerr/config/settings.json.tmp1 \
+       > /var/lib/jellyseerr/config/settings.json.tmp2
     jq --arg key "$SONARR_API_KEY" \
        '.sonarr[0].apiKey = $key' \
-       /var/lib/jellyseerr/config/settings.json.tmp \
+       /var/lib/jellyseerr/config/settings.json.tmp2 \
        > /var/lib/jellyseerr/config/settings.json
 
     chown jellyseerr:jellyseerr /var/lib/jellyseerr/config/settings.json
-    rm -f /var/lib/jellyseerr/config/settings.json.tmp
+    rm -f /var/lib/jellyseerr/config/settings.json.tmp*
     systemctl try-reload-or-restart jellyseerr
   '';
 in
