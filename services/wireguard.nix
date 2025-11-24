@@ -7,7 +7,6 @@ let
   wireguard_port = 51820;
   wireguard_network_base = "10.42.0";
   wireguard_mask = 24;
-  lan_cidr = "192.168.0.0/24";
   wireguard_server_ip = "${wireguard_network_base}.1";
   clients = [
     {

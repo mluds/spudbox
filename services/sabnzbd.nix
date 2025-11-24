@@ -416,6 +416,8 @@ in {
       Type = "exec";
       ExecStart = "${configScript}/bin/sabnzbd-config";
       User = "root";
+      Restart = "on-failure";
+      RestartSec = "10s";
     };
   };
 }

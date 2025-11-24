@@ -1,7 +1,7 @@
 {
   my = {
     domain = "spudbox.win";
-    hostIp = "192.168.0.42";
+    lan_cidr = "192.168.1.0/24";
     cacheDrives = [
       { device = "/dev/nvme0n1"; partition = "/dev/nvme0n1p1"; mount = "/mnt/cache1"; }
     ];
