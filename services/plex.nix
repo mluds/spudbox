@@ -11,11 +11,15 @@ let
     from plexapi.myplex import MyPlexAccount
     from plexapi.exceptions import NotFound
 
+    def read_file(path):
+        with open(path, 'r') as f:
+            return f.read().strip()
+
     def main():
       plex_url = getenv('PLEX_URL')
       access_url = getenv('PLEX_ACCESS_URL')
-      username = getenv('PLEX_USERNAME')
-      password = getenv('PLEX_PASSWORD')
+      username = read_file(getenv('PLEX_USERNAME_FILE'))
+      password = read_file(getenv('PLEX_PASSWORD_FILE'))
       library_sections = [
         {
           "name": "Movies",
@@ -74,9 +78,11 @@ in {
   };
 
   systemd.tmpfiles.rules = [
-    "d /var/lib/secrets 0750 root media -"
-    "d /var/lib/secrets/plex 0750 root media -"
-    "f /var/lib/secrets/plex/token 0660 root media -"
+    "d ${secretsDir} 0750 root media -"
+    "d ${secretsDir}/plex 0750 root media -"
+    "f ${secretsDir}/plex/token 0660 root media -"
+    "f ${secretsDir}/plex/username 0660 root media -"
+    "f ${secretsDir}/plex/password 0660 root media -"
   ];
 
   systemd.services.plex-config = {
@@ -91,8 +97,8 @@ in {
       Environment = [
         "PLEX_URL=http://localhost:${toString plexPort}"
         "PLEX_ACCESS_URL=https://plex.${domain}"
-        "PLEX_USERNAME=${secrets.plexUsername}"
-        "PLEX_PASSWORD=${secrets.plexPassword}"
+        "PLEX_USERNAME_FILE=${secretsDir}/plex/username"
+        "PLEX_PASSWORD_FILE=${secretsDir}/plex/password"
       ];
 
       ExecStartPre = "${pkgs.bash}/bin/bash -c 'until ${pkgs.curl}/bin/curl -sSf http://localhost:${toString plexPort}/identity; do sleep 1; done'";
