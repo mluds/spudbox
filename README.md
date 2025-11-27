@@ -18,7 +18,7 @@ export FLAKE=spudbox-dev
 
 Prod:
 ```bash
-export HOST_IP="192.168.0.42"
+export HOST_IP="192.168.1.42"
 export FLAKE=spudbox-prod
 ```
 
@@ -121,7 +121,7 @@ qrencode -t ansiutf8 < /etc/wireguard/clients/mikes-iphone/client.conf
 ### Deploy Updates
 ```bash
 rsync -avz --exclude='.git' -e "ssh -i ~/.ssh/spudnet" ./ luds@${HOST_IP}:~/deploy/ && \
-ssh -i ~/.ssh/spudnet luds@${HOST_IP} "sudo cp -r ~/deploy/secrets/* /var/lib/secrets/ && rm -R ~/deploy/secrets/" && \
+ssh -i ~/.ssh/spudnet luds@${HOST_IP} "sudo cp -r ~/deploy/secrets/* /var/lib/secrets/ && find ~/deploy/secrets/ -type f ! -name 'default.json' -delete" && \
 ssh -i ~/.ssh/spudnet luds@${HOST_IP} "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --impure --flake .#${FLAKE}"
 ```
 
