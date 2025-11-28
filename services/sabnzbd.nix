@@ -3,7 +3,21 @@
 with config.my;
 
 let
-  config = pkgs.writeText "sabnzbd.ini" ''
+  configScript = pkgs.writeScriptBin "sabnzbd-config" ''
+    #!/bin/sh
+    mkdir -p /var/log/sabnzbd
+    chown -R sabnzbd:sabnzbd /var/log/sabnzbd
+    
+    # Read secrets from files
+    ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
+    ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
+    SABNZBD_API_KEY=$(cat ${secretsDir}/sabnzbd/api-key)
+    SABNZBD_NZB_KEY=$(cat ${secretsDir}/sabnzbd/nzb-key)
+    USENET_USERNAME=$(cat ${secretsDir}/usenet/username)
+    USENET_PASSWORD=$(cat ${secretsDir}/usenet/password)
+
+    # Create the configuration file with secret values
+    cat > /var/lib/sabnzbd/sabnzbd.ini << EOF
     __version__ = 19
     __encoding__ = utf-8
     [misc]
@@ -27,8 +41,8 @@ let
     host = 0.0.0.0
     port = ${toString sabnzbdPort}
     https_port = 8090
-    username = ${secrets.adminUsername}
-    password = ${secrets.adminPassword}
+    username = $ADMIN_USERNAME
+    password = $ADMIN_PASSWORD
     bandwidth_max = ""
     cache_limit = 1G
     web_color = Auto
@@ -37,8 +51,8 @@ let
     https_chain = ""
     enable_https = 1
     inet_exposure = 3
-    api_key = ${secrets.sabnzbdApiKey}
-    nzb_key = ${secrets.sabnzbdNzbKey}
+    api_key = $SABNZBD_API_KEY
+    nzb_key = $SABNZBD_NZB_KEY
     socks5_proxy_url = ""
     permissions = "775"
     download_dir = ${cacheDir}/data/usenet/incomplete
@@ -331,8 +345,8 @@ let
       host = ${host}
       port = ${toString usenetServerPort}
       timeout = 60
-      username = ${secrets.usenetServerUsername}
-      password = ${secrets.usenetServerPassword}
+      username = $USENET_USERNAME
+      password = $USENET_PASSWORD
       connections = 20
       ssl = 1
       ssl_verify = 0
@@ -381,13 +395,8 @@ let
     dir = books
     newzbin = ""
     priority = -100
-  '';
+    EOF
 
-  configScript = pkgs.writeScriptBin "sabnzbd-config" ''
-    #!/bin/sh
-    mkdir -p /var/log/sabnzbd
-    chown -R sabnzbd:sabnzbd /var/log/sabnzbd
-    cp ${config} /var/lib/sabnzbd/sabnzbd.ini
     chown sabnzbd:sabnzbd /var/lib/sabnzbd/sabnzbd.ini
     chmod 660 /var/lib/sabnzbd/sabnzbd.ini
     if systemctl -q is-active sabnzbd.service; then
