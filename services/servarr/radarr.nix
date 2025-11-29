@@ -8,7 +8,8 @@ let
   dbFile = "${config.services.radarr.dataDir}/radarr.db";
   configScript = pkgs.writeScriptBin "radarr-config" ''
     #!/bin/sh
-    RADARR_API_KEY=$(cat /var/lib/secrets/radarr/api-key)
+    RADARR_API_KEY=$(cat ${secretsDir}/radarr/api-key)
+    NZBGEEK_API_KEY=$(cat ${secretsDir}/nzbgeek/api-key)
 
     if [ -f "${dbFile}" ]; then
       sqlite3 "${dbFile}" "DELETE FROM \"Users\";"
@@ -88,7 +89,7 @@ let
         "fields": [
           {"name": "baseUrl", "value": "https://api.nzbgeek.info/"},
           {"name": "apiPath", "value": "/api"},
-          {"name": "apiKey", "value": "${secrets.nzbgeekApiKey}"},
+          {"name": "apiKey", "value": "'"$NZBGEEK_API_KEY"'"},
           {"name": "categories", "value": [2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060]}
         ]
       }' \

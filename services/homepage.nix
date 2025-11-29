@@ -14,6 +14,7 @@ with config.my;
         "HOMEPAGE_FILE_RADARR_API_KEY=${secretsDir}/radarr/api-key"
         "HOMEPAGE_FILE_SONARR_API_KEY=${secretsDir}/sonarr/api-key"
         "HOMEPAGE_FILE_BAZARR_API_KEY=${secretsDir}/bazarr/api-key"
+        "HOMEPAGE_FILE_PROWLARR_API_KEY=${secretsDir}/prowlarr/api-key"
       ];
     };
   };
@@ -182,7 +183,7 @@ with config.my;
                   "numberOfFailQueries"
                 ];
                 url = "http://localhost:${toString prowlarrPort}";
-                key = secrets.prowlarrApiKey;
+                key = "{{HOMEPAGE_FILE_PROWLARR_API_KEY}}";
               };
             };
           }

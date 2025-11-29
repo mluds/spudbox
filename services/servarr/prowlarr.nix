@@ -5,6 +5,7 @@ let
   adminPasswordHash = builtins.hashString "sha256" secrets.adminPassword;
   configScript = pkgs.writeScriptBin "prowlarr-config" ''
     #!/bin/sh
+    PROWLARR_API_KEY=$(cat ${secretsDir}/prowlarr/api-key)
 
     if [ -f "${dbFile}" ]; then
       sqlite3 "${dbFile}" "DELETE FROM Users; \
@@ -14,7 +15,7 @@ let
 
     xmlstarlet ed -L \
       -u "/Config/AuthenticationMethod" -v "Forms" \
-      -u "/Config/ApiKey" -v "${secrets.prowlarrApiKey}" \
+      -u "/Config/ApiKey" -v "$PROWLARR_API_KEY" \
       "/var/lib/prowlarr/config.xml"
 
     if systemctl -q is-active prowlarr.service; then

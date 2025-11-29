@@ -8,7 +8,8 @@ let
   dbFile = "${config.services.sonarr.dataDir}/sonarr.db";
   configScript = pkgs.writeScriptBin "sonarr-config" ''
     #!/bin/sh
-    SONARR_API_KEY=$(cat /var/lib/secrets/sonarr/api-key)
+    SONARR_API_KEY=$(cat ${secretsDir}/sonarr/api-key)
+    NZBGEEK_API_KEY=$(cat ${secretsDir}/nzbgeek/api-key)
 
     if [ -f "${dbFile}" ]; then
       sqlite3 "${dbFile}" "DELETE FROM \"Users\";"
@@ -87,7 +88,7 @@ let
         "fields": [
           {"name": "baseUrl", "value": "https://api.nzbgeek.info/"},
           {"name": "apiPath", "value": "/api"},
-          {"name": "apiKey", "value": "${secrets.nzbgeekApiKey}"},
+          {"name": "apiKey", "value": "'"$NZBGEEK_API_KEY"'"},
           {"name": "categories", "value": [5020, 5030, 5040, 5045]},
           {"name": "animeCategories", "value": [5070]},
           {"name": "animeStandardFormatSearch", "value": true}
