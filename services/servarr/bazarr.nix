@@ -69,6 +69,30 @@ let
         else:
             new_config[key] = {'apikey': api_key}
 
+    # Read OpenSubtitles credentials from files
+    opensubtitles_username_path = '${secretsDir}/opensubtitles/username'
+    opensubtitles_password_path = '${secretsDir}/opensubtitles/password'
+    
+    wait_for_file(opensubtitles_username_path)
+    wait_for_file(opensubtitles_password_path)
+
+    with open(opensubtitles_username_path, 'r') as f:
+        opensubtitles_username = f.read().strip()
+    with open(opensubtitles_password_path, 'r') as f:
+        opensubtitles_password = f.read().strip()
+
+    # Update OpenSubtitles configuration
+    if 'opensubtitlescom' in new_config:
+        new_config['opensubtitlescom']['username'] = opensubtitles_username
+        new_config['opensubtitlescom']['password'] = opensubtitles_password
+    else:
+        new_config['opensubtitlescom'] = {
+            'username': opensubtitles_username,
+            'password': opensubtitles_password,
+            'include_ai_translated': False,
+            'use_hash': False
+        }
+
     wait_for_file(config_path)
 
     os.system("systemctl stop bazarr")
@@ -151,8 +175,6 @@ let
       port = toString sonarrPort;
     };
     opensubtitlescom = {
-      username = secrets.opensubtitlesUsername;
-      password = secrets.opensubtitlesPassword;
       include_ai_translated = false;
       use_hash = false;
     };
