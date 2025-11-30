@@ -2,7 +2,39 @@
 
 with config.my;
 
+let
+  cloudflareTokenFile = "${secretsDir}/cloudflare/api-token";
+in
 {
+  # Service to read and validate the Cloudflare API token file
+  systemd.services.caddy-cloudflare-token = {
+    description = "Prepare Cloudflare API token for Caddy";
+    wantedBy = [ "caddy.service" ];
+    before = [ "caddy.service" ];
+    path = with pkgs; [ bash ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "read-cloudflare-token" ''
+        set -e
+
+        if [ ! -f "${cloudflareTokenFile}" ]; then
+          echo "Error: Cloudflare API token file not found at ${cloudflareTokenFile}"
+          exit 1
+        fi
+
+        token=$(cat "${cloudflareTokenFile}" | tr -d '[:space:]')
+
+        if [ -z "$token" ]; then
+          echo "Error: Cloudflare API token is empty in ${cloudflareTokenFile}"
+          exit 1
+        fi
+
+        echo "Cloudflare API token loaded successfully"
+      '';
+    };
+  };
+
   services.caddy = {
     enable = true;
     package = pkgs.caddy.withPlugins {
@@ -17,7 +49,7 @@ with config.my;
       *.${domain} {
         tls {
           issuer acme {
-            dns cloudflare ${secrets.cloudflareApiToken}
+            dns cloudflare {env.CLOUDFLARE_API_TOKEN}
             resolvers 1.1.1.1
             disable_http_challenge
             disable_tlsalpn_challenge
@@ -101,5 +133,18 @@ with config.my;
         reverse_proxy localhost:${toString ttydPort}
       }
     '';
+
+    # Set environment variable for Caddy service
+    environmentFile = cloudflareTokenFile;
   };
+
+  # Ensure the secrets directory exists and has proper permissions
+  system.activationScripts.cloudflare-secrets = ''
+    mkdir -p ${secretsDir}/cloudflare
+    chmod 700 ${secretsDir}
+    chmod 700 ${secretsDir}/cloudflare
+    if [ -f "${cloudflareTokenFile}" ]; then
+      chmod 600 ${cloudflareTokenFile}
+    fi
+  '';
 }
