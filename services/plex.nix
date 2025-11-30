@@ -93,7 +93,7 @@ in {
 
     serviceConfig = {
       Type = "oneshot";
-      User = "plex";
+      User = "root";
       Environment = [
         "PLEX_URL=http://localhost:${toString plexPort}"
         "PLEX_ACCESS_URL=https://plex.${domain}"

@@ -1,5 +1,7 @@
 {config, pkgs, secrets, ...}:
 
+with config.my;
+
 let
   dbFile = "/var/lib/prowlarr/prowlarr.db";
   adminPasswordHash = builtins.hashString "sha256" secrets.adminPassword;
