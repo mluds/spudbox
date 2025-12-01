@@ -3,44 +3,34 @@
 with config.my;
 
 let
-  cloudflareTokenFile = "${secretsDir}/cloudflare/api-token";
-in
-{
-  # Service to read and validate the Cloudflare API token file
-  systemd.services.caddy-cloudflare-token = {
-    description = "Prepare Cloudflare API token for Caddy";
-    wantedBy = [ "caddy.service" ];
-    before = [ "caddy.service" ];
-    path = with pkgs; [ bash ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = pkgs.writeShellScript "read-cloudflare-token" ''
-        set -e
+  # Script to generate the bcrypt hash and environment file
+  hashScript = pkgs.writeScriptBin "caddy-generate-env" ''
+    #!/bin/sh
+    set -e
 
-        if [ ! -f "${cloudflareTokenFile}" ]; then
-          echo "Error: Cloudflare API token file not found at ${cloudflareTokenFile}"
-          exit 1
-        fi
+    ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
+    ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
 
-        token=$(cat "${cloudflareTokenFile}" | tr -d '[:space:]')
+    # Generate bcrypt hash
+    ADMIN_PASSWORD_HASH=$(${pkgs.apacheHttpd}/bin/htpasswd -nBb -C 10 "$ADMIN_USERNAME" "$ADMIN_PASSWORD" | cut -d: -f2)
 
-        if [ -z "$token" ]; then
-          echo "Error: Cloudflare API token is empty in ${cloudflareTokenFile}"
-          exit 1
-        fi
+    # Create environment file
+    cat > /run/caddy/env << EOF
+    ADMIN_USERNAME=$ADMIN_USERNAME
+    ADMIN_PASSWORD_HASH=$ADMIN_PASSWORD_HASH
+    CLOUDFLARE_API_TOKEN=$(cat ${secretsDir}/cloudflare/api-token)
+    EOF
 
-        echo "Cloudflare API token loaded successfully"
-      '';
-    };
-  };
-
+    chmod 600 /run/caddy/env
+  '';
+in {
   services.caddy = {
     enable = true;
     package = pkgs.caddy.withPlugins {
       plugins = [ "github.com/caddy-dns/cloudflare@v0.2.1" ];
       hash = "sha256-S1JN7brvH2KIu7DaDOH1zij3j8hWLLc0HdnUc+L89uU=";
     };
+    environmentFile = "/run/caddy/env";
     configFile = pkgs.writeText "Caddyfile" ''
       {
         admin 0.0.0.0:${toString caddyAdminPort}
@@ -60,7 +50,7 @@ in
 
       (common_auth) {
         basic_auth {
-          ${secrets.adminUsername} ${builtins.readFile (bcryptHash secrets.adminPassword)}
+          {env.ADMIN_USERNAME} {env.ADMIN_PASSWORD_HASH}
         }
       }
 
@@ -133,18 +123,21 @@ in
         reverse_proxy localhost:${toString ttydPort}
       }
     '';
-
-    # Set environment variable for Caddy service
-    environmentFile = cloudflareTokenFile;
   };
 
-  # Ensure the secrets directory exists and has proper permissions
-  system.activationScripts.cloudflare-secrets = ''
-    mkdir -p ${secretsDir}/cloudflare
-    chmod 700 ${secretsDir}
-    chmod 700 ${secretsDir}/cloudflare
-    if [ -f "${cloudflareTokenFile}" ]; then
-      chmod 600 ${cloudflareTokenFile}
-    fi
-  '';
+  systemd.services.caddy-generate-env = {
+    description = "Generate environment file for Caddy";
+    wantedBy = [ "multi-user.target" ];
+    before = [ "caddy.service" ];
+    path = with pkgs; [ apacheHttpd ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "root";
+      ExecStart = "${hashScript}/bin/caddy-generate-env";
+    };
+  };
+
+  systemd.tmpfiles.rules = [
+    "d /run/caddy 0755 root root -"
+  ];
 }
