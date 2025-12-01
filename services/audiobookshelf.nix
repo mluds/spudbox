@@ -4,6 +4,7 @@ with config.my;
 
 let
   dbFile = "/var/lib/audiobookshelf/config/absdatabase.sqlite";
+  tokenSecretFile = "${secretsDir}/audiobookshelf/token-secret";
 
   configScript = let
     pythonEnv = pkgs.python3.withPackages (ps: [ ps.requests ps.bcrypt ps.pyjwt ]);
@@ -33,9 +34,12 @@ let
     user_id = "d3b07384-1138-4e19-8878-669fc7a4c34a"
     username = "${secrets.adminUsername}"
 
+    with open("${tokenSecretFile}", "r") as f:
+        token_secret = f.read().strip()
+
     token = jwt.encode(
       payload={ "userId": user_id, "username": username },
-      key="${secrets.audiobookshelfTokenSecret}"
+      key=token_secret
     )
 
     headers = {
@@ -43,7 +47,7 @@ let
       "Content-Type": "application/json"
     }
 
-    apikey_path = "/var/lib/secrets/audiobookshelf/apikey"
+    apikey_path = "${secretsDir}/audiobookshelf/apikey"
     parent_dir = os.path.dirname(apikey_path)
     os.makedirs(parent_dir, exist_ok=True)
     with open(apikey_path, "w") as f:
@@ -132,7 +136,6 @@ let
         print("Library created successfully!")
 
     def create_users():
-      secrets_dir = os.getenv("SECRETS_DIR")
       users_json = os.getenv("AUDIOBOOKSHELF_USERS", "[]")
       users = json.loads(users_json)
       existing_users = requests.get(f"{base_url}/api/users", headers=headers).json()["users"]
@@ -142,7 +145,7 @@ let
         if username in existing_usernames:
           print(f"User {username} already exists")
           continue
-        password_file = os.path.join(secrets_dir, "users", username, "plaintext")
+        password_file = os.path.join(${secretsDir}, "users", username, "plaintext")
         with open(password_file, 'r') as f:
           password = f.read().strip()
         new_user = {
@@ -167,14 +170,6 @@ in {
     group = "media";
   };
 
-  systemd.services.audiobookshelf = {
-    serviceConfig = {
-      Environment = [
-        "TOKEN_SECRET=${secrets.audiobookshelfTokenSecret}"
-      ];
-    };
-  };
-
   systemd.services.audiobookshelf-config = {
     description = "Configure Audiobookshelf";
     serviceConfig = {
@@ -188,7 +183,6 @@ in {
             inherit (user) username superuser;
           }) users)
         }'"
-        "SECRETS_DIR=${secretsDir}"
       ];
     };
   };
