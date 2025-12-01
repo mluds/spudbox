@@ -25,7 +25,6 @@ in {
     zwavejsPort = 8091;
     homepagePort = 3000;
     ariangPort = 6880;
-    aria2Port = 6800;
     stashPort = 9999;
     stashvrPort = 9666;
     transmissionPort = 9091;
