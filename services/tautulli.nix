@@ -8,6 +8,8 @@ let
     import configparser
     from base64 import b64encode
     from hashlib import pbkdf2_hmac
+    from urllib.request import urlopen
+    from xml.etree import ElementTree
     import subprocess
     import time
 
@@ -22,8 +24,14 @@ let
       print("Waiting for service to stop...")
       time.sleep(5)
 
+      print("Reading Plex token...")
+      plex_token = read_plex_token()
+
+      print("Fetching Plex server identity...")
+      plex_identity = get_plex_identity()
+
       print("Updating configuration...")
-      update_config()
+      update_config(plex_token, plex_identity)
 
       print("Starting Tautulli service...")
       subprocess.run(["systemctl", "start", "tautulli"], check=True)
@@ -46,7 +54,23 @@ let
         salt.decode('utf-8'),
         b64encode(pbkdf2_hmac(HASH_FUNCTION, password, salt, COST_FACTOR, KEY_LENGTH)).decode('utf-8'))
 
-    def update_config():
+    def read_plex_token():
+      token_path = "${secretsDir}/plex/token"
+      with open(token_path, 'r') as f:
+        return f.read().strip()
+
+    def get_plex_identity():
+      plex_port = getenv('PLEX_PORT')
+      url = f"http://127.0.0.1:{plex_port}/identity"
+      response = urlopen(url)
+      tree = ElementTree.parse(response)
+      root = tree.getroot()
+      return {
+        'machineIdentifier': root.get('machineIdentifier', '''),
+        'friendlyName': root.get('friendlyName', '''),
+      }
+
+    def update_config(plex_token, plex_identity):
       cfg_path = getenv('TAUTULLI_CONFIG')
 
       parser = configparser.ConfigParser()
@@ -55,14 +79,24 @@ let
 
       if not parser.has_section('General'):
         parser.add_section('General')
+      if not parser.has_section('PMS'):
+        parser.add_section('PMS')
 
       parser['General']['http_username'] = getenv('TAUTULLI_ADMIN_USERNAME')
       parser['General']['http_password'] = make_hash(getenv('TAUTULLI_ADMIN_PASSWORD'))
       parser['General']['http_port'] = getenv('TAUTULLI_PORT')
-      parser['General']['first_run_complete'] = '1';
-      parser['PMS']['pms_ip'] = '127.0.0.1';
-      parser['PMS']['pms_port'] = getenv('PLEX_PORT')
-      parser['PMS']['pms_url'] = f"http://127.0.0.1:{getenv('PLEX_PORT')}"
+      parser['General']['first_run_complete'] = '1'
+
+      plex_port = getenv('PLEX_PORT')
+      parser['PMS']['pms_ip'] = '127.0.0.1'
+      parser['PMS']['pms_port'] = plex_port
+      parser['PMS']['pms_url'] = f"http://127.0.0.1:{plex_port}"
+      parser['PMS']['pms_token'] = plex_token
+      parser['PMS']['pms_identifier'] = plex_identity['machineIdentifier']
+      parser['PMS']['pms_name'] = plex_identity['friendlyName']
+      parser['PMS']['pms_ssl'] = '0'
+      parser['PMS']['pms_is_cloud'] = '0'
+      parser['PMS']['pms_is_remote'] = '0'
 
       with open(cfg_path, 'w') as configfile:
         parser.write(configfile)
@@ -90,9 +124,12 @@ in {
 
   systemd.services.tautulli-config = {
     description = "Update Tautulli configuration";
+    after = [ "tautulli.service" "plex-config.service" ];
+    wants = [ "tautulli.service" ];
+    wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {
-      Type = "exec";
+      Type = "oneshot";
       User = "root";
       ExecStart = "${pkgs.python3}/bin/python ${configScript}";
     };
