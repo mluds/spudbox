@@ -25,8 +25,6 @@ in {
     zwavejsPort = 8091;
     homepagePort = 3000;
     ariangPort = 6880;
-    stashPort = 9999;
-    stashvrPort = 9666;
     transmissionPort = 9091;
     prowlarrPort = 9696;
     audiobookshelfPort = 8000;
