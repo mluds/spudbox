@@ -6,6 +6,7 @@ with config.my;
 {
   services.transmission = {
     enable = true;
+    package = pkgs.transmission_4;
     openRPCPort = false;
     webHome = "${pkgs.flood-for-transmission}";
     user = "transmission";

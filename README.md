@@ -63,7 +63,7 @@ cat > /mnt/etc/nixos/configuration.nix <<EOF
 { config, lib, pkgs, ... }:
 {
   imports = [ ./hardware-configuration.nix ];
-  system.stateVersion = "25.05";
+  system.stateVersion = "25.11";
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
   services.openssh.enable = true;
