@@ -4,11 +4,10 @@ with config.my;
 
 let
   configScript = pkgs.writeText "tautulli-config.py" ''
-    from os import getenv, path, urandom
+    from os import getenv, path, urandom, makedirs
     import configparser
     from base64 import b64encode
     from hashlib import pbkdf2_hmac
-    from hmac import compare_digest
     import subprocess
     import time
 
@@ -28,6 +27,9 @@ let
 
       print("Starting Tautulli service...")
       subprocess.run(["systemctl", "start", "tautulli"], check=True)
+
+      print("Exporting API key...")
+      export_api_key()
 
     SALT_LENGTH = 16
     KEY_LENGTH = 24
@@ -54,7 +56,6 @@ let
       if not parser.has_section('General'):
         parser.add_section('General')
 
-      parser['General']['api_key'] = getenv('TAUTULLI_API_KEY')
       parser['General']['http_username'] = getenv('TAUTULLI_ADMIN_USERNAME')
       parser['General']['http_password'] = make_hash(getenv('TAUTULLI_ADMIN_PASSWORD'))
       parser['General']['http_port'] = getenv('TAUTULLI_PORT')
@@ -65,6 +66,19 @@ let
 
       with open(cfg_path, 'w') as configfile:
         parser.write(configfile)
+
+    def export_api_key():
+      cfg_path = getenv('TAUTULLI_CONFIG')
+      parser = configparser.ConfigParser()
+      parser.read(cfg_path)
+      api_key = parser['General']['api_key']
+
+      secret_dir = "${secretsDir}/tautulli"
+      makedirs(secret_dir, exist_ok=True)
+      secret_path = path.join(secret_dir, "api-key")
+      with open(secret_path, 'w') as f:
+        f.write(api_key)
+      print(f"API key written to {secret_path}")
 
     if __name__ == "__main__":
       main()
@@ -89,7 +103,6 @@ in {
       TAUTULLI_PORT = toString tautulliPort;
       TAUTULLI_ADMIN_USERNAME = secrets.adminUsername;
       TAUTULLI_ADMIN_PASSWORD = secrets.adminPassword;
-      TAUTULLI_API_KEY = secrets.tautulliApiKey;
     };
   };
 }

@@ -15,6 +15,7 @@ with config.my;
         "HOMEPAGE_FILE_SONARR_API_KEY=${secretsDir}/sonarr/api-key"
         "HOMEPAGE_FILE_BAZARR_API_KEY=${secretsDir}/bazarr/api-key"
         "HOMEPAGE_FILE_PROWLARR_API_KEY=${secretsDir}/prowlarr/api-key"
+        "HOMEPAGE_FILE_TAUTULLI_API_KEY=${secretsDir}/tautulli/api-key"
       ];
     };
   };
@@ -91,7 +92,7 @@ with config.my;
                 {
                   type = "tautulli";
                   url = "http://localhost:${toString tautulliPort}";
-                  key = secrets.tautulliApiKey;
+                  key = "{{HOMEPAGE_FILE_TAUTULLI_API_KEY}}";
                   enableUser = true;
                   showEpisodeNumber = true;
                   expandOneStreamToTwoRows = false;
