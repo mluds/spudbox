@@ -145,7 +145,7 @@ let
         if username in existing_usernames:
           print(f"User {username} already exists")
           continue
-        password_file = os.path.join(${secretsDir}, "users", username, "plaintext")
+        password_file = os.path.join("${secretsDir}", "users", username, "plaintext")
         with open(password_file, 'r') as f:
           password = f.read().strip()
         new_user = {
