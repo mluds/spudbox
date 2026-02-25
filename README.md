@@ -39,9 +39,9 @@ export BOOT_PART_2=${BOOT_DEV}p2
 
 Prod:
 ```bash
-export BOOT_DEV=/dev/sdb
-export BOOT_PART_1=${BOOT_DEV}1
-export BOOT_PART_2=${BOOT_DEV}2
+export BOOT_DEV=/dev/nvme0n1
+export BOOT_PART_1=${BOOT_DEV}p1
+export BOOT_PART_2=${BOOT_DEV}p2
 ```
 
 ```bash

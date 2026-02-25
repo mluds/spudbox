@@ -89,26 +89,18 @@ in {
         options = [ "defaults" "nofail" ];
       };
     };
-  in lib.listToAttrs (map commonMount allDrives) // {
-    "${cacheDir}" = {
-      device = lib.concatStringsSep ":" (map (d: d.mount) cacheDrives);
-      fsType = "fuse.mergerfs";
-      options = [ "defaults" "allow_other" "use_ino" "cache.files=partial" ];
-      depends = map (d: d.mount) cacheDrives;
+    mergerfsMount = dir: drives: lib.optionalAttrs (drives != []) {
+      "${dir}" = {
+        device = lib.concatStringsSep ":" (map (d: d.mount) drives);
+        fsType = "fuse.mergerfs";
+        options = [ "defaults" "allow_other" "use_ino" "cache.files=partial" ];
+        depends = map (d: d.mount) drives;
+      };
     };
-    "${storageDir}" = {
-      device = lib.concatStringsSep ":" (map (d: d.mount) storageDrives);
-      fsType = "fuse.mergerfs";
-      options = [ "defaults" "allow_other" "use_ino" "cache.files=partial" ];
-      depends = map (d: d.mount) storageDrives;
-    };
-    "${backupDir}" = {
-      device = lib.concatStringsSep ":" (map (d: d.mount) backupDrives);
-      fsType = "fuse.mergerfs";
-      options = [ "defaults" "allow_other" "use_ino" "cache.files=partial" ];
-      depends = map (d: d.mount) backupDrives;
-    };
-  };
+  in lib.listToAttrs (map commonMount allDrives)
+    // mergerfsMount cacheDir cacheDrives
+    // mergerfsMount storageDir storageDrives
+    // mergerfsMount backupDir backupDrives;
 
   services.udev.extraRules = ''
     ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", RUN+="${pkgs.hdparm}/bin/hdparm -S 60 -B 127 /dev/%k"
