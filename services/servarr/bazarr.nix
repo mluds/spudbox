@@ -98,6 +98,7 @@ let
     with open('${secretsDir}/admin/password', 'r') as f:
         admin_password_md5 = hashlib.md5(f.read().strip().encode()).hexdigest()
     new_config.setdefault('auth', {})
+    new_config['auth']['type'] = 'form'
     new_config['auth']['username'] = admin_username
     new_config['auth']['password'] = admin_password_md5
 
