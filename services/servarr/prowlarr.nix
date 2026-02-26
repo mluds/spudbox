@@ -7,7 +7,7 @@ let
   adminPasswordHash = builtins.hashString "sha256" secrets.adminPassword;
   configScript = pkgs.writeScriptBin "prowlarr-config" ''
     #!/bin/sh
-    PROWLARR_API_KEY=$(cat ${secretsDir}/prowlarr/api-key)
+    set -e
 
     if [ -f "${dbFile}" ]; then
       sqlite3 "${dbFile}" "DELETE FROM Users; \
@@ -17,12 +17,15 @@ let
 
     xmlstarlet ed -L \
       -u "/Config/AuthenticationMethod" -v "Forms" \
-      -u "/Config/ApiKey" -v "$PROWLARR_API_KEY" \
       "/var/lib/prowlarr/config.xml"
 
     if systemctl -q is-active prowlarr.service; then
       systemctl restart prowlarr.service
     fi
+
+    echo "Exporting Prowlarr API key..."
+    mkdir -p ${secretsDir}/prowlarr
+    xmlstarlet sel -t -v '/Config/ApiKey' /var/lib/prowlarr/config.xml > ${secretsDir}/prowlarr/api-key
   '';
 in {
   services.prowlarr = {
@@ -33,10 +36,12 @@ in {
   systemd.services.prowlarr-config = {
     description = "Configure Prowlarr";
     after = [ "prowlarr.service" ];
+    wants = [ "prowlarr.service" ];
+    wantedBy = [ "multi-user.target" ];
     path = with pkgs; [ xmlstarlet sqlite ];
     serviceConfig = {
       User = "root";
-      Type = "exec";
+      Type = "oneshot";
       ExecStart = "${configScript}/bin/prowlarr-config";
     };
   };
