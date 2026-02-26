@@ -3,106 +3,71 @@
 with config.my;
 
 let
-  partialSettingsFile = pkgs.writeText "jellyseerr-settings.json" (builtins.toJSON {
-    main = {
-      apiKey = secrets.jellyseerr.apiKey;
-    };
-    plex = {
-      name = "SpudBox";
-      ip = "localhost";
-      port = plexPort;
-      useSsl = false;
-      libraries = [
-        {
-          id = 11;
-          name = "Movies";
-          enabled = true;
-          type = "movie";
-        }
-        {
-          id = 12;
-          name = "TV Shows";
-          enabled = true;
-          type = "show";
-        }
-      ];
-    };
-    tautulli = {};
-    radarr = [
-      {
-        name = "Radarr";
-        hostname = "localhost";
-        port = 7878;
-        apiKey = "__RADARR_API_KEY__";
-        useSsl = false;
-        activeProfileId = 1;
-        activeProfileName = "Any";
-        activeDirectory = "${storageDir}/data/media/movies";
-        is4k = false;
-        minimumAvailability = "released";
-        tags = [];
-        isDefault = true;
-        syncEnabled = true;
-        preventSearch = false;
-        tagRequests = false;
-        id = 0;
-      }
-    ];
-    sonarr = [
-      {
-        name = "Sonarr";
-        hostname = "localhost";
-        port = sonarrPort;
-        apiKey = "__SONARR_API_KEY__";
-        useSsl = false;
-        baseUrl = "";
-        activeProfileId = 1;
-        activeProfileName = "Any";
-        activeDirectory = "${storageDir}/data/media/tv";
-        tags = [];
-        animeTags = [];
-        is4k = false;
-        isDefault = true;
-        enableSeasonFolders = false;
-        syncEnabled = true;
-        preventSearch = false;
-        tagRequests = false;
-        id = 0;
-      }
-    ];
-  });
-  configMerger = pkgs.writeScriptBin "jellyseerr-config-merger" ''
+  settingsFile = "/var/lib/jellyseerr/config/settings.json";
+
+  configScript = pkgs.writeScriptBin "jellyseerr-config" ''
     #!/bin/sh
     set -e
-    
+
+    CURL="${pkgs.curl}/bin/curl"
+    JQ="${pkgs.jq}/bin/jq"
+    BASE="http://localhost:''${JELLYSEERR_PORT}"
+
     echo "Waiting for Jellyseerr to start..."
-    until curl -sSf http://localhost:${toString jellyseerrPort}/settings/main >/dev/null; do
+    until $CURL -sSf "$BASE/api/v1/settings/public" >/dev/null 2>&1; do
       sleep 2
     done
 
-    echo "Merging configuration..."
-    jq -s '.[0] * .[1]' \
-      /var/lib/jellyseerr/config/settings.json \
-      ${partialSettingsFile} \
-      > /var/lib/jellyseerr/config/settings.json.tmp1
+    INITIALIZED=$($CURL -s "$BASE/api/v1/settings/public" | $JQ -r '.initialized')
+    if [ "$INITIALIZED" = "true" ]; then
+      echo "Jellyseerr already initialized, skipping setup."
+      exit 0
+    fi
 
-    echo "Reading API keys from secrets files..."
-    RADARR_API_KEY=$(tr -d '\n' < ${secretsDir}/radarr/api-key)
-    SONARR_API_KEY=$(tr -d '\n' < ${secretsDir}/sonarr/api-key)
+    PLEX_TOKEN=$(cat ${secretsDir}/plex/token)
+    RADARR_KEY=$(tr -d '\n' < ${secretsDir}/radarr/api-key)
+    SONARR_KEY=$(tr -d '\n' < ${secretsDir}/sonarr/api-key)
 
-    echo "Injecting API keys into configuration..."
-    jq --arg key "$RADARR_API_KEY" \
-       '.radarr[0].apiKey = $key' \
-       /var/lib/jellyseerr/config/settings.json.tmp1 \
-       > /var/lib/jellyseerr/config/settings.json.tmp2
-    jq --arg key "$SONARR_API_KEY" \
-       '.sonarr[0].apiKey = $key' \
-       /var/lib/jellyseerr/config/settings.json.tmp2 \
-       > /var/lib/jellyseerr/config/settings.json
+    COOKIE_FILE=$(mktemp)
+    trap "rm -f $COOKIE_FILE" EXIT
 
-    chown jellyseerr:jellyseerr /var/lib/jellyseerr/config/settings.json
-    rm -f /var/lib/jellyseerr/config/settings.json.tmp*
-    systemctl try-reload-or-restart jellyseerr
+    echo "Authenticating with Plex..."
+    $CURL -s -c "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
+      -d "{\"authToken\": \"$PLEX_TOKEN\"}" \
+      "$BASE/api/v1/auth/plex" >/dev/null
+
+    echo "Marking setup as complete..."
+    $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
+      "$BASE/api/v1/settings/initialize" >/dev/null
+
+    echo "Configuring Plex server..."
+    $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
+      -d "{\"ip\": \"127.0.0.1\", \"port\": ''${PLEX_PORT}, \"useSsl\": false}" \
+      "$BASE/api/v1/settings/plex" >/dev/null
+
+    echo "Syncing Plex libraries..."
+    $CURL -s -b "$COOKIE_FILE" "$BASE/api/v1/settings/plex/library?sync=true" >/dev/null
+
+    echo "Enabling libraries..."
+    $JQ '.plex.libraries = [.plex.libraries[] | .enabled = true]' \
+      ${settingsFile} > ${settingsFile}.tmp
+    mv ${settingsFile}.tmp ${settingsFile}
+    chown jellyseerr:jellyseerr ${settingsFile}
+
+    echo "Adding Radarr..."
+    $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
+      -d "{\"name\": \"Radarr\", \"hostname\": \"localhost\", \"port\": ''${RADARR_PORT}, \"apiKey\": \"$RADARR_KEY\", \"useSsl\": false, \"activeProfileId\": 1, \"activeProfileName\": \"Any\", \"activeDirectory\": \"''${MOVIES_DIR}\", \"is4k\": false, \"minimumAvailability\": \"released\", \"tags\": [], \"isDefault\": true, \"syncEnabled\": true, \"preventSearch\": false, \"tagRequests\": false}" \
+      "$BASE/api/v1/settings/radarr" >/dev/null
+
+    echo "Adding Sonarr..."
+    $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
+      -d "{\"name\": \"Sonarr\", \"hostname\": \"localhost\", \"port\": ''${SONARR_PORT}, \"apiKey\": \"$SONARR_KEY\", \"useSsl\": false, \"baseUrl\": \"\", \"activeProfileId\": 1, \"activeProfileName\": \"Any\", \"activeDirectory\": \"''${TV_DIR}\", \"tags\": [], \"animeTags\": [], \"is4k\": false, \"isDefault\": true, \"enableSeasonFolders\": false, \"syncEnabled\": true, \"preventSearch\": false, \"tagRequests\": false}" \
+      "$BASE/api/v1/settings/sonarr" >/dev/null
+
+    echo "Restarting Jellyseerr..."
+    systemctl restart jellyseerr
+
+    echo "Jellyseerr setup complete."
   '';
 in
 {
@@ -130,13 +95,24 @@ in
   };
 
   systemd.services.jellyseerr-config = {
-    description = "Jellyseerr Configuration Merger";
-    after = [ "jellyseerr.service" ];
-    path = with pkgs; [ curl jq coreutils ];
+    description = "Configure Jellyseerr";
+    after = [ "jellyseerr.service" "plex-config.service" "radarr-config.service" "sonarr-config.service" ];
+    wants = [ "jellyseerr.service" ];
+    wantedBy = [ "multi-user.target" ];
+
     serviceConfig = {
-      Type = "exec";
+      Type = "oneshot";
       User = "root";
-      ExecStart = "${configMerger}/bin/jellyseerr-config-merger";
+      ExecStart = "${configScript}/bin/jellyseerr-config";
+    };
+
+    environment = {
+      JELLYSEERR_PORT = toString jellyseerrPort;
+      PLEX_PORT = toString plexPort;
+      RADARR_PORT = toString radarrPort;
+      SONARR_PORT = toString sonarrPort;
+      MOVIES_DIR = "${storageDir}/data/media/movies";
+      TV_DIR = "${storageDir}/data/media/tv";
     };
   };
 }
