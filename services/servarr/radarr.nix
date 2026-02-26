@@ -149,6 +149,59 @@ let
     done
     rm -f /tmp/quality_settings_radarr.json
 
+    echo "Adding Letterboxd Top 500 import list..."
+    curl -X POST "http://localhost:${toString radarrPort}/api/v3/importlist" \
+      -H "X-Api-Key: $RADARR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Letterboxd Top 500",
+        "enabled": true,
+        "enableAuto": true,
+        "monitor": "movieOnly",
+        "rootFolderPath": "${storageDir}/data/media/movies",
+        "qualityProfileId": 1,
+        "searchOnAdd": true,
+        "minimumAvailability": "released",
+        "listType": "advanced",
+        "implementation": "RadarrListImport",
+        "configContract": "RadarrListSettings",
+        "fields": [
+          {"name": "url", "value": "https://letterboxd-list-radarr.onrender.com/official/list/letterboxds-top-500-films/"}
+        ],
+        "tags": []
+      }' \
+      --fail --silent --show-error || echo "Import list may already exist"
+
+    echo "Importing existing movies from disk..."
+    UNMAPPED=$(curl -sS "http://localhost:${toString radarrPort}/api/v3/rootfolder" \
+      -H "X-Api-Key: $RADARR_API_KEY" \
+      | jq -r '.[0].unmappedFolders[].name')
+    if [ -n "$UNMAPPED" ]; then
+      echo "$UNMAPPED" | while IFS= read -r folder; do
+        SEARCH_TERM=$(echo "$folder" | sed 's/(//' | sed 's/)//')
+        MOVIE=$(curl -sS "http://localhost:${toString radarrPort}/api/v3/movie/lookup?term=$(echo "$SEARCH_TERM" | jq -sRr @uri)" \
+          -H "X-Api-Key: $RADARR_API_KEY" \
+          | jq '.[0]')
+        if [ "$MOVIE" != "null" ] && [ -n "$MOVIE" ]; then
+          echo "$MOVIE" | jq --arg path "${storageDir}/data/media/movies/$folder" \
+            '. + {path: $path, rootFolderPath: "${storageDir}/data/media/movies", qualityProfileId: 1, monitored: true, addOptions: {searchForMovie: false}}' \
+            | curl -sS -X POST "http://localhost:${toString radarrPort}/api/v3/movie" \
+              -H "X-Api-Key: $RADARR_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d @- >/dev/null 2>&1 && echo "  Added: $folder" || echo "  Skipped: $folder (already exists or error)"
+        else
+          echo "  Not found: $folder"
+        fi
+      done
+      echo "Triggering disk scan..."
+      curl -sS -X POST "http://localhost:${toString radarrPort}/api/v3/command" \
+        -H "X-Api-Key: $RADARR_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d '{"name": "RescanMovie"}' >/dev/null
+    else
+      echo "  No unmapped folders found"
+    fi
+
     echo "Applying Any quality profile..."
     curl -X PUT "http://localhost:${toString radarrPort}/api/v3/qualityprofile/1" \
       -H "X-Api-Key: $RADARR_API_KEY" \

@@ -303,6 +303,15 @@ with config.my;
               }
             ];
           }
+          {
+            Letterboxd = [
+              {
+                href = "https://letterboxd.com/official/story/official-lists-hq-directory/";
+                description = "Official Lists Directory";
+                icon = "letterboxd";
+              }
+            ];
+          }
         ];
       }
     ];

@@ -149,6 +149,36 @@ let
     done
     rm -f /tmp/quality_settings_sonarr.json
 
+    echo "Importing existing shows from disk..."
+    UNMAPPED=$(curl -sS "http://localhost:${toString sonarrPort}/api/v3/rootfolder" \
+      -H "X-Api-Key: $SONARR_API_KEY" \
+      | jq -r '.[0].unmappedFolders[].name')
+    if [ -n "$UNMAPPED" ]; then
+      echo "$UNMAPPED" | while IFS= read -r folder; do
+        SEARCH_TERM=$(echo "$folder" | sed 's/([^)]*)$//' | sed 's/ *$//')
+        SHOW=$(curl -sS "http://localhost:${toString sonarrPort}/api/v3/series/lookup?term=$(echo "$SEARCH_TERM" | jq -sRr @uri)" \
+          -H "X-Api-Key: $SONARR_API_KEY" \
+          | jq '.[0]')
+        if [ "$SHOW" != "null" ] && [ -n "$SHOW" ]; then
+          echo "$SHOW" | jq --arg path "${storageDir}/data/media/tv/$folder" \
+            '. + {path: $path, rootFolderPath: "${storageDir}/data/media/tv", qualityProfileId: 1, monitored: true, addOptions: {monitor: "existing", searchForMissingEpisodes: false, searchForCutoffUnmetEpisodes: false}}' \
+            | curl -sS -X POST "http://localhost:${toString sonarrPort}/api/v3/series" \
+              -H "X-Api-Key: $SONARR_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d @- >/dev/null 2>&1 && echo "  Added: $folder" || echo "  Skipped: $folder (already exists or error)"
+        else
+          echo "  Not found: $folder"
+        fi
+      done
+      echo "Triggering disk scan..."
+      curl -sS -X POST "http://localhost:${toString sonarrPort}/api/v3/command" \
+        -H "X-Api-Key: $SONARR_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d '{"name": "RescanSeries"}' >/dev/null
+    else
+      echo "  No unmapped folders found"
+    fi
+
     echo "Applying quality profile..."
     curl -X PUT "http://localhost:${toString sonarrPort}/api/v3/qualityprofile/1" \
       -H "X-Api-Key: $SONARR_API_KEY" \
