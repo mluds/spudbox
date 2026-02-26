@@ -138,6 +138,16 @@ let
     conn.commit()
 
     os.system("systemctl start bazarr")
+
+    # Export the actual API key to secrets for homepage
+    api_key_dir = "${secretsDir}/bazarr"
+    os.makedirs(api_key_dir, exist_ok=True)
+    with open(config_path, 'r') as f:
+      final_config = yaml.safe_load(f) or {}
+    api_key = final_config.get('auth', {}).get('apikey', "")
+    with open(os.path.join(api_key_dir, 'api-key'), 'w') as f:
+      f.write(api_key)
+    print(f"Exported Bazarr API key to {api_key_dir}/api-key")
   '';
   configTemplate = pkgs.writeText "bazarr-config-template.yaml" (lib.generators.toYAML {} {
     general = {
@@ -196,6 +206,9 @@ in {
 
   systemd.services.bazarr-config = {
     description = "Bazarr Configuration Updater";
+    after = [ "bazarr.service" "radarr-config.service" "sonarr-config.service" ];
+    wants = [ "bazarr.service" ];
+    wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "exec";
       User = "root";
