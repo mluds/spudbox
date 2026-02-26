@@ -1,5 +1,5 @@
 
-{pkgs, config, ...}:
+{pkgs, lib, config, ...}:
 
 with config.my;
 
@@ -25,7 +25,7 @@ in {
     };
   };
 
-  systemd.services.transmission.serviceConfig.ExecStartPre = let
+  systemd.services.transmission.serviceConfig.ExecStartPre = lib.mkBefore (let
     script = pkgs.writeShellScript "transmission-credentials" ''
       mkdir -p ${credentialsDir}
       ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
@@ -39,5 +39,5 @@ in {
     '';
   in [
     "+${script}"
-  ];
+  ]);
 }
