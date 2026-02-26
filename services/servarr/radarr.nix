@@ -1,4 +1,4 @@
-{ config, pkgs, secrets, ... }:
+{ config, pkgs, ... }:
 
 with config.my;
 
@@ -11,6 +11,8 @@ let
     RADARR_API_KEY=$(cat ${secretsDir}/radarr/api-key)
     NZBGEEK_API_KEY=$(cat ${secretsDir}/nzbgeek/api-key)
     SABNZBD_API_KEY=$(cat ${secretsDir}/sabnzbd/api-key)
+    ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
+    ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
 
     if [ -f "${dbFile}" ]; then
       sqlite3 "${dbFile}" "DELETE FROM \"Users\";"
@@ -20,8 +22,8 @@ let
       --subnode '/Config/Authentication[not(Username)]' -t elem -n Username \
       --subnode '/Config/Authentication[not(Password)]' -t elem -n Password \
       -u "/Config/AuthenticationMethod" -v "Forms" \
-      -u "/Config/Authentication/Username" -v "${secrets.adminUsername}" \
-      -u "/Config/Authentication/Password" -v "${secrets.adminPassword}" \
+      -u "/Config/Authentication/Username" -v "$ADMIN_USERNAME" \
+      -u "/Config/Authentication/Password" -v "$ADMIN_PASSWORD" \
       -u "/Config/ApiKey" -v "$RADARR_API_KEY" \
       "${cfgFile}"
     if systemctl -q is-active radarr.service; then

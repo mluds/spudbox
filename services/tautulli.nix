@@ -1,4 +1,4 @@
-{config, pkgs, secrets, ...}:
+{config, pkgs, ...}:
 
 with config.my;
 
@@ -82,8 +82,10 @@ let
       if not parser.has_section('PMS'):
         parser.add_section('PMS')
 
-      parser['General']['http_username'] = getenv('TAUTULLI_ADMIN_USERNAME')
-      parser['General']['http_password'] = make_hash(getenv('TAUTULLI_ADMIN_PASSWORD'))
+      with open(getenv('TAUTULLI_ADMIN_USERNAME_FILE'), 'r') as f:
+        parser['General']['http_username'] = f.read().strip()
+      with open(getenv('TAUTULLI_ADMIN_PASSWORD_FILE'), 'r') as f:
+        parser['General']['http_password'] = make_hash(f.read().strip())
       parser['General']['http_port'] = getenv('TAUTULLI_PORT')
       parser['General']['first_run_complete'] = '1'
 
@@ -138,8 +140,8 @@ in {
       TAUTULLI_CONFIG = "${config.services.tautulli.dataDir}/config.ini";
       PLEX_PORT = toString plexPort;
       TAUTULLI_PORT = toString tautulliPort;
-      TAUTULLI_ADMIN_USERNAME = secrets.adminUsername;
-      TAUTULLI_ADMIN_PASSWORD = secrets.adminPassword;
+      TAUTULLI_ADMIN_USERNAME_FILE = "${secretsDir}/admin/username";
+      TAUTULLI_ADMIN_PASSWORD_FILE = "${secretsDir}/admin/password";
     };
   };
 }

@@ -1,9 +1,14 @@
   
-{pkgs, config, secrets, ...}:
+{pkgs, config, ...}:
 
 with config.my;
 
-{
+let
+  credentialsFile = pkgs.writeText "transmission-credentials.json" (builtins.toJSON {
+    rpc-username = builtins.readFile /var/lib/secrets/admin/username;
+    rpc-password = builtins.readFile /var/lib/secrets/admin/password;
+  });
+in {
   services.transmission = {
     enable = true;
     package = pkgs.transmission_4;
@@ -11,12 +16,11 @@ with config.my;
     webHome = "${pkgs.flood-for-transmission}";
     user = "transmission";
     group = "media";
+    credentialsFile = credentialsFile;
     settings = {
       rpc-bind-address = "127.0.0.1";
       rpc-whitelist-enabled = true;
       rpc-authentication-required = true;
-      rpc-username = secrets.adminUsername;
-      rpc-password = secrets.adminPassword;
       incomplete-dir-enabled = true;
       incomplete-dir = "${cacheDir}/data/torrents/incomplete";
       download-dir = "${cacheDir}/data/torrents/complete";

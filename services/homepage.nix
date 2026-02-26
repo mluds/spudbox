@@ -1,4 +1,4 @@
-{ config, secrets, ... }:
+{ config, ... }:
 
 with config.my;
 
@@ -18,6 +18,8 @@ with config.my;
         "HOMEPAGE_FILE_TAUTULLI_API_KEY=${secretsDir}/tautulli/api-key"
         "HOMEPAGE_FILE_JELLYSEERR_API_KEY=${secretsDir}/jellyseerr/api-key"
         "HOMEPAGE_FILE_SABNZBD_API_KEY=${secretsDir}/sabnzbd/api-key"
+        "HOMEPAGE_FILE_ADMIN_USERNAME=${secretsDir}/admin/username"
+        "HOMEPAGE_FILE_ADMIN_PASSWORD=${secretsDir}/admin/password"
       ];
     };
   };
@@ -210,8 +212,8 @@ with config.my;
               widget = {
                 type = "transmission";
                 url = "http://localhost:${toString transmissionPort}";
-                username = secrets.adminUsername;
-                password = secrets.adminPassword;
+                username = "{{HOMEPAGE_FILE_ADMIN_USERNAME}}";
+                password = "{{HOMEPAGE_FILE_ADMIN_PASSWORD}}";
                 fields = [
                   "leech"
                   "download"

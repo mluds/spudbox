@@ -1,4 +1,4 @@
-{ config, pkgs, secrets, ... }:
+{ config, pkgs, ... }:
 
 with config.my;
 
@@ -21,7 +21,8 @@ let
     import socket
     import jwt
 
-    admin_password = os.getenv("ADMIN_PASSWORD")
+    with open("${secretsDir}/admin/password", "r") as f:
+        admin_password = f.read().strip()
     salt = bcrypt.gensalt(rounds=8, prefix=b"2a")
     hashed = bcrypt.hashpw(admin_password.encode('utf-8'), salt)
     pash = hashed.decode()
@@ -32,7 +33,8 @@ let
     base_url = f"http://{host}:{port}"
     login_url = urljoin(base_url, "/login")
     user_id = "d3b07384-1138-4e19-8878-669fc7a4c34a"
-    username = "${secrets.adminUsername}"
+    with open("${secretsDir}/admin/username", "r") as f:
+        username = f.read().strip()
 
     def get_token_secret():
       conn = sqlite3.connect(db_path)
@@ -191,7 +193,6 @@ in {
       Type = "exec";
       ExecStart = "${configScript}/bin/audiobookshelf-config";
       Environment = [
-        "ADMIN_PASSWORD=${secrets.adminPassword}"
         "AUDIOBOOKSHELF_USERS='${
           builtins.toJSON (map (user: {
             inherit (user) username superuser;

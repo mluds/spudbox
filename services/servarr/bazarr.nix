@@ -1,10 +1,8 @@
-{ config, pkgs, lib, secrets, ... }:
+{ config, pkgs, lib, ... }:
 
 with config.my;
 
 let
-  adminPasswordMD5 = builtins.hashString "md5" secrets.adminPassword;
-
   pythonEnv = pkgs.python3.withPackages (ps: [ ps.deepmerge ps.pyyaml ]);
   configScript = pkgs.writeScript "bazarr-config.py" ''
     #!${pkgs.python3}/bin/python
@@ -93,6 +91,23 @@ let
             'use_hash': False
         }
 
+    # Read admin credentials from files
+    import hashlib
+    with open('${secretsDir}/admin/username', 'r') as f:
+        admin_username = f.read().strip()
+    with open('${secretsDir}/admin/password', 'r') as f:
+        admin_password_md5 = hashlib.md5(f.read().strip().encode()).hexdigest()
+    new_config.setdefault('auth', {})
+    new_config['auth']['username'] = admin_username
+    new_config['auth']['password'] = admin_password_md5
+
+    # Read ASSRT token from secrets
+    assrt_token_path = '${secretsDir}/assrt/api-token'
+    if os.path.exists(assrt_token_path):
+        with open(assrt_token_path, 'r') as f:
+            new_config.setdefault('assrt', {})
+            new_config['assrt']['token'] = f.read().strip()
+
     wait_for_file(config_path)
 
     os.system("systemctl stop bazarr")
@@ -173,8 +188,6 @@ let
     };
     auth = {
       type = "form";
-      username = secrets.adminUsername;
-      password = adminPasswordMD5;
     };
     radarr = {
       ip = "localhost";
@@ -188,9 +201,7 @@ let
       include_ai_translated = false;
       use_hash = false;
     };
-    assrt = {
-      token = secrets.assrtApiToken;
-    };
+    assrt = {};
   });
 
   newConfigContent = builtins.readFile configTemplate;
