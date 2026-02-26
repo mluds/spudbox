@@ -17,6 +17,7 @@ with config.my;
         "HOMEPAGE_FILE_PROWLARR_API_KEY=${secretsDir}/prowlarr/api-key"
         "HOMEPAGE_FILE_TAUTULLI_API_KEY=${secretsDir}/tautulli/api-key"
         "HOMEPAGE_FILE_JELLYSEERR_API_KEY=${secretsDir}/jellyseerr/api-key"
+        "HOMEPAGE_FILE_SABNZBD_API_KEY=${secretsDir}/sabnzbd/api-key"
       ];
     };
   };
@@ -197,7 +198,7 @@ with config.my;
               widget = {
                 type = "sabnzbd";
                 url = "http://localhost:${toString sabnzbdPort}";
-                key = secrets.sabnzbdApiKey;
+                key = "{{HOMEPAGE_FILE_SABNZBD_API_KEY}}";
               };
             };
           }

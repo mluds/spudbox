@@ -10,6 +10,7 @@ let
     #!/bin/sh
     SONARR_API_KEY=$(cat ${secretsDir}/sonarr/api-key)
     NZBGEEK_API_KEY=$(cat ${secretsDir}/nzbgeek/api-key)
+    SABNZBD_API_KEY=$(cat ${secretsDir}/sabnzbd/api-key)
 
     if [ -f "${dbFile}" ]; then
       sqlite3 "${dbFile}" "DELETE FROM \"Users\";"
@@ -109,7 +110,7 @@ let
         "fields": [
           {"name": "host", "value": "localhost"},
           {"name": "port", "value": ${toString sabnzbdPort}},
-          {"name": "apiKey", "value": "${secrets.sabnzbdApiKey}"},
+          {"name": "apiKey", "value": "$SABNZBD_API_KEY"},
           {"name": "category", "value": "tv"}
         ]
       }' \
