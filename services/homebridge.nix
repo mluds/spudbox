@@ -42,20 +42,31 @@ let
     AUTH="Authorization: Bearer $AUTH_TOKEN"
 
     echo "Installing homebridge-dummy plugin..."
-    $CURL -s -X POST -H "$AUTH" \
-      "$BASE/api/plugins/update/homebridge-dummy" >/dev/null
-
-    echo "Waiting for plugin installation..."
-    sleep 10
+    ${pkgs.docker}/bin/docker exec homebridge npm install homebridge-dummy
 
     echo "Adding dummy switch to config..."
     CONFIG=$($CURL -s -H "$AUTH" "$BASE/api/config-editor")
-    UPDATED=$(echo "$CONFIG" | $JQ '.accessories += [{"accessory": "DummySwitch", "name": "Dummy Door Switch", "stateful": true}]')
+    UPDATED=$(echo "$CONFIG" | $JQ '.platforms += [{"platform": "HomebridgeDummy", "name": "HomebridgeDummy", "accessories": [{"type": "Switch", "name": "Dummy Door Switch", "stateful": true}]}]')
     echo "$UPDATED" | $CURL -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
       -d @- "$BASE/api/config-editor" >/dev/null
 
     echo "Restarting Homebridge..."
     $CURL -s -X PUT -H "$AUTH" "$BASE/api/server/restart" >/dev/null
+
+    echo "Waiting for Homebridge to come back..."
+    sleep 5
+    until $CURL -sSf "$BASE/api/auth/settings" >/dev/null 2>&1; do
+      sleep 2
+    done
+
+    echo "Logging in again..."
+    AUTH_TOKEN=$($CURL -s -X POST -H "Content-Type: application/json" \
+      -d "{\"username\": \"$ADMIN_USERNAME\", \"password\": \"$ADMIN_PASSWORD\"}" \
+      "$BASE/api/auth/login" | $JQ -r '.access_token')
+    AUTH="Authorization: Bearer $AUTH_TOKEN"
+
+    echo "Resetting cached accessories..."
+    $CURL -s -X PUT -H "$AUTH" "$BASE/api/server/reset-cached-accessories" >/dev/null
 
     echo "Homebridge setup complete."
   '';
