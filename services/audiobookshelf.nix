@@ -34,7 +34,21 @@ let
     user_id = "d3b07384-1138-4e19-8878-669fc7a4c34a"
     username = "${secrets.adminUsername}"
 
-    with open("${tokenSecretFile}", "r") as f:
+    def get_token_secret():
+      conn = sqlite3.connect(db_path)
+      cursor = conn.cursor()
+      cursor.execute("SELECT value FROM settings WHERE key = 'server-settings'")
+      row = cursor.fetchone()
+      conn.close()
+      if row:
+        settings = json.loads(row[0])
+        return settings.get('tokenSecret', "")
+      return ""
+
+    token_secret = get_token_secret()
+    if not token_secret:
+      # Fallback to file if DB doesn't have it yet
+      with open("${tokenSecretFile}", "r") as f:
         token_secret = f.read().strip()
 
     token = jwt.encode(
