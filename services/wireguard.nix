@@ -1,4 +1,4 @@
-{ config, pkgs, lib, secrets, ... }:
+{ config, pkgs, lib, ... }:
 
 with config.my;
 
@@ -18,62 +18,55 @@ let
       ip = "${wireguard_network_base}.3";
     }
   ];
-  server_private_key = secrets.wireguard.server.private_key;
-  server_public_key = secrets.wireguard.server.public_key;
-  client_secrets = secrets.wireguard.clients;
-  clientConfig = client: ''
-    [Interface]
-    PrivateKey = ${client_secrets.${client.name}.private_key}
-    Address = ${client.ip}/${toString wireguard_mask}
+  configScript = pkgs.writeShellScript "wireguard-config" ''
+    set -e
+    SECRETS="${secretsDir}/wireguard"
 
-    [Peer]
-    PublicKey = ${server_public_key}
-    Endpoint = ${public_domain}:${toString wireguard_port}
-    AllowedIPs = ${wireguard_server_ip}/32, ${lan_cidr}
-  '';
-  serverConfig = ''
+    SERVER_PRIVATE_KEY=$(cat "$SECRETS/server/private-key")
+    SERVER_PUBLIC_KEY=$(cat "$SECRETS/server/public-key")
+
+    mkdir -p /etc/wireguard/clients
+
+    # Generate server config
+    cat > /etc/wireguard/wg0.conf <<WGEOF
     [Interface]
     Address = ${wireguard_server_ip}/${toString wireguard_mask}
     ListenPort = ${toString wireguard_port}
-    PrivateKey = ${server_private_key}
+    PrivateKey = $SERVER_PRIVATE_KEY
     PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
     PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
 
     ${lib.concatMapStrings (client: ''
-      # ${client.name}
-      [Peer]
-      PublicKey = ${client_secrets.${client.name}.public_key}
-      AllowedIPs = ${client.ip}/32
+    # ${client.name}
+    [Peer]
+    PublicKey = $(cat "$SECRETS/clients/${client.name}/public-key")
+    AllowedIPs = ${client.ip}/32
     '') clients}
+    WGEOF
+    chmod 600 /etc/wireguard/wg0.conf
+
+    # Generate client configs
+    ${lib.concatMapStrings (client: ''
+    mkdir -p /etc/wireguard/clients/${client.name}
+    CLIENT_PRIVATE_KEY=$(cat "$SECRETS/clients/${client.name}/private-key")
+    cat > /etc/wireguard/clients/${client.name}/client.conf <<CLIENTEOF
+    [Interface]
+    PrivateKey = $CLIENT_PRIVATE_KEY
+    Address = ${client.ip}/${toString wireguard_mask}
+
+    [Peer]
+    PublicKey = $SERVER_PUBLIC_KEY
+    Endpoint = ${public_domain}:${toString wireguard_port}
+    AllowedIPs = ${wireguard_server_ip}/32, ${lan_cidr}
+    CLIENTEOF
+    chmod 600 /etc/wireguard/clients/${client.name}/client.conf
+    '') clients}
+
+    echo "WireGuard configs generated."
   '';
 in
 {
   environment.systemPackages = [ pkgs.wireguard-tools pkgs.qrencode ];
-
-  systemd.tmpfiles.rules = [
-    "d /etc/wireguard 0700 root root - -"
-    "d /etc/wireguard/clients 0700 root root - -"
-  ] ++ (map (client:
-    "d /etc/wireguard/clients/${client.name} 0700 root root - -"
-  ) clients);
-
-  environment.etc =
-    let
-      serverEntry = {
-        "wireguard/wg0.conf" = {
-          text = serverConfig;
-          mode = "0600";
-        };
-      };
-      clientEntries = lib.listToAttrs (map (client: {
-        name = "wireguard/clients/${client.name}/client.conf";
-        value = {
-          text = clientConfig client;
-          mode = "0600";
-        };
-      }) clients);
-    in
-    serverEntry // clientEntries;
 
   boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
   networking.firewall = {
@@ -93,6 +86,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
+      ExecStartPre = "+${configScript}";
       ExecStart = "${pkgs.wireguard-tools}/bin/wg-quick up wg0";
       ExecStop = "${pkgs.wireguard-tools}/bin/wg-quick down wg0";
     };

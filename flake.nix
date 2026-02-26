@@ -4,14 +4,11 @@
   };
 
   outputs = { self, nixpkgs, ... } @ inputs:
-    let
-      secrets = builtins.fromJSON (builtins.readFile "${self}/secrets/default.json");
-    in
     {
       nixosConfigurations = {
         "spudbox-dev" = nixpkgs.lib.nixosSystem {
           system = "aarch64-linux";
-          specialArgs = { inherit inputs secrets; };
+          specialArgs = { inherit inputs; };
           modules = [
             /etc/nixos/hardware-configuration.nix
             ./environments/dev.nix
@@ -21,7 +18,7 @@
 
         "spudbox-prod" = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
-          specialArgs = { inherit inputs secrets; };
+          specialArgs = { inherit inputs; };
           modules = [
             /etc/nixos/hardware-configuration.nix
             ./environments/prod.nix
