@@ -24,10 +24,48 @@ let
       $JQ -r '.main.apiKey' ${settingsFile} > ${secretsDir}/jellyseerr/api-key
     }
 
+    configure_email() {
+      echo "Configuring email notifications..."
+      GMAIL_ADDRESS=$(cat ${secretsDir}/gmail/address)
+      GMAIL_APP_PASSWORD=$(cat ${secretsDir}/gmail/app-password)
+
+      $JQ --arg emailFrom "$GMAIL_ADDRESS" \
+          --arg authUser "$GMAIL_ADDRESS" \
+          --arg authPass "$GMAIL_APP_PASSWORD" \
+          '.notifications.agents.email = {
+            "enabled": true,
+            "types": 4,
+            "options": {
+              "emailFrom": $emailFrom,
+              "smtpHost": "smtp.gmail.com",
+              "smtpPort": 587,
+              "secure": false,
+              "ignoreTls": false,
+              "requireTls": false,
+              "authUser": $authUser,
+              "authPass": $authPass,
+              "allowSelfSigned": false,
+              "senderName": "Jellyseerr"
+            }
+          }' ${settingsFile} > ${settingsFile}.tmp
+      mv ${settingsFile}.tmp ${settingsFile}
+      chown jellyseerr:jellyseerr ${settingsFile}
+    }
+
+    enable_libraries() {
+      echo "Enabling Plex libraries..."
+      $JQ '.plex.libraries = [.plex.libraries[] | .enabled = true]' \
+        ${settingsFile} > ${settingsFile}.tmp
+      mv ${settingsFile}.tmp ${settingsFile}
+      chown jellyseerr:jellyseerr ${settingsFile}
+    }
+
     INITIALIZED=$($CURL -s "$BASE/api/v1/settings/public" | $JQ -r '.initialized')
     if [ "$INITIALIZED" = "true" ]; then
       echo "Jellyseerr already initialized, skipping setup."
       export_api_key
+      enable_libraries
+      configure_email
       exit 0
     fi
 
@@ -55,11 +93,7 @@ let
     echo "Syncing Plex libraries..."
     $CURL -s -b "$COOKIE_FILE" "$BASE/api/v1/settings/plex/library?sync=true" >/dev/null
 
-    echo "Enabling libraries..."
-    $JQ '.plex.libraries = [.plex.libraries[] | .enabled = true]' \
-      ${settingsFile} > ${settingsFile}.tmp
-    mv ${settingsFile}.tmp ${settingsFile}
-    chown jellyseerr:jellyseerr ${settingsFile}
+    enable_libraries
 
     echo "Adding Radarr..."
     $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
@@ -71,10 +105,12 @@ let
       -d "{\"name\": \"Sonarr\", \"hostname\": \"localhost\", \"port\": ''${SONARR_PORT}, \"apiKey\": \"$SONARR_KEY\", \"useSsl\": false, \"baseUrl\": \"\", \"activeProfileId\": 1, \"activeProfileName\": \"Any\", \"activeDirectory\": \"''${TV_DIR}\", \"tags\": [], \"animeTags\": [], \"is4k\": false, \"isDefault\": true, \"enableSeasonFolders\": false, \"syncEnabled\": true, \"preventSearch\": false, \"tagRequests\": false}" \
       "$BASE/api/v1/settings/sonarr" >/dev/null
 
+    export_api_key
+    enable_libraries
+    configure_email
+
     echo "Restarting Jellyseerr..."
     systemctl restart jellyseerr
-
-    export_api_key
 
     echo "Jellyseerr setup complete."
   '';
