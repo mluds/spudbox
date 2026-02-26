@@ -2,6 +2,64 @@
 
 with config.my;
 
+let
+  configScript = pkgs.writeScriptBin "homebridge-config" ''
+    #!/bin/sh
+    set -e
+
+    CURL="${pkgs.curl}/bin/curl"
+    JQ="${pkgs.jq}/bin/jq"
+    BASE="http://localhost:${toString homebridgePort}"
+
+    echo "Waiting for Homebridge to start..."
+    until $CURL -sSf "$BASE/api/auth/settings" >/dev/null 2>&1; do
+      sleep 2
+    done
+
+    SETUP_COMPLETE=$($CURL -s "$BASE/api/auth/settings" | $JQ -r '.env.setupWizardComplete')
+    if [ "$SETUP_COMPLETE" = "true" ]; then
+      echo "Homebridge already set up, skipping."
+      exit 0
+    fi
+
+    ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
+    ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
+
+    echo "Getting setup wizard token..."
+    SETUP_TOKEN=$($CURL -s "$BASE/api/setup-wizard/get-setup-wizard-token" | $JQ -r '.access_token')
+
+    echo "Creating admin user..."
+    $CURL -s -X POST -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $SETUP_TOKEN" \
+      -d "{\"name\": \"$ADMIN_USERNAME\", \"username\": \"$ADMIN_USERNAME\", \"password\": \"$ADMIN_PASSWORD\", \"admin\": true}" \
+      "$BASE/api/setup-wizard/create-first-user" >/dev/null
+
+    echo "Logging in..."
+    AUTH_TOKEN=$($CURL -s -X POST -H "Content-Type: application/json" \
+      -d "{\"username\": \"$ADMIN_USERNAME\", \"password\": \"$ADMIN_PASSWORD\"}" \
+      "$BASE/api/auth/login" | $JQ -r '.access_token')
+
+    AUTH="Authorization: Bearer $AUTH_TOKEN"
+
+    echo "Installing homebridge-dummy plugin..."
+    $CURL -s -X POST -H "$AUTH" \
+      "$BASE/api/plugins/update/homebridge-dummy" >/dev/null
+
+    echo "Waiting for plugin installation..."
+    sleep 10
+
+    echo "Adding dummy switch to config..."
+    CONFIG=$($CURL -s -H "$AUTH" "$BASE/api/config-editor")
+    UPDATED=$(echo "$CONFIG" | $JQ '.accessories += [{"accessory": "DummySwitch", "name": "Dummy Door Switch", "stateful": true}]')
+    echo "$UPDATED" | $CURL -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
+      -d @- "$BASE/api/config-editor" >/dev/null
+
+    echo "Restarting Homebridge..."
+    $CURL -s -X PUT -H "$AUTH" "$BASE/api/server/restart" >/dev/null
+
+    echo "Homebridge setup complete."
+  '';
+in
 {
   systemd.tmpfiles.rules = [
     "d /var/lib/homebridge 0755 root root -"
@@ -54,5 +112,17 @@ with config.my;
               max-file: "1"
     '';
     mode = "0644";
+  };
+
+  systemd.services.homebridge-config = {
+    description = "Configure Homebridge";
+    after = [ "homebridge.service" ];
+    wants = [ "homebridge.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "root";
+      ExecStart = "${configScript}/bin/homebridge-config";
+    };
   };
 }
