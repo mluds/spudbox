@@ -172,7 +172,7 @@ let
       movie_default_enabled = true;
       movie_default_profile = 1;
       parse_embedded_audio_track = false;
-      use_embedded_subs = false;
+      use_embedded_subs = true;
       chmod = "0660";
       chmod_enabled = true;
       use_radarr = true;
