@@ -18,9 +18,16 @@ let
       sleep 2
     done
 
+    export_api_key() {
+      echo "Exporting API key..."
+      mkdir -p ${secretsDir}/jellyseerr
+      $JQ -r '.main.apiKey' ${settingsFile} > ${secretsDir}/jellyseerr/api-key
+    }
+
     INITIALIZED=$($CURL -s "$BASE/api/v1/settings/public" | $JQ -r '.initialized')
     if [ "$INITIALIZED" = "true" ]; then
       echo "Jellyseerr already initialized, skipping setup."
+      export_api_key
       exit 0
     fi
 
@@ -66,6 +73,8 @@ let
 
     echo "Restarting Jellyseerr..."
     systemctl restart jellyseerr
+
+    export_api_key
 
     echo "Jellyseerr setup complete."
   '';

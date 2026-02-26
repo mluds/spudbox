@@ -16,6 +16,7 @@ with config.my;
         "HOMEPAGE_FILE_BAZARR_API_KEY=${secretsDir}/bazarr/api-key"
         "HOMEPAGE_FILE_PROWLARR_API_KEY=${secretsDir}/prowlarr/api-key"
         "HOMEPAGE_FILE_TAUTULLI_API_KEY=${secretsDir}/tautulli/api-key"
+        "HOMEPAGE_FILE_JELLYSEERR_API_KEY=${secretsDir}/jellyseerr/api-key"
       ];
     };
   };
@@ -108,7 +109,7 @@ with config.my;
               widget = {
                 type = "jellyseerr";
                 url = "http://localhost:${toString jellyseerrPort}";
-                key = secrets.jellyseerr.apiKey;
+                key = "{{HOMEPAGE_FILE_JELLYSEERR_API_KEY}}";
                 fields = ["pending" "approved" "available"];
               };
             };
