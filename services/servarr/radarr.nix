@@ -225,6 +225,40 @@ let
       -d '${builtins.toJSON quality.radarrQualityProfile}' \
       --fail --silent --show-error
   '';
+  autoImportScript = pkgs.writeShellScript "radarr-auto-import" ''
+    RADARR_API_KEY=$(cat ${secretsDir}/radarr/api-key)
+    API="http://localhost:${toString radarrPort}/api/v3"
+    HDR="-H X-Api-Key:$RADARR_API_KEY -H Content-Type:application/json"
+
+    # Find import-blocked queue items that have a movieId (Radarr knows which movie it is)
+    BLOCKED=$(${pkgs.curl}/bin/curl -sS "$API/queue?includeUnknownMovieItems=true&pageSize=100" $HDR \
+      | ${pkgs.jq}/bin/jq -c '[.records[] | select(.trackedDownloadState == "importBlocked" and .movieId != null)]')
+
+    COUNT=$(echo "$BLOCKED" | ${pkgs.jq}/bin/jq 'length')
+    if [ "$COUNT" -eq 0 ]; then
+      exit 0
+    fi
+
+    echo "Found $COUNT import-blocked items, processing..."
+    echo "$BLOCKED" | ${pkgs.jq}/bin/jq -c '.[]' | while read -r item; do
+      DOWNLOAD_ID=$(echo "$item" | ${pkgs.jq}/bin/jq -r '.downloadId')
+      MOVIE_ID=$(echo "$item" | ${pkgs.jq}/bin/jq '.movieId')
+      TITLE=$(echo "$item" | ${pkgs.jq}/bin/jq -r '.title')
+
+      # Get manual import candidates for this download
+      CANDIDATES=$(${pkgs.curl}/bin/curl -sS "$API/manualimport?downloadId=$DOWNLOAD_ID&movieId=$MOVIE_ID" $HDR)
+
+      # Set the movieId on each candidate and POST the import
+      IMPORT_BODY=$(echo "$CANDIDATES" | ${pkgs.jq}/bin/jq --argjson mid "$MOVIE_ID" \
+        '[.[] | . + {movieId: $mid}]')
+
+      ${pkgs.curl}/bin/curl -sS -X POST "$API/command" $HDR \
+        -d "$(echo "$IMPORT_BODY" | ${pkgs.jq}/bin/jq -c '{name: "ManualImport", importMode: "move", files: .}')" \
+        >/dev/null 2>&1 \
+        && echo "  Imported: $TITLE" \
+        || echo "  Failed: $TITLE"
+    done
+  '';
 in {
   users.groups.radarr = {};
   users.users.radarr = {
@@ -241,14 +275,37 @@ in {
     openFirewall = false;
   };
 
-  systemd.services.radarr-config = {
-    wantedBy = [ "multi-user.target" ];
-    after = [ "radarr.service" ];
-    path = with pkgs; [ curl jq xmlstarlet sqlite ];
-    serviceConfig = {
-      User = "root";
-      Type = "oneshot";
-      ExecStart = "${configScript}/bin/radarr-config";
+  systemd = {
+    services = {
+      radarr-config = {
+        wantedBy = [ "multi-user.target" ];
+        after = [ "radarr.service" ];
+        path = with pkgs; [ curl jq xmlstarlet sqlite ];
+        serviceConfig = {
+          User = "root";
+          Type = "oneshot";
+          ExecStart = "${configScript}/bin/radarr-config";
+        };
+      };
+
+      radarr-auto-import = {
+        description = "Auto-import blocked Radarr downloads";
+        after = [ "radarr.service" ];
+        requires = [ "radarr.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = autoImportScript;
+        };
+      };
+    };
+
+    timers.radarr-auto-import = {
+      description = "Periodically auto-import blocked Radarr downloads";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "*:0/15";
+        Persistent = true;
+      };
     };
   };
 }
