@@ -5,6 +5,7 @@ with config.my;
 let
   configScript = pkgs.writeScriptBin "sabnzbd-config" ''
     #!/bin/sh
+    set -e
     mkdir -p /var/log/sabnzbd
     chown -R sabnzbd:sabnzbd /var/log/sabnzbd
     
@@ -422,7 +423,7 @@ in {
     before = [ "sabnzbd.service" ];
     wantedBy = [ "sabnzbd.service" ];
     serviceConfig = {
-      Type = "exec";
+      Type = "oneshot";
       ExecStart = "${configScript}/bin/sabnzbd-config";
       User = "root";
       Restart = "on-failure";

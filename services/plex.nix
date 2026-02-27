@@ -1,4 +1,4 @@
-{config, pkgs, ...}:
+{ config, pkgs, ... }:
 
 with config.my;
 
@@ -6,7 +6,6 @@ let
   pythonEnv = pkgs.python3.withPackages (ps: [ ps.plexapi ]);
   configurePlexScript = pkgs.writeText "configure-plex.py" ''
     from os import getenv
-    import traceback
     from plexapi.server import PlexServer
     from plexapi.myplex import MyPlexAccount
     from plexapi.exceptions import NotFound

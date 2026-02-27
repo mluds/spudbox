@@ -30,10 +30,6 @@ let
     "${cacheDir}/data/usenet/incomplete/tv"
   ];
 
-  appdataDirs = [
-    # { path = "${appdataDir}/sabnzbd"; uid = "sabnzbd"; gid = "sabnzbd"; }
-  ];
-
   createDirsScript = pkgs.writeScript "create-dirs.sh" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
@@ -51,13 +47,6 @@ let
       chown -R sabnzbd:media "${dir}"
       chmod -R 0775 "${dir}"
     '') usenetDirs}
-
-    ${lib.concatMapStringsSep "\n" (dir: ''
-      echo "Creating appdata directory: ${dir.path} (owner: ${dir.uid}:${dir.gid})"
-      mkdir -p "${dir.path}"
-      chown ${dir.uid}:${dir.gid} "${dir.path}"
-      chmod 0755 "${dir.path}"
-    '') appdataDirs}
 
     chown root:root ${secretsDir}; chmod 711 ${secretsDir}
     chown -R radarr:radarr ${secretsDir}/radarr; chmod -R 550 ${secretsDir}/radarr
@@ -158,7 +147,7 @@ in {
     after = [ "local-fs.target" ];
     requires = [ "local-fs.target" ];
     serviceConfig = {
-      Type = "exec";
+      Type = "oneshot";
       ExecStart = "${createDirsScript}";
     };
     wantedBy = [ "multi-user.target" ];

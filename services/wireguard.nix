@@ -33,8 +33,8 @@ let
     Address = ${wireguard_server_ip}/${toString wireguard_mask}
     ListenPort = ${toString wireguard_port}
     PrivateKey = $SERVER_PRIVATE_KEY
-    PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-    PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+    PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ${external_interface} -j MASQUERADE
+    PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ${external_interface} -j MASQUERADE
 
     ${lib.concatMapStrings (client: ''
     # ${client.name}

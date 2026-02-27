@@ -74,7 +74,7 @@ in {
       description = "Ensure partition and filesystem for ${drive.device}";
       path = with pkgs; [ util-linux parted xfsprogs ];
       serviceConfig = {
-        Type = "exec";
+        Type = "oneshot";
         ExecStart = "${pkgs.bash}/bin/bash ${ensurePartitionScript} ${drive.device} ${drive.partition}";
       };
     };

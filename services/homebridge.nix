@@ -113,7 +113,7 @@ in
           environment:
             - TZ=${config.time.timeZone}
             - HOMEBRIDGE_CONFIG_UI=1
-            - HOMEBRIDGE_CONFIG_UI_PORT=8581
+            - HOMEBRIDGE_CONFIG_UI_PORT=${toString homebridgePort}
           volumes:
             - /var/lib/homebridge/volumes:/homebridge
           logging:

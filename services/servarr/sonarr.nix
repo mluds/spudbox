@@ -8,6 +8,7 @@ let
   dbFile = "${config.services.sonarr.dataDir}/sonarr.db";
   configScript = pkgs.writeScriptBin "sonarr-config" ''
     #!/bin/sh
+    set -e
     SONARR_API_KEY=$(cat ${secretsDir}/sonarr/api-key)
     NZBGEEK_API_KEY=$(cat ${secretsDir}/nzbgeek/api-key)
     SABNZBD_API_KEY=$(cat ${secretsDir}/sabnzbd/api-key)
@@ -200,7 +201,7 @@ in {
     path = with pkgs; [ curl jq xmlstarlet sqlite ];
     serviceConfig = {
       User = "root";
-      Type = "exec";
+      Type = "oneshot";
       ExecStart = "${configScript}/bin/sonarr-config";
     };
   };

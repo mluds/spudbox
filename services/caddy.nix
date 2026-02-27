@@ -6,6 +6,7 @@ let
   caddyFile = "/etc/caddy/Caddyfile";
   configScript = pkgs.writeScriptBin "caddy-config" ''
     #!/bin/sh
+    set -e
 
     # Read secrets from files
     CLOUDFLARE_API_TOKEN=$(cat ${secretsDir}/cloudflare/api-token)
@@ -118,7 +119,7 @@ in
     before = [ "caddy.service" ];
     serviceConfig = {
       User = "root";
-      Type = "exec";
+      Type = "oneshot";
       ExecStart = "${configScript}/bin/caddy-config";
     };
   };

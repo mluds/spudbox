@@ -6,7 +6,6 @@
     storageDrives = [
       { device = "/dev/sda"; partition = "/dev/sda1"; mount = "/mnt/storage1"; }
     ];
-    backupDrives = [];
     external_interface = "eno1";
   };
 }

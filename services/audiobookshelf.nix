@@ -77,15 +77,6 @@ let
       create_library()
       create_users()
 
-    def wait_for_file(file_path, timeout=300, check_interval=3):
-      elapsed = 0
-      while elapsed < timeout:
-        if os.path.exists(file_path):
-          return True
-        time.sleep(check_interval)
-        elapsed += check_interval
-      return False
-
     def wait_for_port(host, port, timeout=30, retry_interval=1):
       start_time = time.time()
       while time.time() - start_time < timeout:
@@ -139,7 +130,7 @@ let
         print("Audiobooks library not found, creating...")
         new_library = {
           "name": lib_name,
-          "folders": [{"fullPath": "/mnt/storage/data/media/audiobooks"}],
+          "folders": [{"fullPath": "${storageDir}/data/media/audiobooks"}],
           "icon": "audiobookshelf",
           "mediaType": "book",
           "provider": "google"
@@ -190,7 +181,7 @@ in {
     description = "Configure Audiobookshelf";
     serviceConfig = {
       User = "root";
-      Type = "exec";
+      Type = "oneshot";
       ExecStart = "${configScript}/bin/audiobookshelf-config";
       Environment = [
         "AUDIOBOOKSHELF_USERS='${

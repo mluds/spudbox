@@ -1,5 +1,7 @@
 { config, pkgs, ... }:
 
+with config.my;
+
 let
   autoresticCustom = pkgs.stdenv.mkDerivation rec {
     name = "autoresticCustom";
@@ -66,7 +68,7 @@ in {
     backends:
       local-backup:
         type: local
-        path: /mnt/backup
+        path: ${backupDir}
     EOF
     chmod 600 /var/lib/autorestic/config.yml
   '';
@@ -81,8 +83,8 @@ in {
       TimeoutStopSec = "infinity";
     };
     preStart = ''
-      mkdir -p /mnt/backup
-      chmod 700 /mnt/backup
+      mkdir -p ${backupDir}
+      chmod 700 ${backupDir}
       ${autoresticCustom}/bin/autorestic -c /var/lib/autorestic/config.yml --ci check
     '';
   };

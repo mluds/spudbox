@@ -222,7 +222,7 @@ in {
     wants = [ "bazarr.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
-      Type = "exec";
+      Type = "oneshot";
       User = "root";
       Environment = [
         "CONFIG_PATH=/var/lib/bazarr/config/config.yaml"

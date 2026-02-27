@@ -1,5 +1,4 @@
-
-{pkgs, lib, config, ...}:
+{ config, pkgs, lib, ... }:
 
 with config.my;
 
@@ -11,7 +10,7 @@ in {
     enable = true;
     package = pkgs.transmission_4;
     openRPCPort = false;
-    webHome = "${pkgs.flood-for-transmission}";
+    webHome = pkgs.flood-for-transmission;
     user = "transmission";
     group = "media";
     credentialsFile = credentialsPath;

@@ -8,6 +8,7 @@ let
   dbFile = "${config.services.radarr.dataDir}/radarr.db";
   configScript = pkgs.writeScriptBin "radarr-config" ''
     #!/bin/sh
+    set -e
     RADARR_API_KEY=$(cat ${secretsDir}/radarr/api-key)
     NZBGEEK_API_KEY=$(cat ${secretsDir}/nzbgeek/api-key)
     SABNZBD_API_KEY=$(cat ${secretsDir}/sabnzbd/api-key)
@@ -231,7 +232,7 @@ in {
     path = with pkgs; [ curl jq xmlstarlet sqlite ];
     serviceConfig = {
       User = "root";
-      Type = "exec";
+      Type = "oneshot";
       ExecStart = "${configScript}/bin/radarr-config";
     };
   };
