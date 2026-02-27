@@ -14,11 +14,31 @@ let
         with open(path, 'r') as f:
             return f.read().strip()
 
+    def get_token(plex_url, token_path, username_file, password_file):
+      # Reuse existing token if valid
+      try:
+        token = read_file(token_path)
+        if token:
+          PlexServer(plex_url, token)
+          print("Existing token is valid, skipping sign-in")
+          return token
+      except Exception:
+        pass
+
+      # Token missing or invalid, sign in
+      print("Signing in to Plex...")
+      username = read_file(username_file)
+      password = read_file(password_file)
+      account = MyPlexAccount(username, password)
+      token = account.authToken
+      with open(token_path, 'w') as f:
+        f.write(token)
+      return token
+
     def main():
       plex_url = getenv('PLEX_URL')
       access_url = getenv('PLEX_ACCESS_URL')
-      username = read_file(getenv('PLEX_USERNAME_FILE'))
-      password = read_file(getenv('PLEX_PASSWORD_FILE'))
+      token_path = '${secretsDir}/plex/token'
       library_sections = [
         {
           "name": "Movies",
@@ -37,15 +57,10 @@ let
           "language": "en-US"
         }
       ]
-      account = MyPlexAccount(username, password)
-      token = account.authToken
+
+      token = get_token(plex_url, token_path, getenv('PLEX_USERNAME_FILE'), getenv('PLEX_PASSWORD_FILE'))
       plex = PlexServer(plex_url, token)
 
-      # 1. Write plex token to homepage services config
-      with open('/var/lib/secrets/plex/token', 'w') as f:
-        f.write(token)
-
-      # 2. Configure plex libraries and settings
       for section in library_sections:
         try:
           plex.library.section(section['name'])
