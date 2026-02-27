@@ -93,6 +93,9 @@ in
     curl
     hdparm
     lsof
+    statix
+    deadnix
+    nixfmt-rfc-style
   ];
 
   nix.settings.experimental-features = [

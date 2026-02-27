@@ -116,20 +116,22 @@ qrencode -t ansiutf8 < /etc/wireguard/clients/mikes-iphone/client.conf
 
 ### Deploy Updates
 ```bash
-rsync -avz --exclude='.git' -e "ssh -i ~/.ssh/spudnet" ./ luds@${HOST_IP}:~/deploy/ && \
-ssh -i ~/.ssh/spudnet luds@${HOST_IP} "sudo cp -r ~/deploy/secrets/* /var/lib/secrets/ && find ~/deploy/secrets/ -type f ! -name 'default.json' -delete" && \
-ssh -i ~/.ssh/spudnet luds@${HOST_IP} "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --impure --flake .#${FLAKE}"
+./deploy.sh          # sync, rebuild, and test
+./deploy.sh switch   # sync and rebuild (no tests)
+./deploy.sh sync     # sync files only
+./deploy.sh test     # run tests
+./deploy.sh lint     # sync and run linters
+./deploy.sh ssh      # open SSH session
 ```
 
-### Run Tests
-```bash
-ssh -i ~/.ssh/spudnet luds@${HOST_IP} "bash ~/deploy/test.sh"
-```
+### Git Hooks
 
-Run specific categories:
-```bash
-ssh -i ~/.ssh/spudnet luds@${HOST_IP} "bash ~/deploy/test.sh secrets http api_auth"
-```
+Hooks are in `.githooks/` and activated via `git config core.hooksPath .githooks`.
+
+- **pre-commit**: syncs to server and runs `lint.sh` (statix, deadnix, nixfmt)
+- **pre-push**: deploys to server and runs `test.sh`
+
+Both hooks skip gracefully if the server is unreachable.
 
 ### Secrets
 

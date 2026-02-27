@@ -6,6 +6,7 @@ SECRETS_DIR="/var/lib/secrets"
 STORAGE_DIR="/mnt/storage"
 CACHE_DIR="/mnt/cache"
 BACKUP_DIR="/mnt/backup"
+DOMAIN="spudbox.win"
 
 # ─── Counters & Helpers ────────────────────────────────────────
 PASS_COUNT=0
@@ -19,7 +20,9 @@ read_secret() { sudo cat "$SECRETS_DIR/$1" 2>/dev/null | tr -d '\n'; }
 
 http_code() {
   local url="$1"; shift
-  curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$@" "$url" 2>/dev/null || echo "000"
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$@" "$url" 2>/dev/null) || true
+  echo "${code:-000}"
 }
 
 http_get() {
@@ -150,6 +153,11 @@ test_services() {
   check_oneshot "homebridge-config.service"
   check_oneshot "caddy-config.service"
   check_oneshot "create-dirs.service"
+
+  # Timers
+  check_service "sabnzbd-resume.timer"
+  check_service "autorestic-backup.timer"
+  check_service "check-drive-status.timer"
 }
 
 test_ports() {
@@ -313,6 +321,69 @@ test_integrations() {
   else
     fail "tautulli -> plex"
   fi
+
+  # Bazarr integrations
+  local BAZARR_KEY
+  BAZARR_KEY=$(read_secret "bazarr/api-key")
+
+  if http_get "http://localhost:6767/api/system/health" -H "X-API-KEY: $BAZARR_KEY" | jq -e '.data' &>/dev/null; then
+    pass "bazarr -> radarr/sonarr"
+  else
+    fail "bazarr -> radarr/sonarr"
+  fi
+
+  # Quality profiles
+  if http_get "http://localhost:7878/api/v3/qualityprofile" -H "X-Api-Key: $RADARR_KEY" | jq -e 'length > 0' | grep -q "true"; then
+    pass "radarr quality profiles"
+  else
+    fail "radarr quality profiles"
+  fi
+
+  if http_get "http://localhost:8989/api/v3/qualityprofile" -H "X-Api-Key: $SONARR_KEY" | jq -e 'length > 0' | grep -q "true"; then
+    pass "sonarr quality profiles"
+  else
+    fail "sonarr quality profiles"
+  fi
+
+  # Radarr import lists
+  if http_get "http://localhost:7878/api/v3/importlist" -H "X-Api-Key: $RADARR_KEY" | jq -e '.[].name' | grep -qi "letterboxd"; then
+    pass "radarr letterboxd import list"
+  else
+    fail "radarr letterboxd import list"
+  fi
+
+  # Plex libraries
+  local PLEX_TOKEN
+  PLEX_TOKEN=$(read_secret "plex/token")
+
+  if http_get "http://localhost:32400/library/sections?X-Plex-Token=$PLEX_TOKEN" | grep -q 'title="Movies"'; then
+    pass "plex movies library"
+  else
+    fail "plex movies library"
+  fi
+
+  if http_get "http://localhost:32400/library/sections?X-Plex-Token=$PLEX_TOKEN" | grep -q 'title="TV Shows"'; then
+    pass "plex tv library"
+  else
+    fail "plex tv library"
+  fi
+
+  # Audiobookshelf library
+  local ABS_KEY
+  ABS_KEY=$(read_secret "audiobookshelf/apikey")
+
+  if http_get "http://localhost:8000/api/libraries" -H "Authorization: Bearer $ABS_KEY" | jq -e '.libraries[0].name' &>/dev/null; then
+    pass "audiobookshelf library"
+  else
+    fail "audiobookshelf library"
+  fi
+
+  # Jellyseerr email notifications
+  if http_get "http://localhost:5055/api/v1/settings/notifications/email" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.enabled' | grep -q "true"; then
+    pass "jellyseerr email notifications"
+  else
+    fail "jellyseerr email notifications"
+  fi
 }
 
 test_storage() {
@@ -393,9 +464,65 @@ test_wireguard() {
   fi
 }
 
+test_downloads() {
+  section "Downloads"
+
+  local SABNZBD_KEY
+  SABNZBD_KEY=$(read_secret "sabnzbd/api-key")
+
+  # SABnzbd not paused
+  local paused
+  paused=$(http_get "http://localhost:8081/api?mode=queue&apikey=$SABNZBD_KEY&output=json" | jq -r '.queue.paused')
+  if [ "$paused" = "false" ]; then
+    pass "sabnzbd queue active"
+  else
+    fail "sabnzbd queue is paused"
+  fi
+
+  # SABnzbd queue accessible
+  local queue_status
+  queue_status=$(http_get "http://localhost:8081/api?mode=queue&apikey=$SABNZBD_KEY&output=json" | jq -r '.queue.status')
+  if [ -n "$queue_status" ] && [ "$queue_status" != "null" ]; then
+    pass "sabnzbd queue accessible"
+  else
+    fail "sabnzbd queue accessible"
+  fi
+}
+
+test_caddy() {
+  section "Caddy Routes"
+
+  local services="sonarr radarr bazarr prowlarr transmission sabnzbd plex tautulli jellyseerr homepage homebridge audiobookshelf ttyd"
+  for svc in $services; do
+    local code
+    code=$(http_code "https://${svc}.${DOMAIN}" --insecure --resolve "${svc}.${DOMAIN}:443:127.0.0.1")
+    if [ "$code" != "502" ] && [ "$code" != "503" ] && [ "$code" != "000" ]; then
+      pass "${svc}.${DOMAIN} (HTTP $code)"
+    else
+      fail "${svc}.${DOMAIN} (HTTP $code)"
+    fi
+  done
+}
+
+test_docker() {
+  section "Docker"
+
+  if sudo docker ps &>/dev/null; then
+    pass "docker daemon running"
+  else
+    fail "docker daemon running"
+  fi
+
+  if sudo docker ps | grep -q "homebridge"; then
+    pass "homebridge container running"
+  else
+    fail "homebridge container running"
+  fi
+}
+
 # ─── Runner ────────────────────────────────────────────────────
 
-CATEGORIES="secrets services ports http api_auth integrations storage wireguard"
+CATEGORIES="secrets services ports http api_auth integrations downloads caddy docker storage wireguard"
 
 if [ $# -gt 0 ]; then
   CATEGORIES="$*"

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+if ! ssh -i "$HOME/.ssh/spudnet" -o ConnectTimeout=5 "luds@192.168.1.42" "true" 2>/dev/null; then
+  echo "pre-push: server unreachable, skipping deploy+test"
+  exit 0
+fi
+
+echo "pre-push: deploying and testing..."
+"$SCRIPT_DIR/deploy.sh" all

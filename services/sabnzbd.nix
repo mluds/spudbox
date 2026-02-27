@@ -424,46 +424,52 @@ in
     configFile = "/var/lib/sabnzbd/sabnzbd.ini";
   };
 
-  systemd.services.sabnzbd.serviceConfig.UMask = "0002";
+  systemd = {
+    services = {
+      sabnzbd.serviceConfig.UMask = "0002";
 
-  systemd.services.sabnzbd-config = {
-    description = "Initialize SABnzbd configuration";
-    before = [ "sabnzbd.service" ];
-    wantedBy = [ "sabnzbd.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = "${configScript}/bin/sabnzbd-config";
-      User = "root";
-      Restart = "on-failure";
-      RestartSec = "10s";
+      sabnzbd-config = {
+        description = "Initialize SABnzbd configuration";
+        before = [ "sabnzbd.service" ];
+        wantedBy = [ "sabnzbd.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${configScript}/bin/sabnzbd-config";
+          User = "root";
+          Restart = "on-failure";
+          RestartSec = "10s";
+        };
+      };
+
+      sabnzbd-resume = {
+        description = "Resume SABnzbd if paused";
+        after = [ "sabnzbd.service" ];
+        requires = [ "sabnzbd.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart =
+            let
+              script = pkgs.writeShellScript "sabnzbd-resume" ''
+                SABNZBD_KEY=$(cat ${secretsDir}/sabnzbd/api-key)
+                PAUSED=$(${pkgs.curl}/bin/curl -s "http://localhost:${toString sabnzbdPort}/api?mode=queue&apikey=$SABNZBD_KEY&output=json" | ${pkgs.jq}/bin/jq -r '.queue.paused')
+                if [ "$PAUSED" = "true" ]; then
+                  echo "SABnzbd is paused, resuming..."
+                  ${pkgs.curl}/bin/curl -s "http://localhost:${toString sabnzbdPort}/api?mode=resume&apikey=$SABNZBD_KEY&output=json"
+                fi
+              '';
+            in
+            "${script}";
+        };
+      };
     };
-  };
 
-  systemd.services.sabnzbd-resume = {
-    description = "Resume SABnzbd if paused";
-    after = [ "sabnzbd.service" ];
-    requires = [ "sabnzbd.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = let
-        script = pkgs.writeShellScript "sabnzbd-resume" ''
-          SABNZBD_KEY=$(cat ${secretsDir}/sabnzbd/api-key)
-          PAUSED=$(${pkgs.curl}/bin/curl -s "http://localhost:${toString sabnzbdPort}/api?mode=queue&apikey=$SABNZBD_KEY&output=json" | ${pkgs.jq}/bin/jq -r '.queue.paused')
-          if [ "$PAUSED" = "true" ]; then
-            echo "SABnzbd is paused, resuming..."
-            ${pkgs.curl}/bin/curl -s "http://localhost:${toString sabnzbdPort}/api?mode=resume&apikey=$SABNZBD_KEY&output=json"
-          fi
-        '';
-      in "${script}";
-    };
-  };
-
-  systemd.timers.sabnzbd-resume = {
-    description = "Periodically resume SABnzbd if paused";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "hourly";
-      Persistent = true;
+    timers.sabnzbd-resume = {
+      description = "Periodically resume SABnzbd if paused";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "hourly";
+        Persistent = true;
+      };
     };
   };
 }
