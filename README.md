@@ -121,6 +121,16 @@ ssh -i ~/.ssh/spudnet luds@${HOST_IP} "sudo cp -r ~/deploy/secrets/* /var/lib/se
 ssh -i ~/.ssh/spudnet luds@${HOST_IP} "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --impure --flake .#${FLAKE}"
 ```
 
+### Run Tests
+```bash
+ssh -i ~/.ssh/spudnet luds@${HOST_IP} "bash ~/deploy/test.sh"
+```
+
+Run specific categories:
+```bash
+ssh -i ~/.ssh/spudnet luds@${HOST_IP} "bash ~/deploy/test.sh secrets http api_auth"
+```
+
 ### Secrets
 
 #### Initial setup
