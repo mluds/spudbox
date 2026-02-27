@@ -324,7 +324,7 @@ with config.my;
               {
                 href = "https://letterboxd.com/official/story/official-lists-hq-directory/";
                 description = "Movie Lists";
-                icon = "letterboxd";
+                icon = "si-letterboxd";
               }
             ];
           }
