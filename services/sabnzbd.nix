@@ -113,9 +113,9 @@ let
     action_on_unwanted_extensions = 0
     unwanted_extensions_mode = 0
     new_nzb_on_failure = 0
-    history_retention = ""
+    history_retention = 7d
     history_retention_option = all
-    history_retention_number = 1
+    history_retention_number = 7
     quota_size = ""
     quota_day = ""
     quota_resume = 0

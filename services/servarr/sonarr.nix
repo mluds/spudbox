@@ -110,6 +110,8 @@ let
         "protocol": "usenet",
         "implementation": "Sabnzbd",
         "configContract": "SabnzbdSettings",
+        "removeCompletedDownloads": true,
+        "removeFailedDownloads": true,
         "fields": [
           {"name": "host", "value": "localhost"},
           {"name": "port", "value": ${toString sabnzbdPort}},
@@ -118,6 +120,19 @@ let
         ]
       }' \
       --fail --silent --show-error || echo "SABnzbd may already be configured"
+
+    echo "Ensuring download cleanup is enabled..."
+    SAB_CLIENT=$(curl -sS "http://localhost:${toString sonarrPort}/api/v3/downloadclient" \
+      -H "X-Api-Key: $SONARR_API_KEY" | jq '.[0]')
+    if [ "$(echo "$SAB_CLIENT" | jq '.removeCompletedDownloads')" != "true" ] || \
+       [ "$(echo "$SAB_CLIENT" | jq '.removeFailedDownloads')" != "true" ]; then
+      SAB_ID=$(echo "$SAB_CLIENT" | jq '.id')
+      echo "$SAB_CLIENT" | jq '.removeCompletedDownloads = true | .removeFailedDownloads = true' | \
+        curl -X PUT "http://localhost:${toString sonarrPort}/api/v3/downloadclient/$SAB_ID" \
+          -H "X-Api-Key: $SONARR_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d @- --fail --silent --show-error
+    fi
 
     echo "Updating quality profiles..."
     qualityDefs=$(curl -sS "http://localhost:${toString sonarrPort}/api/v3/qualitydefinition" \
