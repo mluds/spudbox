@@ -10,13 +10,26 @@ with config.my;
 let
   credentialsDir = "/run/transmission";
   credentialsPath = "${credentialsDir}/credentials.json";
+  floodConfig = pkgs.runCommand "flood-for-transmission-configured" { } ''
+    cp -r ${pkgs.flood-for-transmission} $out
+    chmod +w $out
+    cat > $out/config.json <<'EOF'
+    ${builtins.toJSON {
+      COMMON_PATH = [
+        "${storageDir}/data/media/movies"
+        "${storageDir}/data/media/tv"
+        "${storageDir}/data/media/videos"
+      ];
+    }}
+    EOF
+  '';
 in
 {
   services.transmission = {
     enable = true;
     package = pkgs.transmission_4;
     openRPCPort = false;
-    webHome = pkgs.flood-for-transmission;
+    webHome = floodConfig;
     user = "transmission";
     group = "media";
     credentialsFile = credentialsPath;
@@ -26,7 +39,7 @@ in
       rpc-authentication-required = true;
       incomplete-dir-enabled = true;
       incomplete-dir = "${cacheDir}/data/torrents/incomplete";
-      download-dir = "${cacheDir}/data/torrents/complete";
+      download-dir = "${storageDir}/data/media/videos";
     };
   };
 

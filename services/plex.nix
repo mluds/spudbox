@@ -55,6 +55,14 @@ let
           "scanner": "Plex TV Series",
           "location": "${storageDir}/data/media/tv",
           "language": "en-US"
+        },
+        {
+          "name": "Videos",
+          "type": "movie",
+          "agent": "tv.plex.agents.movie",
+          "scanner": "Plex Movie",
+          "location": "${storageDir}/data/media/videos",
+          "language": "en-US"
         }
       ]
 
