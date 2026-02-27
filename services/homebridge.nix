@@ -72,33 +72,50 @@ let
   '';
 in
 {
-  systemd.tmpfiles.rules = [
-    "d /var/lib/homebridge 0755 root root -"
-    "d /var/lib/homebridge/volumes 0755 root root -"
-  ];
+  systemd = {
+    tmpfiles.rules = [
+      "d /var/lib/homebridge 0755 root root -"
+      "d /var/lib/homebridge/volumes 0755 root root -"
+    ];
+
+    services.homebridge = {
+      description = "Homebridge Docker Service";
+      after = [
+        "network.target"
+        "docker.service"
+      ];
+      requires = [ "docker.service" ];
+      wantedBy = [ "multi-user.target" ];
+      path = with pkgs; [ docker ];
+      serviceConfig = {
+        Type = "simple";
+        Restart = "always";
+        ExecStartPre = "${pkgs.docker}/bin/docker compose -f /etc/homebridge/docker-compose.yml down";
+        ExecStart = "${pkgs.docker}/bin/docker compose -f /etc/homebridge/docker-compose.yml up";
+        ExecStop = "${pkgs.docker}/bin/docker compose -f /etc/homebridge/docker-compose.yml down";
+        WorkingDirectory = "/var/lib/homebridge";
+      };
+    };
+
+    services.homebridge-config = {
+      description = "Configure Homebridge";
+      after = [ "homebridge.service" ];
+      wants = [ "homebridge.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root";
+        ExecStart = "${configScript}/bin/homebridge-config";
+      };
+    };
+  };
 
   networking.firewall = {
     allowedTCPPorts = [
       homebridgePort
-      51509  # homebridge bonjour
-      44749  # homebridge dummy
+      51509 # homebridge bonjour
+      44749 # homebridge dummy
     ];
-  };
-
-  systemd.services.homebridge = {
-    description = "Homebridge Docker Service";
-    after = [ "network.target" "docker.service" ];
-    requires = [ "docker.service" ];
-    wantedBy = [ "multi-user.target" ];
-    path = with pkgs; [ docker ];
-    serviceConfig = {
-      Type = "simple";
-      Restart = "always";
-      ExecStartPre = "${pkgs.docker}/bin/docker compose -f /etc/homebridge/docker-compose.yml down";
-      ExecStart = "${pkgs.docker}/bin/docker compose -f /etc/homebridge/docker-compose.yml up";
-      ExecStop = "${pkgs.docker}/bin/docker compose -f /etc/homebridge/docker-compose.yml down";
-      WorkingDirectory = "/var/lib/homebridge";
-    };
   };
 
   environment.etc."homebridge/docker-compose.yml" = {
@@ -123,17 +140,5 @@ in
               max-file: "1"
     '';
     mode = "0644";
-  };
-
-  systemd.services.homebridge-config = {
-    description = "Configure Homebridge";
-    after = [ "homebridge.service" ];
-    wants = [ "homebridge.service" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      User = "root";
-      ExecStart = "${configScript}/bin/homebridge-config";
-    };
   };
 }

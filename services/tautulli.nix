@@ -119,14 +119,18 @@ let
     if __name__ == "__main__":
       main()
   '';
-in {
+in
+{
   services.tautulli = {
     enable = true;
   };
 
   systemd.services.tautulli-config = {
     description = "Update Tautulli configuration";
-    after = [ "tautulli.service" "plex-config.service" ];
+    after = [
+      "tautulli.service"
+      "plex-config.service"
+    ];
     wants = [ "tautulli.service" ];
     wantedBy = [ "multi-user.target" ];
 

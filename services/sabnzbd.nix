@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 with config.my;
 
@@ -8,7 +13,7 @@ let
     set -e
     mkdir -p /var/log/sabnzbd
     chown -R sabnzbd:sabnzbd /var/log/sabnzbd
-    
+
     # Read secrets from files
     ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
     ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
@@ -339,30 +344,32 @@ let
     nscript_prio_queue_done = 0
     nscript_prio_other = 1
     [servers]
-    ${lib.concatStrings (lib.imap1 (index: host: ''
-      [[${host}]]
-      name = ${host}
-      displayname = ${host}
-      host = ${host}
-      port = ${toString usenetServerPort}
-      timeout = 60
-      username = $USENET_USERNAME
-      password = $USENET_PASSWORD
-      connections = 20
-      ssl = 1
-      ssl_verify = 0
-      ssl_ciphers = ""
-      enable = 1
-      required = 0
-      optional = 0
-      retention = 0
-      expire_date = ""
-      quota = ""
-      usage_at_start = 0
-      priority = ${toString (index - 1)}
-      notes = ""
+    ${lib.concatStrings (
+      lib.imap1 (index: host: ''
+        [[${host}]]
+        name = ${host}
+        displayname = ${host}
+        host = ${host}
+        port = ${toString usenetServerPort}
+        timeout = 60
+        username = $USENET_USERNAME
+        password = $USENET_PASSWORD
+        connections = 20
+        ssl = 1
+        ssl_verify = 0
+        ssl_ciphers = ""
+        enable = 1
+        required = 0
+        optional = 0
+        retention = 0
+        expire_date = ""
+        quota = ""
+        usage_at_start = 0
+        priority = ${toString (index - 1)}
+        notes = ""
 
-    '') usenetServerHosts)}
+      '') usenetServerHosts
+    )}
     [categories]
     [[*]]
     name = *
@@ -404,8 +411,9 @@ let
       systemctl restart sabnzbd.service
     fi
   '';
-in {
-  users.groups.sabnzbd = {};
+in
+{
+  users.groups.sabnzbd = { };
   users.users.sabnzbd.extraGroups = [ "media" ];
 
   services.sabnzbd = {

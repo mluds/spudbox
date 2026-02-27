@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 with config.my;
 
@@ -37,36 +42,39 @@ let
     PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ${external_interface} -j MASQUERADE
 
     ${lib.concatMapStrings (client: ''
-    # ${client.name}
-    [Peer]
-    PublicKey = $(cat "$SECRETS/clients/${client.name}/public-key")
-    AllowedIPs = ${client.ip}/32
+      # ${client.name}
+      [Peer]
+      PublicKey = $(cat "$SECRETS/clients/${client.name}/public-key")
+      AllowedIPs = ${client.ip}/32
     '') clients}
     WGEOF
     chmod 600 /etc/wireguard/wg0.conf
 
     # Generate client configs
     ${lib.concatMapStrings (client: ''
-    mkdir -p /etc/wireguard/clients/${client.name}
-    CLIENT_PRIVATE_KEY=$(cat "$SECRETS/clients/${client.name}/private-key")
-    cat > /etc/wireguard/clients/${client.name}/client.conf <<CLIENTEOF
-    [Interface]
-    PrivateKey = $CLIENT_PRIVATE_KEY
-    Address = ${client.ip}/${toString wireguard_mask}
+      mkdir -p /etc/wireguard/clients/${client.name}
+      CLIENT_PRIVATE_KEY=$(cat "$SECRETS/clients/${client.name}/private-key")
+      cat > /etc/wireguard/clients/${client.name}/client.conf <<CLIENTEOF
+      [Interface]
+      PrivateKey = $CLIENT_PRIVATE_KEY
+      Address = ${client.ip}/${toString wireguard_mask}
 
-    [Peer]
-    PublicKey = $SERVER_PUBLIC_KEY
-    Endpoint = ${public_domain}:${toString wireguard_port}
-    AllowedIPs = ${wireguard_server_ip}/32, ${lan_cidr}
-    CLIENTEOF
-    chmod 600 /etc/wireguard/clients/${client.name}/client.conf
+      [Peer]
+      PublicKey = $SERVER_PUBLIC_KEY
+      Endpoint = ${public_domain}:${toString wireguard_port}
+      AllowedIPs = ${wireguard_server_ip}/32, ${lan_cidr}
+      CLIENTEOF
+      chmod 600 /etc/wireguard/clients/${client.name}/client.conf
     '') clients}
 
     echo "WireGuard configs generated."
   '';
 in
 {
-  environment.systemPackages = [ pkgs.wireguard-tools pkgs.qrencode ];
+  environment.systemPackages = [
+    pkgs.wireguard-tools
+    pkgs.qrencode
+  ];
 
   boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
   networking.firewall = {

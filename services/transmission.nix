@@ -1,11 +1,17 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 with config.my;
 
 let
   credentialsDir = "/run/transmission";
   credentialsPath = "${credentialsDir}/credentials.json";
-in {
+in
+{
   services.transmission = {
     enable = true;
     package = pkgs.transmission_4;
@@ -24,19 +30,22 @@ in {
     };
   };
 
-  systemd.services.transmission.serviceConfig.ExecStartPre = lib.mkBefore (let
-    script = pkgs.writeShellScript "transmission-credentials" ''
-      mkdir -p ${credentialsDir}
-      ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
-      ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
-      ${pkgs.jq}/bin/jq -n \
-        --arg user "$ADMIN_USERNAME" \
-        --arg pass "$ADMIN_PASSWORD" \
-        '{"rpc-username": $user, "rpc-password": $pass}' \
-        > ${credentialsPath}
-      chmod 600 ${credentialsPath}
-    '';
-  in [
-    "+${script}"
-  ]);
+  systemd.services.transmission.serviceConfig.ExecStartPre = lib.mkBefore (
+    let
+      script = pkgs.writeShellScript "transmission-credentials" ''
+        mkdir -p ${credentialsDir}
+        ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
+        ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
+        ${pkgs.jq}/bin/jq -n \
+          --arg user "$ADMIN_USERNAME" \
+          --arg pass "$ADMIN_PASSWORD" \
+          '{"rpc-username": $user, "rpc-password": $pass}' \
+          > ${credentialsPath}
+        chmod 600 ${credentialsPath}
+      '';
+    in
+    [
+      "+${script}"
+    ]
+  );
 }

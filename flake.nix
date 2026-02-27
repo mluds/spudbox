@@ -3,7 +3,8 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
   };
 
-  outputs = { self, nixpkgs, ... } @ inputs:
+  outputs =
+    { nixpkgs, ... }@inputs:
     {
       nixosConfigurations = {
         "spudbox-dev" = nixpkgs.lib.nixosSystem {

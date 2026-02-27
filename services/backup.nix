@@ -18,8 +18,12 @@ let
       chmod +x $out/bin/autorestic
     '';
   };
-in {
-  environment.systemPackages = with pkgs; [ autoresticCustom restic ];
+in
+{
+  environment.systemPackages = with pkgs; [
+    autoresticCustom
+    restic
+  ];
   system.activationScripts.autorestic-config = ''
     mkdir -p /var/lib/autorestic
     cat > /var/lib/autorestic/config.yml <<'EOF'
@@ -75,7 +79,10 @@ in {
 
   systemd.services.autorestic-backup = {
     description = "Autorestic backup job";
-    path = with pkgs; [ bash restic ];
+    path = with pkgs; [
+      bash
+      restic
+    ];
     serviceConfig = {
       Type = "oneshot";
       User = "root";

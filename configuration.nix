@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 with config.my;
 
@@ -51,7 +56,8 @@ let
     chown root:root ${secretsDir}; chmod 711 ${secretsDir}
     chown -R radarr:radarr ${secretsDir}/radarr; chmod -R 550 ${secretsDir}/radarr
   '';
-in {
+in
+{
   imports = [
     ./storage.nix
     ./common/vars.nix
@@ -89,7 +95,10 @@ in {
     lsof
   ];
 
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -114,33 +123,40 @@ in {
 
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [ 80 443 ];
+    allowedTCPPorts = [
+      80
+      443
+    ];
   };
 
-  users.groups.media = {};
-  users.users = lib.mkMerge [
-    (lib.listToAttrs (lib.forEach users (user: {
-      name = user.username;
-      value = {
-        isNormalUser = true;
-        hashedPasswordFile = "${secretsDir}/users/${user.username}/hashed";
-        openssh.authorizedKeys.keys = [ user.sshPublicKey ];
-        extraGroups = lib.optional user.superuser "wheel";
-      };
-    })))
-    {
-      media = {
-        isSystemUser = true;
-        group = "media";
-        createHome = false;
-        useDefaultShell = false;
-      };
-    }
-    {
-      root.hashedPasswordFile = "${secretsDir}/users/root/hashed";
-    }
-  ];
-  users.mutableUsers = false;
+  users = {
+    groups.media = { };
+    users = lib.mkMerge [
+      (lib.listToAttrs (
+        lib.forEach users (user: {
+          name = user.username;
+          value = {
+            isNormalUser = true;
+            hashedPasswordFile = "${secretsDir}/users/${user.username}/hashed";
+            openssh.authorizedKeys.keys = [ user.sshPublicKey ];
+            extraGroups = lib.optional user.superuser "wheel";
+          };
+        })
+      ))
+      {
+        media = {
+          isSystemUser = true;
+          group = "media";
+          createHome = false;
+          useDefaultShell = false;
+        };
+      }
+      {
+        root.hashedPasswordFile = "${secretsDir}/users/root/hashed";
+      }
+    ];
+    mutableUsers = false;
+  };
 
   systemd.services.create-dirs = {
     description = "Create directories";

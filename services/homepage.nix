@@ -113,7 +113,11 @@ with config.my;
                 type = "jellyseerr";
                 url = "http://localhost:${toString jellyseerrPort}";
                 key = "{{HOMEPAGE_FILE_JELLYSEERR_API_KEY}}";
-                fields = ["pending" "approved" "available"];
+                fields = [
+                  "pending"
+                  "approved"
+                  "available"
+                ];
               };
             };
           }
@@ -126,7 +130,10 @@ with config.my;
                 type = "audiobookshelf";
                 url = "http://localhost:${toString audiobookshelfPort}";
                 key = "{{HOMEPAGE_FILE_ABS_API_KEY}}";
-                fields = [ "books" "booksDuration" ];
+                fields = [
+                  "books"
+                  "booksDuration"
+                ];
               };
             };
           }
@@ -137,7 +144,12 @@ with config.my;
               description = "Movie Management";
               widget = {
                 type = "radarr";
-                fields = [ "movies" "wanted" "missing" "queued" ];
+                fields = [
+                  "movies"
+                  "wanted"
+                  "missing"
+                  "queued"
+                ];
                 url = "http://localhost:${toString radarrPort}";
                 key = "{{HOMEPAGE_FILE_RADARR_API_KEY}}";
                 enableQueue = false;
@@ -151,7 +163,11 @@ with config.my;
               description = "TV Show Management";
               widget = {
                 type = "sonarr";
-                fields = [ "series" "wanted" "queued" ];
+                fields = [
+                  "series"
+                  "wanted"
+                  "queued"
+                ];
                 url = "http://localhost:${toString sonarrPort}";
                 key = "{{HOMEPAGE_FILE_SONARR_API_KEY}}";
                 enableQueue = false;

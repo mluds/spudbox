@@ -1,14 +1,15 @@
-{ ... }:
+_:
 
 let
   cacheDir = "/mnt/cache";
   appdataDir = "${cacheDir}/appdata";
-in {
+in
+{
   my = {
     inherit cacheDir appdataDir;
     storageDir = "/mnt/storage";
     backupDir = "/mnt/backup";
-    backupDrives = [];
+    backupDrives = [ ];
     secretsDir = "/var/lib/secrets";
 
     plexPort = 32400;

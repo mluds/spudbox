@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 with config.my;
 
@@ -58,8 +63,12 @@ let
   '';
 
   allDrives = cacheDrives ++ storageDrives ++ backupDrives;
-in {
-  boot.supportedFilesystems = [ "xfs" "fuse.mergerfs" ];
+in
+{
+  boot.supportedFilesystems = [
+    "xfs"
+    "fuse.mergerfs"
+  ];
   environment.systemPackages = with pkgs; [
     mergerfs
     parted
@@ -68,36 +77,54 @@ in {
     inotify-tools
   ];
 
-  systemd.services = lib.listToAttrs (map (drive: {
-    name = "ensure-partition-${lib.replaceStrings ["/"] ["-"] drive.device}";
-    value = {
-      description = "Ensure partition and filesystem for ${drive.device}";
-      path = with pkgs; [ util-linux parted xfsprogs ];
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.bash}/bin/bash ${ensurePartitionScript} ${drive.device} ${drive.partition}";
-      };
-    };
-  }) allDrives);
-
-  fileSystems = let
-    commonMount = drive: {
-      name = drive.mount;
+  systemd.services = lib.listToAttrs (
+    map (drive: {
+      name = "ensure-partition-${lib.replaceStrings [ "/" ] [ "-" ] drive.device}";
       value = {
-        device = drive.partition;
-        fsType = "xfs";
-        options = [ "defaults" "nofail" ];
+        description = "Ensure partition and filesystem for ${drive.device}";
+        path = with pkgs; [
+          util-linux
+          parted
+          xfsprogs
+        ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${pkgs.bash}/bin/bash ${ensurePartitionScript} ${drive.device} ${drive.partition}";
+        };
       };
-    };
-    mergerfsMount = dir: drives: lib.optionalAttrs (drives != []) {
-      "${dir}" = {
-        device = lib.concatStringsSep ":" (map (d: d.mount) drives);
-        fsType = "fuse.mergerfs";
-        options = [ "defaults" "allow_other" "use_ino" "cache.files=partial" ];
-        depends = map (d: d.mount) drives;
+    }) allDrives
+  );
+
+  fileSystems =
+    let
+      commonMount = drive: {
+        name = drive.mount;
+        value = {
+          device = drive.partition;
+          fsType = "xfs";
+          options = [
+            "defaults"
+            "nofail"
+          ];
+        };
       };
-    };
-  in lib.listToAttrs (map commonMount allDrives)
+      mergerfsMount =
+        dir: drives:
+        lib.optionalAttrs (drives != [ ]) {
+          "${dir}" = {
+            device = lib.concatStringsSep ":" (map (d: d.mount) drives);
+            fsType = "fuse.mergerfs";
+            options = [
+              "defaults"
+              "allow_other"
+              "use_ino"
+              "cache.files=partial"
+            ];
+            depends = map (d: d.mount) drives;
+          };
+        };
+    in
+    lib.listToAttrs (map commonMount allDrives)
     // mergerfsMount cacheDir cacheDrives
     // mergerfsMount storageDir storageDrives
     // mergerfsMount backupDir backupDrives;

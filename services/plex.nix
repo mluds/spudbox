@@ -66,8 +66,9 @@ let
     if __name__ == '__main__':
         main()
   '';
-in {
-  users.groups.plex = {};
+in
+{
+  users.groups.plex = { };
 
   services.plex = {
     enable = true;
