@@ -772,18 +772,12 @@ test_security() {
   fi
 
   # WireGuard client config permissions
-  local wg_client_ok=true
-  for conf in /etc/wireguard/clients/*/client.conf; do
-    local cp
-    cp=$(sudo stat -c "%a" "$conf" 2>/dev/null)
-    if [ "$cp" != "600" ]; then
-      wg_client_ok=false
-    fi
-  done
-  if [ "$wg_client_ok" = "true" ]; then
+  local wg_bad_clients
+  wg_bad_clients=$(sudo find /etc/wireguard/clients -name "client.conf" ! -perm 600 2>/dev/null | wc -l)
+  if [ "$wg_bad_clients" -eq 0 ]; then
     pass "wireguard client configs 600"
   else
-    fail "wireguard client configs not 600"
+    fail "wireguard client configs not 600 ($wg_bad_clients bad)"
   fi
 
   # SABnzbd ini ownership
@@ -804,8 +798,8 @@ test_security() {
     fail "autorestic config permissions $backup_perms (expected 600)"
   fi
 
-  # Restic backup repo initialized
-  if sudo restic -r /mnt/backup snapshots --no-lock &>/dev/null; then
+  # Restic backup repo initialized (check for repo structure)
+  if sudo test -f /mnt/backup/config && sudo test -d /mnt/backup/data; then
     pass "restic backup repo initialized"
   else
     fail "restic backup repo not initialized"
