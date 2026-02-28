@@ -17,7 +17,7 @@ let
 
     cat > ${caddyFile} << CADDYEOF
     {
-      admin 0.0.0.0:${toString caddyAdminPort}
+      admin localhost:${toString caddyAdminPort}
     }
 
     *.${domain} {
@@ -104,6 +104,7 @@ let
     }
 
     ttyd.${domain} {
+      import common_auth
       reverse_proxy localhost:${toString ttydPort}
     }
     CADDYEOF
