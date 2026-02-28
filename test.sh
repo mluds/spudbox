@@ -156,6 +156,7 @@ test_services() {
 
   # Timers
   check_service "sabnzbd-resume.timer"
+  check_service "radarr-auto-import.timer"
   check_service "autorestic-backup.timer"
   check_service "check-drive-status.timer"
 }
@@ -315,6 +316,18 @@ test_integrations() {
     fail "jellyseerr -> sonarr"
   fi
 
+  if http_get "http://localhost:5055/api/v1/settings/radarr" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.[0].externalUrl' | grep -q "radarr.$DOMAIN"; then
+    pass "jellyseerr radarr external url"
+  else
+    fail "jellyseerr radarr external url"
+  fi
+
+  if http_get "http://localhost:5055/api/v1/settings/sonarr" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.[0].externalUrl' | grep -q "sonarr.$DOMAIN"; then
+    pass "jellyseerr sonarr external url"
+  else
+    fail "jellyseerr sonarr external url"
+  fi
+
   # Tautulli -> Plex
   if http_get "http://localhost:8181/api/v2?apikey=$TAUTULLI_KEY&cmd=get_server_info" | jq -e '.response.result' | grep -q "success"; then
     pass "tautulli -> plex"
@@ -366,6 +379,12 @@ test_integrations() {
     pass "plex tv library"
   else
     fail "plex tv library"
+  fi
+
+  if http_get "http://localhost:32400/library/sections?X-Plex-Token=$PLEX_TOKEN" | grep -q 'title="Videos"'; then
+    pass "plex videos library"
+  else
+    fail "plex videos library"
   fi
 
   # Audiobookshelf library

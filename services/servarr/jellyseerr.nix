@@ -60,12 +60,23 @@ let
       chown jellyseerr:jellyseerr ${settingsFile}
     }
 
+    set_external_urls() {
+      echo "Setting external URLs for Radarr/Sonarr..."
+      $JQ --arg radarrUrl "$RADARR_EXTERNAL_URL" \
+          --arg sonarrUrl "$SONARR_EXTERNAL_URL" \
+        '.radarr = [.radarr[] | .externalUrl = $radarrUrl] | .sonarr = [.sonarr[] | .externalUrl = $sonarrUrl]' \
+        ${settingsFile} > ${settingsFile}.tmp
+      mv ${settingsFile}.tmp ${settingsFile}
+      chown jellyseerr:jellyseerr ${settingsFile}
+    }
+
     INITIALIZED=$($CURL -s "$BASE/api/v1/settings/public" | $JQ -r '.initialized')
     if [ "$INITIALIZED" = "true" ]; then
       echo "Jellyseerr already initialized, skipping setup."
       export_api_key
       enable_libraries
       configure_email
+      set_external_urls
       exit 0
     fi
 
@@ -97,12 +108,12 @@ let
 
     echo "Adding Radarr..."
     $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
-      -d "{\"name\": \"Radarr\", \"hostname\": \"localhost\", \"port\": ''${RADARR_PORT}, \"apiKey\": \"$RADARR_KEY\", \"useSsl\": false, \"activeProfileId\": 1, \"activeProfileName\": \"Any\", \"activeDirectory\": \"''${MOVIES_DIR}\", \"is4k\": false, \"minimumAvailability\": \"released\", \"tags\": [], \"isDefault\": true, \"syncEnabled\": true, \"preventSearch\": false, \"tagRequests\": false}" \
+      -d "{\"name\": \"Radarr\", \"hostname\": \"localhost\", \"port\": ''${RADARR_PORT}, \"apiKey\": \"$RADARR_KEY\", \"useSsl\": false, \"externalUrl\": \"''${RADARR_EXTERNAL_URL}\", \"activeProfileId\": 1, \"activeProfileName\": \"Any\", \"activeDirectory\": \"''${MOVIES_DIR}\", \"is4k\": false, \"minimumAvailability\": \"released\", \"tags\": [], \"isDefault\": true, \"syncEnabled\": true, \"preventSearch\": false, \"tagRequests\": false}" \
       "$BASE/api/v1/settings/radarr" >/dev/null
 
     echo "Adding Sonarr..."
     $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
-      -d "{\"name\": \"Sonarr\", \"hostname\": \"localhost\", \"port\": ''${SONARR_PORT}, \"apiKey\": \"$SONARR_KEY\", \"useSsl\": false, \"baseUrl\": \"\", \"activeProfileId\": 1, \"activeProfileName\": \"Any\", \"activeDirectory\": \"''${TV_DIR}\", \"tags\": [], \"animeTags\": [], \"is4k\": false, \"isDefault\": true, \"enableSeasonFolders\": false, \"syncEnabled\": true, \"preventSearch\": false, \"tagRequests\": false}" \
+      -d "{\"name\": \"Sonarr\", \"hostname\": \"localhost\", \"port\": ''${SONARR_PORT}, \"apiKey\": \"$SONARR_KEY\", \"useSsl\": false, \"externalUrl\": \"''${SONARR_EXTERNAL_URL}\", \"baseUrl\": \"\", \"activeProfileId\": 1, \"activeProfileName\": \"Any\", \"activeDirectory\": \"''${TV_DIR}\", \"tags\": [], \"animeTags\": [], \"is4k\": false, \"isDefault\": true, \"enableSeasonFolders\": false, \"syncEnabled\": true, \"preventSearch\": false, \"tagRequests\": false}" \
       "$BASE/api/v1/settings/sonarr" >/dev/null
 
     export_api_key
@@ -158,6 +169,8 @@ in
       SONARR_PORT = toString sonarrPort;
       MOVIES_DIR = "${storageDir}/data/media/movies";
       TV_DIR = "${storageDir}/data/media/tv";
+      RADARR_EXTERNAL_URL = "https://radarr.${domain}";
+      SONARR_EXTERNAL_URL = "https://sonarr.${domain}";
     };
   };
 }
