@@ -53,8 +53,16 @@ let
       chmod -R 0775 "${dir}"
     '') usenetDirs}
 
-    chown root:root ${secretsDir}; chmod 711 ${secretsDir}
-    chown -R radarr:radarr ${secretsDir}/radarr; chmod -R 550 ${secretsDir}/radarr
+    # Lock down all secrets: readable by media group (services that need them)
+    chown -R root:media ${secretsDir}
+    chmod 750 ${secretsDir}
+    find ${secretsDir} -type d -exec chmod 750 {} \;
+    find ${secretsDir} -type f -exec chmod 640 {} \;
+
+    # Radarr reads its own API key directly
+    chown -R radarr:radarr ${secretsDir}/radarr
+    chmod 750 ${secretsDir}/radarr
+    find ${secretsDir}/radarr -type f -exec chmod 640 {} \;
   '';
 in
 {

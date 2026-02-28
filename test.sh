@@ -539,9 +539,47 @@ test_docker() {
   fi
 }
 
+test_security() {
+  section "Security"
+
+  # No world-readable secret files
+  local world_readable
+  world_readable=$(sudo find /var/lib/secrets -type f -perm -o+r 2>/dev/null | wc -l)
+  if [ "$world_readable" -eq 0 ]; then
+    pass "no world-readable secrets"
+  else
+    fail "$world_readable world-readable secret files"
+  fi
+
+  # Secrets dir not world-traversable
+  local dir_perms
+  dir_perms=$(stat -c "%a" /var/lib/secrets 2>/dev/null)
+  if [ "$dir_perms" = "750" ]; then
+    pass "secrets dir 750"
+  else
+    fail "secrets dir is $dir_perms (expected 750)"
+  fi
+
+  # Secrets owned by root:media
+  local dir_owner
+  dir_owner=$(stat -c "%U:%G" /var/lib/secrets 2>/dev/null)
+  if [ "$dir_owner" = "root:media" ]; then
+    pass "secrets dir owned by root:media"
+  else
+    fail "secrets dir owned by $dir_owner (expected root:media)"
+  fi
+
+  # Caddy admin bound to localhost
+  if sudo grep -q 'admin localhost' /etc/caddy/Caddyfile 2>/dev/null; then
+    pass "caddy admin localhost-only"
+  else
+    fail "caddy admin not bound to localhost"
+  fi
+}
+
 # ─── Runner ────────────────────────────────────────────────────
 
-CATEGORIES="secrets services ports http api_auth integrations downloads caddy docker storage wireguard"
+CATEGORIES="secrets services ports http api_auth integrations downloads caddy docker storage wireguard security"
 
 if [ $# -gt 0 ]; then
   CATEGORIES="$*"

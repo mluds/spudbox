@@ -10,8 +10,6 @@ let
 
     # Read secrets from files
     CLOUDFLARE_API_TOKEN=$(cat ${secretsDir}/cloudflare/api-token)
-    ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
-    ADMIN_PASSWORD_HASH=$(echo -n "$(cat ${secretsDir}/admin/password)" | ${pkgs.mkpasswd}/bin/mkpasswd -m bcrypt -s)
 
     mkdir -p /etc/caddy
 
@@ -29,12 +27,6 @@ let
           disable_tlsalpn_challenge
           preferred_chains smallest
         }
-      }
-    }
-
-    (common_auth) {
-      basic_auth {
-        $ADMIN_USERNAME $ADMIN_PASSWORD_HASH
       }
     }
 
@@ -104,7 +96,6 @@ let
     }
 
     ttyd.${domain} {
-      import common_auth
       reverse_proxy localhost:${toString ttydPort}
     }
     CADDYEOF
