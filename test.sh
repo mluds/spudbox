@@ -159,6 +159,7 @@ test_services() {
   check_service "radarr-auto-import.timer"
   check_service "autorestic-backup.timer"
   check_service "check-drive-status.timer"
+  check_service "drive-status-http.service"
 }
 
 test_ports() {
@@ -701,6 +702,22 @@ test_caddy() {
 
 test_docker() {
   section "Docker"
+
+  # Drive status HTTP service
+  if systemctl is-active --quiet drive-status-http; then
+    pass "drive-status-http running"
+  else
+    fail "drive-status-http not running"
+  fi
+
+  # Drive status JSON endpoint
+  local drive_json
+  drive_json=$(http_get "http://localhost:9100/status.json")
+  if echo "$drive_json" | jq -e '.device' &>/dev/null; then
+    pass "drive status JSON valid"
+  else
+    fail "drive status JSON invalid"
+  fi
 
   if sudo docker ps &>/dev/null; then
     pass "docker daemon running"

@@ -242,6 +242,44 @@ with config.my;
             };
           }
           {
+            "HDD" = {
+              icon = "mdi-harddisk";
+              description = "Storage Drive";
+              widget = {
+                type = "customapi";
+                url = "http://localhost:9100/status.json";
+                refreshInterval = 30000;
+                mappings = [
+                  {
+                    field = "state";
+                    label = "State";
+                    format = "text";
+                    remap = [
+                      {
+                        value = "active/idle";
+                        to = "Spinning";
+                      }
+                      {
+                        value = "standby";
+                        to = "Standby";
+                      }
+                    ];
+                  }
+                  {
+                    field = "lastAccess";
+                    label = "Last I/O";
+                    format = "relativeDate";
+                  }
+                  {
+                    field = "processes";
+                    label = "Accessing";
+                    format = "text";
+                  }
+                ];
+              };
+            };
+          }
+          {
             "Homebridge" = {
               icon = "homebridge";
               href = "https://homebridge.${domain}";

@@ -230,16 +230,16 @@ let
     API="http://localhost:${toString radarrPort}/api/v3"
     HDR="-H X-Api-Key:$RADARR_API_KEY -H Content-Type:application/json"
 
-    # Find import-blocked queue items that have a movieId (Radarr knows which movie it is)
+    # Find import-blocked or import-pending (with warnings) queue items
     BLOCKED=$(${pkgs.curl}/bin/curl -sS "$API/queue?includeUnknownMovieItems=true&pageSize=100" $HDR \
-      | ${pkgs.jq}/bin/jq -c '[.records[] | select(.trackedDownloadState == "importBlocked" and .movieId != null)]')
+      | ${pkgs.jq}/bin/jq -c '[.records[] | select((.trackedDownloadState == "importBlocked" or (.trackedDownloadState == "importPending" and .trackedDownloadStatus == "warning")) and .movieId != null)]')
 
     COUNT=$(echo "$BLOCKED" | ${pkgs.jq}/bin/jq 'length')
     if [ "$COUNT" -eq 0 ]; then
       exit 0
     fi
 
-    echo "Found $COUNT import-blocked items, processing..."
+    echo "Found $COUNT items to import, processing..."
     echo "$BLOCKED" | ${pkgs.jq}/bin/jq -c '.[]' | while read -r item; do
       DOWNLOAD_ID=$(echo "$item" | ${pkgs.jq}/bin/jq -r '.downloadId')
       MOVIE_ID=$(echo "$item" | ${pkgs.jq}/bin/jq '.movieId')
