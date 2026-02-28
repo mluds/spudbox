@@ -110,11 +110,23 @@ in
     };
   };
 
+  services.avahi = {
+    enable = true;
+    reflector = true;
+    nssmdns4 = true;
+    publish = {
+      enable = true;
+      addresses = true;
+    };
+  };
+
   networking.firewall = {
     allowedTCPPorts = [
       homebridgePort
-      51509 # homebridge bonjour
-      44749 # homebridge dummy
+      51215 # homebridge HAP bridge port
+    ];
+    allowedUDPPorts = [
+      5353 # mDNS/Bonjour discovery
     ];
   };
 
