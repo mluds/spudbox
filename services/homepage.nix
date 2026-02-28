@@ -4,37 +4,43 @@ with config.my;
 
 let
   uniqueDevices = lib.unique (map (drive: drive.device) storageDrives);
-  driveWidgets = map (
-    dev:
+  driveWidgets = lib.imap1 (
+    i: dev:
     let
       blockName = builtins.baseNameOf dev;
+      label = if builtins.length uniqueDevices == 1 then "HDD" else "HDD ${toString i}";
     in
     {
-      "customapi" = {
-        url = "http://localhost:9100/status_${blockName}.json";
-        refreshInterval = 30000;
-        mappings = [
-          {
-            field = "state";
-            label = "State";
-            format = "text";
-            remap = [
-              {
-                value = "active/idle";
-                to = "Spinning";
-              }
-              {
-                value = "standby";
-                to = "Standby";
-              }
-            ];
-          }
-          {
-            field = "lastAccess";
-            label = "Last I/O";
-            format = "relativeDate";
-          }
-        ];
+      "${label}" = {
+        icon = "mdi-harddisk";
+        description = "Storage Drive";
+        widget = {
+          type = "customapi";
+          url = "http://localhost:9100/status_${blockName}.json";
+          refreshInterval = 30000;
+          mappings = [
+            {
+              field = "state";
+              label = "State";
+              format = "text";
+              remap = [
+                {
+                  value = "active/idle";
+                  to = "Spinning";
+                }
+                {
+                  value = "standby";
+                  to = "Standby";
+                }
+              ];
+            }
+            {
+              field = "lastAccess";
+              label = "Last I/O";
+              format = "relativeDate";
+            }
+          ];
+        };
       };
     }
   ) uniqueDevices;
@@ -112,8 +118,7 @@ in
           network = true;
         };
       }
-    ]
-    ++ driveWidgets;
+    ];
     services = [
       {
         Services = [
@@ -281,6 +286,7 @@ in
             };
           }
         ]
+        ++ driveWidgets
         ++ [
           {
             "Homebridge" = {
