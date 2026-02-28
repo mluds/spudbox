@@ -90,7 +90,7 @@ After this, root login will be disabled and you must login using one of the user
 
 Claim the Plex server by opening an SSH tunnel.
 ```
-ssh -i ~/.ssh/spudnet -L 32400:localhost:32400 luds@192.168.0.42
+ssh -i ~/.ssh/spudbox -L 32400:localhost:32400 luds@192.168.0.42
 ```
 
 Then visit http://localhost:324000/web in a browser and follow the setup. (Plex _requires_ claiming from localhost)

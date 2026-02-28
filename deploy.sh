@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOST="luds@192.168.1.42"
-SSH_KEY="$HOME/.ssh/spudnet"
+SSH_KEY="$HOME/.ssh/spudbox"
 FLAKE="spudbox-prod"
 SSH="ssh -i $SSH_KEY $HOST"
 
