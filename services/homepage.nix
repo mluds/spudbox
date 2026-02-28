@@ -13,7 +13,7 @@ let
     {
       "${label}" = {
         icon = "mdi-harddisk";
-        description = "Storage Drive";
+        description = "Storage Drive (${dev})";
         widget = {
           type = "customapi";
           url = "http://localhost:9100/status_${blockName}.json";
