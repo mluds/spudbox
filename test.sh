@@ -713,6 +713,27 @@ test_docker() {
   else
     fail "homebridge container running"
   fi
+
+  # Homebridge HAP port listening
+  if ss -tlnp | grep -q ":51215 "; then
+    pass "homebridge HAP port 51215"
+  else
+    fail "homebridge HAP port 51215 not listening"
+  fi
+
+  # Avahi/mDNS running for HomeKit discovery
+  if systemctl is-active --quiet avahi-daemon; then
+    pass "avahi-daemon running"
+  else
+    fail "avahi-daemon not running"
+  fi
+
+  # mDNS port open
+  if ss -ulnp | grep -q ":5353 "; then
+    pass "mDNS port 5353"
+  else
+    fail "mDNS port 5353 not listening"
+  fi
 }
 
 test_security() {
