@@ -37,17 +37,12 @@ let
 
       LAST_ACCESS=$(cat "$TIMESTAMP_FILE" 2>/dev/null || echo "unknown")
 
-      # Get processes currently accessing the storage
-      PROCS=$(${pkgs.lsof}/bin/lsof -Q ${storageDir} 2>/dev/null | awk 'NR>1 {print $1}' | sort -u | paste -sd ", " || echo "")
-      [ -z "$PROCS" ] && PROCS="none"
-
       ${pkgs.jq}/bin/jq -n \
         --arg device "$DEVICE" \
         --arg state "$STATE" \
         --arg lastAccess "$LAST_ACCESS" \
-        --arg processes "$PROCS" \
-        '{device: $device, state: $state, lastAccess: $lastAccess, processes: $processes}' \
-        > ${statusDir}/status.json
+        '{device: $device, state: $state, lastAccess: $lastAccess}' \
+        > ${statusDir}/status_$BLOCK_NAME.json
     '') uniqueDevices}
   '';
 in

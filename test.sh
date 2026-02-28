@@ -712,7 +712,7 @@ test_docker() {
 
   # Drive status JSON endpoint
   local drive_json
-  drive_json=$(http_get "http://localhost:9100/status.json")
+  drive_json=$(http_get "http://localhost:9100/status_sda.json")
   if echo "$drive_json" | jq -e '.device' &>/dev/null; then
     pass "drive status JSON valid"
   else
