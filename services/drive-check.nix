@@ -17,9 +17,6 @@ let
       DEVICE="${dev}"
       BLOCK_NAME=$(basename "$DEVICE")
 
-      # Get spin state
-      STATE=$(${pkgs.hdparm}/bin/hdparm -C "$DEVICE" 2>/dev/null | grep -oP 'drive state is:\s+\K\S+' || echo "unknown")
-
       # Detect I/O activity by comparing block device stats
       STAT_FILE="${statusDir}/prev_stat_$BLOCK_NAME"
       TIMESTAMP_FILE="${statusDir}/last_access_$BLOCK_NAME"
@@ -29,9 +26,15 @@ let
         PREV_STAT=$(cat "$STAT_FILE")
         if [ "$CURRENT_STAT" != "$PREV_STAT" ]; then
           date -u +%Y-%m-%dT%H:%M:%SZ > "$TIMESTAMP_FILE"
+          STATE="active/idle"
+        else
+          # No I/O since last check — skip hdparm -C to avoid resetting
+          # the drive's idle timer (which prevents spindown)
+          STATE="standby"
         fi
       else
         date -u +%Y-%m-%dT%H:%M:%SZ > "$TIMESTAMP_FILE"
+        STATE="active/idle"
       fi
       echo "$CURRENT_STAT" > "$STAT_FILE"
 
