@@ -64,9 +64,18 @@ let
         "$BASE/api/v1/settings/notifications/pushover" >/dev/null
     }
 
-    enable_libraries() {
-      echo "Enabling Plex libraries..."
+    configure_plex() {
+      echo "Configuring Plex settings..."
       API_KEY=$($JQ -r '.main.apiKey' ${settingsFile})
+
+      # Enable periodic full scan to catch movies that were initially
+      # unmatched when added to Plex (race between add and metadata match)
+      $CURL -s -X POST -H 'Content-Type: application/json' \
+        -H "X-Api-Key: $API_KEY" \
+        -d "{\"ip\": \"127.0.0.1\", \"port\": ''${PLEX_PORT}, \"useSsl\": false, \"periodicScanning\": 21600}" \
+        "$BASE/api/v1/settings/plex" >/dev/null
+
+      # Enable all libraries for scanning
       LIB_IDS=$($CURL -s "$BASE/api/v1/settings/plex/library" \
         -H "X-Api-Key: $API_KEY" | $JQ -r '[.[].id] | join(",")')
       $CURL -s "$BASE/api/v1/settings/plex/library?sync=true&enable=$LIB_IDS" \
@@ -87,7 +96,7 @@ let
     if [ "$INITIALIZED" = "true" ]; then
       echo "Jellyseerr already initialized, skipping setup."
       export_api_key
-      enable_libraries
+      configure_plex
       configure_email
       configure_pushover
       set_external_urls
@@ -112,7 +121,7 @@ let
 
     echo "Configuring Plex server..."
     $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
-      -d "{\"ip\": \"127.0.0.1\", \"port\": ''${PLEX_PORT}, \"useSsl\": false}" \
+      -d "{\"ip\": \"127.0.0.1\", \"port\": ''${PLEX_PORT}, \"useSsl\": false, \"periodicScanning\": 21600}" \
       "$BASE/api/v1/settings/plex" >/dev/null
 
     echo "Syncing Plex libraries..."
@@ -129,7 +138,7 @@ let
       "$BASE/api/v1/settings/sonarr" >/dev/null
 
     export_api_key
-    enable_libraries
+    configure_plex
     configure_email
     configure_pushover
 

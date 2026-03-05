@@ -471,12 +471,21 @@ test_integrations() {
   fi
 
   # Jellyseerr plex libraries enabled
+  local plex_settings
+  plex_settings=$(http_get "http://localhost:5055/api/v1/settings/plex" -H "X-Api-Key: $JELLYSEERR_KEY")
   local plex_libs_enabled
-  plex_libs_enabled=$(http_get "http://localhost:5055/api/v1/settings/plex" -H "X-Api-Key: $JELLYSEERR_KEY" | jq '[.libraries[] | select(.enabled == true)] | length')
+  plex_libs_enabled=$(echo "$plex_settings" | jq '[.libraries[] | select(.enabled == true)] | length')
   if [ "$plex_libs_enabled" -gt 0 ] 2>/dev/null; then
     pass "jellyseerr plex libraries enabled ($plex_libs_enabled)"
   else
     fail "jellyseerr no plex libraries enabled"
+  fi
+
+  # Jellyseerr periodic full scan enabled
+  if echo "$plex_settings" | jq -e '.periodicScanning > 0' | grep -q "true"; then
+    pass "jellyseerr periodic plex scan"
+  else
+    fail "jellyseerr periodic plex scan"
   fi
 
   # Plex custom connections URL
