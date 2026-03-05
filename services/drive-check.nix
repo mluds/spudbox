@@ -10,6 +10,11 @@ with config.my;
 let
   statusDir = "/var/lib/drive-status";
   uniqueDevices = lib.unique (map (drive: drive.device) storageDrives);
+  # Idle time before forcing the drive to standby via hdparm -y.
+  # The drive's own spindown timer (hdparm -S) doesn't work on this
+  # enterprise drive (WD Ultrastar), so we manage spindown ourselves.
+  spindownSeconds = 300;
+
   checkScript = pkgs.writeShellScript "check-drive-script" ''
     mkdir -p ${statusDir}
 
@@ -17,7 +22,9 @@ let
       DEVICE="${dev}"
       BLOCK_NAME=$(basename "$DEVICE")
 
-      # Detect I/O activity by comparing block device stats
+      # Detect I/O activity by comparing block device stats.
+      # We never call hdparm -C because the ATA CHECK POWER MODE
+      # command resets the drive's idle timer on some drives.
       STAT_FILE="${statusDir}/prev_stat_$BLOCK_NAME"
       TIMESTAMP_FILE="${statusDir}/last_access_$BLOCK_NAME"
       CURRENT_STAT=$(cat /sys/block/$BLOCK_NAME/stat 2>/dev/null | tr -s ' ')
@@ -26,19 +33,28 @@ let
         PREV_STAT=$(cat "$STAT_FILE")
         if [ "$CURRENT_STAT" != "$PREV_STAT" ]; then
           date -u +%Y-%m-%dT%H:%M:%SZ > "$TIMESTAMP_FILE"
-          STATE="active/idle"
-        else
-          # No I/O since last check — skip hdparm -C to avoid resetting
-          # the drive's idle timer (which prevents spindown)
-          STATE="standby"
         fi
       else
         date -u +%Y-%m-%dT%H:%M:%SZ > "$TIMESTAMP_FILE"
-        STATE="active/idle"
       fi
       echo "$CURRENT_STAT" > "$STAT_FILE"
 
       LAST_ACCESS=$(cat "$TIMESTAMP_FILE" 2>/dev/null || echo "unknown")
+
+      # Determine spin state and force spindown when idle long enough
+      if [ "$LAST_ACCESS" != "unknown" ]; then
+        LAST_EPOCH=$(date -d "$LAST_ACCESS" +%s 2>/dev/null || echo 0)
+        NOW_EPOCH=$(date -u +%s)
+        IDLE_SECS=$(( NOW_EPOCH - LAST_EPOCH ))
+        if [ "$IDLE_SECS" -ge ${toString spindownSeconds} ]; then
+          ${pkgs.hdparm}/bin/hdparm -y "$DEVICE" > /dev/null 2>&1
+          STATE="standby"
+        else
+          STATE="active/idle"
+        fi
+      else
+        STATE="active/idle"
+      fi
 
       ${pkgs.jq}/bin/jq -n \
         --arg device "$DEVICE" \

@@ -98,6 +98,8 @@ test_secrets() {
   check_secret "audiobookshelf/token-secret" "audiobookshelf/token-secret"
   check_secret "gmail/address" "gmail/address"
   check_secret "gmail/app-password" "gmail/app-password"
+  check_secret "pushover/app-token" "pushover/app-token"
+  check_secret "pushover/user-key" "pushover/user-key"
   check_secret "wireguard/server/private-key" "wireguard/server/private-key"
   check_secret "wireguard/server/public-key" "wireguard/server/public-key"
   check_secret "wireguard/clients/mikes-iphone/private-key" "wireguard/clients/mikes-iphone/private-key"
@@ -454,11 +456,18 @@ test_integrations() {
     fail "audiobookshelf library"
   fi
 
-  # Jellyseerr email notifications
-  if http_get "http://localhost:5055/api/v1/settings/notifications/email" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.enabled' | grep -q "true"; then
-    pass "jellyseerr email notifications"
+  # Jellyseerr email notifications (disabled, replaced by pushover)
+  if http_get "http://localhost:5055/api/v1/settings/notifications/email" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.enabled == false' | grep -q "true"; then
+    pass "jellyseerr email notifications disabled"
   else
-    fail "jellyseerr email notifications"
+    fail "jellyseerr email notifications disabled"
+  fi
+
+  # Jellyseerr Pushover notifications
+  if http_get "http://localhost:5055/api/v1/settings/notifications/pushover" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.enabled' | grep -q "true"; then
+    pass "jellyseerr pushover notifications"
+  else
+    fail "jellyseerr pushover notifications"
   fi
 
   # Jellyseerr plex libraries enabled

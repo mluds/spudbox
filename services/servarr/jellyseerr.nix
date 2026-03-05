@@ -33,7 +33,7 @@ let
           --arg authUser "$GMAIL_ADDRESS" \
           --arg authPass "$GMAIL_APP_PASSWORD" \
           '.notifications.agents.email = {
-            "enabled": true,
+            "enabled": false,
             "types": 4,
             "options": {
               "emailFrom": $emailFrom,
@@ -52,12 +52,25 @@ let
       chown jellyseerr:jellyseerr ${settingsFile}
     }
 
+    configure_pushover() {
+      echo "Configuring Pushover notifications..."
+      PUSHOVER_TOKEN=$(cat ${secretsDir}/pushover/app-token)
+      PUSHOVER_USER=$(cat ${secretsDir}/pushover/user-key)
+      API_KEY=$($JQ -r '.main.apiKey' ${settingsFile})
+
+      $CURL -s -X POST -H 'Content-Type: application/json' \
+        -H "X-Api-Key: $API_KEY" \
+        -d "{\"enabled\": true, \"types\": 24, \"options\": {\"accessToken\": \"$PUSHOVER_TOKEN\", \"userToken\": \"$PUSHOVER_USER\", \"sound\": \"pushover\"}}" \
+        "$BASE/api/v1/settings/notifications/pushover" >/dev/null
+    }
+
     enable_libraries() {
       echo "Enabling Plex libraries..."
-      $JQ '.plex.libraries = [.plex.libraries[] | .enabled = true]' \
-        ${settingsFile} > ${settingsFile}.tmp
-      mv ${settingsFile}.tmp ${settingsFile}
-      chown jellyseerr:jellyseerr ${settingsFile}
+      API_KEY=$($JQ -r '.main.apiKey' ${settingsFile})
+      LIB_IDS=$($CURL -s "$BASE/api/v1/settings/plex/library" \
+        -H "X-Api-Key: $API_KEY" | $JQ -r '[.[].id] | join(",")')
+      $CURL -s "$BASE/api/v1/settings/plex/library?sync=true&enable=$LIB_IDS" \
+        -H "X-Api-Key: $API_KEY" >/dev/null
     }
 
     set_external_urls() {
@@ -76,6 +89,7 @@ let
       export_api_key
       enable_libraries
       configure_email
+      configure_pushover
       set_external_urls
       exit 0
     fi
@@ -104,8 +118,6 @@ let
     echo "Syncing Plex libraries..."
     $CURL -s -b "$COOKIE_FILE" "$BASE/api/v1/settings/plex/library?sync=true" >/dev/null
 
-    enable_libraries
-
     echo "Adding Radarr..."
     $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
       -d "{\"name\": \"Radarr\", \"hostname\": \"localhost\", \"port\": ''${RADARR_PORT}, \"apiKey\": \"$RADARR_KEY\", \"useSsl\": false, \"externalUrl\": \"''${RADARR_EXTERNAL_URL}\", \"activeProfileId\": 1, \"activeProfileName\": \"Any\", \"activeDirectory\": \"''${MOVIES_DIR}\", \"is4k\": false, \"minimumAvailability\": \"released\", \"tags\": [], \"isDefault\": true, \"syncEnabled\": true, \"preventSearch\": false, \"tagRequests\": false}" \
@@ -119,6 +131,7 @@ let
     export_api_key
     enable_libraries
     configure_email
+    configure_pushover
 
     echo "Restarting Jellyseerr..."
     systemctl restart jellyseerr
