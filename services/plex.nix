@@ -6,6 +6,8 @@ let
   pythonEnv = pkgs.python3.withPackages (ps: [ ps.plexapi ]);
   configurePlexScript = pkgs.writeText "configure-plex.py" ''
     from os import getenv
+    from urllib.parse import urlencode
+    import requests
     from plexapi.server import PlexServer
     from plexapi.myplex import MyPlexAccount
     from plexapi.exceptions import NotFound
@@ -59,28 +61,44 @@ let
         {
           "name": "Videos",
           "type": "movie",
-          "agent": "tv.plex.agents.movie",
-          "scanner": "Plex Movie",
+          "agent": "com.plexapp.agents.none",
+          "scanner": "Plex Video Files Scanner",
           "location": "${storageDir}/data/media/videos",
-          "language": "en-US"
+          "language": "xn"
         }
       ]
 
       token = get_token(plex_url, token_path, getenv('PLEX_USERNAME_FILE'), getenv('PLEX_PASSWORD_FILE'))
       plex = PlexServer(plex_url, token)
 
+      def add_library(section):
+        """Add a library section via the raw Plex API.
+
+        PlexAPI's library.add() forces language=en-US which is invalid for
+        the com.plexapp.agents.none agent (Other Videos), so we use the
+        raw API for all libraries to keep things consistent.
+        """
+        params = urlencode({
+          'name': section['name'],
+          'type': section['type'],
+          'agent': section['agent'],
+          'scanner': section['scanner'],
+          'language': section['language'],
+          'location': section['location'],
+        })
+        url = f"{plex_url}/library/sections?{params}"
+        resp = requests.post(url, headers={'X-Plex-Token': token})
+        resp.raise_for_status()
+
       for section in library_sections:
         try:
-          plex.library.section(section['name'])
+          existing = plex.library.section(section['name'])
+          if existing.agent != section['agent']:
+            print(f"Recreating '{section['name']}' library (agent {existing.agent} -> {section['agent']})")
+            existing.delete()
+            add_library(section)
         except NotFound:
-          plex.library.add(
-            name=section['name'],
-            type=section['type'],
-            agent=section['agent'],
-            scanner=section['scanner'],
-            location=section['location'],
-            language=section['language']
-          )
+          add_library(section)
       plex.settings.fSEventLibraryUpdatesEnabled = True
       plex.settings.fSEventLibraryPartialScanEnabled = True
       plex.settings.customConnections = access_url
