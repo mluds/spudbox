@@ -80,6 +80,13 @@ let
         -H "X-Api-Key: $API_KEY" | $JQ -r '[.[].id] | join(",")')
       $CURL -s "$BASE/api/v1/settings/plex/library?sync=true&enable=$LIB_IDS" \
         -H "X-Api-Key: $API_KEY" >/dev/null
+
+      # Run recently added scan once daily instead of every 5 minutes
+      # to avoid waking the HDD with constant Plex API queries
+      $CURL -s -X POST -H 'Content-Type: application/json' \
+        -H "X-Api-Key: $API_KEY" \
+        -d '{"schedule": "0 0 6 * * *"}' \
+        "$BASE/api/v1/settings/jobs/plex-recently-added-scan/schedule" >/dev/null
     }
 
     set_external_urls() {

@@ -652,7 +652,7 @@
           modifier = "brdisk";
         };
         items = [ ];
-        allowed = true;
+        allowed = false;
       }
       {
         quality = {
