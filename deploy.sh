@@ -32,7 +32,13 @@ rebuild() {
   echo "Rebuilding NixOS configuration..."
   $SSH "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --impure --flake .#$FLAKE"
   echo "Waiting for services to start..."
-  sleep 20
+  $SSH 'for url in http://localhost:8181 http://localhost:6767 http://localhost:8989 http://localhost:7878 http://localhost:5055 http://localhost:8081 http://localhost:32400/identity; do
+    for i in $(seq 1 60); do
+      code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$url" 2>/dev/null) || true
+      [ "$code" != "000" ] && break
+      sleep 5
+    done
+  done'
 }
 
 run_tests() {

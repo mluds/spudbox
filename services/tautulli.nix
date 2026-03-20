@@ -88,6 +88,7 @@ let
         parser['General']['http_password'] = make_hash(f.read().strip())
       parser['General']['http_port'] = getenv('TAUTULLI_PORT')
       parser['General']['first_run_complete'] = '1'
+      parser['General']['system_analytics'] = '0'
 
       plex_port = getenv('PLEX_PORT')
       parser['PMS']['pms_ip'] = '127.0.0.1'

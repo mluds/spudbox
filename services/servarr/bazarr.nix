@@ -192,11 +192,11 @@ let
     };
     radarr = {
       ip = "localhost";
-      port = toString radarrPort;
+      port = radarrPort;
     };
     sonarr = {
       ip = "localhost";
-      port = toString sonarrPort;
+      port = sonarrPort;
     };
     opensubtitlescom = {
       include_ai_translated = false;
