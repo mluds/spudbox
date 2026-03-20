@@ -6,7 +6,7 @@ SECRETS_DIR="/var/lib/secrets"
 STORAGE_DIR="/mnt/storage"
 CACHE_DIR="/mnt/cache"
 BACKUP_DIR="/mnt/backup"
-DOMAIN="spudbox.win"
+DOMAIN="spudbox.online"
 
 # ─── Counters & Helpers ────────────────────────────────────────
 PASS_COUNT=0

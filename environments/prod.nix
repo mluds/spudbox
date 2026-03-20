@@ -1,6 +1,6 @@
 {
   my = {
-    domain = "spudbox.win";
+    domain = "spudbox.online";
     lan_cidr = "192.168.1.0/24";
     cacheDrives = [ ];
     storageDrives = [

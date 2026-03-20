@@ -1,6 +1,6 @@
 {
   my = {
-    domain = "dev.spudbox.win";
+    domain = "dev.spudbox.online";
     cacheDrives = [
       {
         device = "/dev/nvme0n2";
