@@ -126,12 +126,7 @@ qrencode -t ansiutf8 < /etc/wireguard/clients/mikes-iphone/client.conf
 
 ### Git Hooks
 
-Hooks are in `.githooks/` and activated via `git config core.hooksPath .githooks`.
-
-- **pre-commit**: syncs to server and runs `lint.sh` (statix, deadnix, nixfmt)
-- **pre-push**: deploys to server and runs `test.sh`
-
-Both hooks skip gracefully if the server is unreachable.
+See "Git hooks" in `CLAUDE.md` for setup and behavior.
 
 ### Secrets
 

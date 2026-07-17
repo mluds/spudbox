@@ -1,0 +1,148 @@
+# CLAUDE.md
+
+Operational guide for the `spudbox` NixOS media server. For first-time OS
+install and per-app manual setup steps, see `README.md`.
+
+## What this is
+
+A NixOS flake config for a self-hosted media stack (Plex, the *arr apps,
+Jellyseerr/seerr, sabnzbd, transmission, audiobookshelf, Caddy, homepage,
+homebridge, WireGuard). Almost every package version flows from a single
+`nixpkgs` flake input; a few things are pinned by hand (see Upgrades).
+
+- `flake.nix` — inputs + `nixosConfigurations.spudbox-{dev,prod}`; also the Plex
+  version overlay.
+- `configuration.nix` — shared config, `environment.systemPackages`, imports of
+  every `services/*.nix`.
+- `environments/default.nix` — all ports, dirs, and the `my.*` option values.
+  `environments/{prod,dev}.nix` — per-host domain, drives, interface.
+- `services/**` — one file per service, each typically defining the NixOS
+  service plus a `*-config` oneshot that configures it via its HTTP API on boot.
+- `secrets/` — git-crypt encrypted (see README "Secrets").
+
+## Hosts
+
+| Env | Flake | System | IP | Domain |
+|-----|-------|--------|-----|--------|
+| prod | `spudbox-prod` | x86_64-linux | `192.168.1.42` | `spudbox.online` |
+| dev | `spudbox-dev` | aarch64-linux | `192.168.42.130` | `dev.spudbox.online` |
+
+`deploy.sh` is hardcoded to **prod** (`luds@192.168.1.42`, key `~/.ssh/spudbox`).
+There is no dev deploy path — changes land directly on prod.
+
+## Connecting
+
+```bash
+./deploy.sh ssh                      # opens a shell on prod
+ssh -i ~/.ssh/spudbox luds@192.168.1.42
+```
+
+`luds` is a passwordless-sudo wheel user. Services listen on localhost and are
+reverse-proxied by Caddy at `https://<service>.spudbox.online`; from a laptop on
+the LAN you can also curl them directly by port (see `environments/default.nix`,
+e.g. plex 32400, sabnzbd 8081, seerr 5055).
+
+## Deploying
+
+```bash
+./deploy.sh          # sync → rebuild switch → wait for services → test.sh  (default)
+./deploy.sh switch   # sync → rebuild switch (no tests)
+./deploy.sh sync     # rsync working tree to ~/deploy on the server, no rebuild
+./deploy.sh test     # run test.sh on the server
+./deploy.sh lint     # sync + lint.sh (statix, deadnix, nixfmt)
+```
+
+Notes:
+- Deploy rsyncs the **working tree** (not git) to `~/deploy` on the server, then
+  runs `nixos-rebuild switch --impure --flake .#spudbox-prod`. Uncommitted
+  changes deploy fine; committing is separate.
+- The rebuild runs `--impure` because it reads `/etc/nixos/hardware-configuration.nix`
+  on the host.
+
+### Git hooks
+
+Hooks live in `.githooks/` and are activated per-clone with:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+- **pre-commit** — syncs to the server and runs `lint.sh` (statix, deadnix, nixfmt).
+- **pre-push** — deploys to the server and runs `test.sh`.
+
+Both skip gracefully if the server is unreachable.
+
+### Rollback
+
+The previous generation stays bootable. To undo a bad switch:
+
+```bash
+ssh -i ~/.ssh/spudbox luds@192.168.1.42 'sudo nixos-rebuild switch --rollback'
+# or revert the offending files locally and re-run:
+./deploy.sh switch
+```
+
+## Upgrades (nix + all packages)
+
+Everything from `nixpkgs` upgrades together by moving the flake input. **Nix is
+not installed on the Mac** — `flake.lock` must be regenerated on a machine that
+has Nix (the server does, at `192.168.1.42`).
+
+1. Bump the channel in `flake.nix`, e.g. `nixos-25.11` → `nixos-26.05`.
+2. Regenerate the lock **on the server** (no local nix), then pull it back:
+   ```bash
+   KEY=~/.ssh/spudbox HOST=luds@192.168.1.42 TMP=/tmp/spudbox-lock
+   ssh -i $KEY $HOST "rm -rf $TMP && mkdir -p $TMP"
+   scp -i $KEY flake.nix flake.lock $HOST:$TMP/
+   ssh -i $KEY $HOST "cd $TMP && nix flake update"
+   scp -i $KEY $HOST:$TMP/flake.lock ./flake.lock
+   ssh -i $KEY $HOST "rm -rf $TMP"
+   ```
+   (A throwaway dir with just the flake files is enough — `flake update` only
+   resolves inputs, it doesn't evaluate outputs.)
+3. `./deploy.sh all` and work through any failures (see below).
+4. Keep `system.stateVersion` (currently `25.05`) as-is — it pins data-migration
+   behavior and must NOT be bumped just because the channel moved. Some modules
+   gate breaking changes on it (e.g. the seerr config-dir move is gated on
+   `>= 26.05`, so staying at 25.05 preserves `/var/lib/jellyseerr`).
+
+### Things that commonly break on a channel jump
+
+A big jump won't be a clean one-shot. Expected failure classes, all seen on the
+25.11→26.05 upgrade:
+
+- **Caddy vendor-hash mismatch** — `services/caddy.nix` pins a `withPlugins`
+  build `hash`. When Caddy core moves, the hash changes; Nix prints
+  `specified:`/`got:` — paste the `got:` value in. This hash bump is *required*,
+  not optional.
+- **Flaky package test** — a package (e.g. `paho-mqtt`) fails its test suite
+  during build, often because Hydra hasn't cached it for the fresh commit so
+  you build from source and hit a flake. Nix does not cache build failures;
+  rebuild that one derivation directly to retry:
+  `ssh … "nix build '/nix/store/<hash>-<pkg>.drv^*' --no-link"`. If it passes,
+  re-run the deploy (it's now realized in the store).
+- **Renamed NixOS options / units** — eval warnings like
+  `The option 'services.X' has been renamed to 'services.Y'` mean the produced
+  systemd unit renamed too. Update the option, any `systemd.services.X`
+  override, `after`/`wants` references, and any `systemctl` calls in
+  `services/**`, `services/backup.nix` hooks, and `test.sh`
+  (`check_service "Y.service"`). Grep before editing:
+  `grep -rn "X\.service\|services\.X\|systemctl.*X" --include=*.nix .`
+- **Deprecation warnings** (e.g. `sabnzbd.configFile`, `nixfmt-rfc-style`) are
+  non-fatal — the build still succeeds. Fix opportunistically, not required.
+
+### Hand-pinned versions (upgrade separately from nixpkgs)
+
+- **Plex** — overlay in `flake.nix`: bump `version` + `sha256`.
+- **autorestic** — `services/backup.nix`: bump `version` + `sha256` (from the
+  `mluds/autorestic` fork).
+- **Caddy cloudflare-dns plugin** — `services/caddy.nix`: plugin ref + `hash`.
+- **homebridge** — `services/homebridge.nix` uses the `:latest` docker image;
+  floats on container pull, nothing to pin.
+
+## Verifying
+
+`./deploy.sh test` runs `test.sh` on the server — ~190 checks across services,
+ports, HTTP health, config integration, storage, WireGuard, and security. A
+green run (`N passed, 0 failed`) is the bar for a good deploy. The deploy's
+built-in wait loop polls the main service ports before tests run.
