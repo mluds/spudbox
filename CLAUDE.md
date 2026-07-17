@@ -59,18 +59,16 @@ Notes:
 - The rebuild runs `--impure` because it reads `/etc/nixos/hardware-configuration.nix`
   on the host.
 
-### Git hooks
+### Before committing
 
-Hooks live in `.githooks/` and are activated per-clone with:
+There are no git hooks — run these manually before every commit:
 
-```bash
-git config core.hooksPath .githooks
-```
+- **Lint**: `./deploy.sh lint` — syncs and runs `lint.sh` (statix, deadnix,
+  nixfmt).
+- **Test**: `./deploy.sh all` — deploys and runs `test.sh`; or `./deploy.sh test`
+  if the current code is already deployed.
 
-- **pre-commit** — syncs to the server and runs `lint.sh` (statix, deadnix, nixfmt).
-- **pre-push** — deploys to the server and runs `test.sh`.
-
-Both skip gracefully if the server is unreachable.
+Commit only on a green run of both (`N passed, 0 failed`).
 
 ### Rollback
 

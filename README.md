@@ -124,10 +124,6 @@ qrencode -t ansiutf8 < /etc/wireguard/clients/mikes-iphone/client.conf
 ./deploy.sh ssh      # open SSH session
 ```
 
-### Git Hooks
-
-See "Git hooks" in `CLAUDE.md` for setup and behavior.
-
 ### Secrets
 
 #### Initial setup
