@@ -8,13 +8,13 @@
     let
       plexOverlay = final: prev: {
         plexRaw = prev.plexRaw.overrideAttrs (_: rec {
-          version = "1.43.1.10561-69cc2fd8d";
+          version = "1.43.3.10828-00f62d37d";
           src = prev.fetchurl {
             url =
               "https://downloads.plex.tv/plex-media-server-new/${version}/debian/plexmediaserver_${version}_${
                 if final.stdenv.hostPlatform.system == "aarch64-linux" then "arm64" else "amd64"
               }.deb";
-            sha256 = "sha256-o2oZ2pz4opdPd8/gzq8E4oaC0NxqDw3RFcgInJdBGIs=";
+            sha256 = "sha256-ieU0/7Vlrs2tsR1QhD2Cyk/pia4MfmAugx0Ec6Ook20=";
           };
         });
       };
