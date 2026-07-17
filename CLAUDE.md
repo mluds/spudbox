@@ -105,6 +105,9 @@ has Nix (the server does, at `192.168.1.42`).
    behavior and must NOT be bumped just because the channel moved. Some modules
    gate breaking changes on it (e.g. the seerr config-dir move is gated on
    `>= 26.05`, so staying at 25.05 preserves `/var/lib/jellyseerr`).
+5. **Also bump Plex** as part of any general upgrade — it's pinned by hand and
+   won't move with nixpkgs. See "Hand-pinned versions" below. Do it in the same
+   pass so Plex doesn't silently stay behind.
 
 ### Things that commonly break on a channel jump
 
@@ -133,7 +136,21 @@ A big jump won't be a clean one-shot. Expected failure classes, all seen on the
 
 ### Hand-pinned versions (upgrade separately from nixpkgs)
 
-- **Plex** — overlay in `flake.nix`: bump `version` + `sha256`.
+- **Plex** — overlay in `flake.nix`. Upgrade it alongside every general nixpkgs
+  upgrade (step 5 above). Procedure:
+  1. Get the latest version string from the Plex downloads API:
+     `curl -s https://plex.tv/api/downloads/5.json | jq -r '.computer.Linux.version'`
+     (e.g. `1.43.3.10828-00f62d37d`).
+  2. Get the SRI hash of the **amd64** `.deb` (prod is x86_64) by prefetching on
+     the server:
+     ```bash
+     VER=<version>
+     ssh -i ~/.ssh/spudbox luds@192.168.1.42 \
+       "nix store prefetch-file --json 'https://downloads.plex.tv/plex-media-server-new/${VER}/debian/plexmediaserver_${VER}_amd64.deb'" | jq -r .hash
+     ```
+  3. Update `version` + `sha256` in the overlay, then `./deploy.sh all`.
+  Note: the pinned `sha256` is amd64-only, so a dev (aarch64) build would need
+  the arm64 `.deb` hash instead. Deploys only target prod, so this is fine.
 - **autorestic** — `services/backup.nix`: bump `version` + `sha256` (from the
   `mluds/autorestic` fork).
 - **Caddy cloudflare-dns plugin** — `services/caddy.nix`: plugin ref + `hash`.
