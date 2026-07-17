@@ -150,7 +150,7 @@ let
     configure_pushover
 
     echo "Restarting Jellyseerr..."
-    systemctl restart jellyseerr
+    systemctl restart seerr
 
     echo "Jellyseerr setup complete."
   '';
@@ -165,12 +165,12 @@ in
     useDefaultShell = false;
   };
 
-  services.jellyseerr = {
+  services.seerr = {
     enable = true;
     openFirewall = false;
   };
 
-  systemd.services.jellyseerr = {
+  systemd.services.seerr = {
     serviceConfig = {
       DynamicUser = lib.mkForce false;
       User = "jellyseerr";
@@ -181,8 +181,8 @@ in
 
   systemd.services.jellyseerr-config = {
     description = "Configure Jellyseerr";
-    after = [ "jellyseerr.service" "plex-config.service" "radarr-config.service" "sonarr-config.service" ];
-    wants = [ "jellyseerr.service" ];
+    after = [ "seerr.service" "plex-config.service" "radarr-config.service" "sonarr-config.service" ];
+    wants = [ "seerr.service" ];
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {

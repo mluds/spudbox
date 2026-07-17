@@ -134,7 +134,7 @@ test_services() {
   check_service "prowlarr.service"
   check_service "sabnzbd.service"
   check_service "transmission.service"
-  check_service "jellyseerr.service"
+  check_service "seerr.service"
   check_service "audiobookshelf.service"
   check_service "homepage-dashboard.service"
   check_service "ttyd.service"

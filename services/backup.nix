@@ -46,7 +46,7 @@ in
             - systemctl stop radarr
             - systemctl stop bazarr
             - systemctl stop prowlarr
-            - systemctl stop jellyseerr
+            - systemctl stop seerr
             - systemctl stop plex
             - systemctl stop transmission
             - systemctl stop sabnzbd
@@ -60,7 +60,7 @@ in
             - systemctl start radarr
             - systemctl start bazarr
             - systemctl start prowlarr
-            - systemctl start jellyseerr
+            - systemctl start seerr
             - systemctl start plex
             - systemctl start transmission
             - systemctl start sabnzbd
