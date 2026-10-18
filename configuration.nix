@@ -97,7 +97,7 @@ in
     ed
     sqlite
     python314
-    openssl_3
+    openssl
     jq
     curl
     hdparm
