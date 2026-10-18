@@ -88,6 +88,7 @@ in
     ./services/drive-check.nix
     ./services/docker.nix
     ./services/homebridge.nix
+    ./services/claude-code.nix
   ];
 
   environment.systemPackages = with pkgs; [
@@ -104,6 +105,8 @@ in
     statix
     deadnix
     nixfmt-rfc-style
+    git
+    tmux
   ];
 
   nix.settings.experimental-features = [

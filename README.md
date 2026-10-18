@@ -114,6 +114,21 @@ Use this command to generate the QR code for client setup:
 qrencode -t ansiutf8 < /etc/wireguard/clients/mikes-iphone/client.conf
 ```
 
+#### Claude Code
+
+Lets you drive Claude Code on the server from the Claude mobile app (Code tab)
+or claude.ai/code. Requires a Pro/Max claude.ai subscription. Over SSH as `luds`:
+
+```
+curl -fsSL https://claude.ai/install.sh | bash   # native install to ~/.local/bin, self-updating
+claude auth login                                # pick the claude.ai option; open the URL on any device
+cd ~/workspace && claude remote-control          # answer y to trust + enable prompts, then Ctrl+C
+sudo systemctl start claude-remote-control
+```
+
+The `spudbox` session then appears in the app's session list. The service skips
+startup until `~/.claude/.credentials.json` exists.
+
 ### Deploy Updates
 ```bash
 ./deploy.sh          # sync, rebuild, and test
