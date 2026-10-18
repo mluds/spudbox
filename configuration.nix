@@ -106,6 +106,7 @@ in
     deadnix
     nixfmt-rfc-style
     git
+    gh
     tmux
   ];
 
