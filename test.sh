@@ -417,13 +417,6 @@ test_integrations() {
     fail "sonarr quality profiles"
   fi
 
-  # Radarr import lists
-  if http_get "http://localhost:7878/api/v3/importlist" -H "X-Api-Key: $RADARR_KEY" | jq -e '.[].name' | grep -qi "letterboxd"; then
-    pass "radarr letterboxd import list"
-  else
-    fail "radarr letterboxd import list"
-  fi
-
   # Plex libraries
   local PLEX_TOKEN
   PLEX_TOKEN=$(read_secret "plex/token")

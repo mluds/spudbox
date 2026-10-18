@@ -165,29 +165,6 @@ let
     done
     rm -f /tmp/quality_settings_radarr.json
 
-    echo "Adding Letterboxd Top 500 import list..."
-    curl -X POST "http://localhost:${toString radarrPort}/api/v3/importlist" \
-      -H "X-Api-Key: $RADARR_API_KEY" \
-      -H "Content-Type: application/json" \
-      -d '{
-        "name": "Letterboxd Top 500",
-        "enabled": true,
-        "enableAuto": true,
-        "monitor": "movieOnly",
-        "rootFolderPath": "${storageDir}/data/media/movies",
-        "qualityProfileId": 1,
-        "searchOnAdd": true,
-        "minimumAvailability": "released",
-        "listType": "advanced",
-        "implementation": "RadarrListImport",
-        "configContract": "RadarrListSettings",
-        "fields": [
-          {"name": "url", "value": "https://letterboxd-list-radarr.onrender.com/official/list/letterboxds-top-500-films/"}
-        ],
-        "tags": []
-      }' \
-      --fail --silent --show-error || echo "Import list may already exist"
-
     echo "Importing existing movies from disk..."
     UNMAPPED=$(curl -sS "http://localhost:${toString radarrPort}/api/v3/rootfolder" \
       -H "X-Api-Key: $RADARR_API_KEY" \
