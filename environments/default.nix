@@ -24,7 +24,6 @@ in
     transmissionPort = 9091;
     prowlarrPort = 9696;
     audiobookshelfPort = 8000;
-    ttydPort = 7681;
     homebridgePort = 8581;
 
     usenetServerHosts = [

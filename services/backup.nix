@@ -53,7 +53,6 @@ in
             - systemctl stop caddy
             - systemctl stop tautulli
             - systemctl stop audiobookshelf
-            - systemctl stop ttyd
           after:
             - systemctl start homepage-dashboard
             - systemctl start sonarr
@@ -67,7 +66,6 @@ in
             - systemctl start caddy
             - systemctl start tautulli
             - systemctl start audiobookshelf
-            - systemctl start ttyd
 
     backends:
       local-backup:

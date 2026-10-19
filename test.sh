@@ -137,7 +137,6 @@ test_services() {
   check_service "seerr.service"
   check_service "audiobookshelf.service"
   check_service "homepage-dashboard.service"
-  check_service "ttyd.service"
   check_service "caddy.service"
   check_service "homebridge.service"
   check_service "wg-quick-wg0.service"
@@ -178,7 +177,6 @@ test_ports() {
   check_port 5055 t "jellyseerr"
   check_port 8000 t "audiobookshelf"
   check_port 3000 t "homepage"
-  check_port 7681 t "ttyd"
   check_port 8581 t "homebridge"
   check_port 80 t "caddy-http"
   check_port 443 t "caddy-https"
@@ -200,7 +198,6 @@ test_http() {
   check_http "http://localhost:5055/api/v1/settings/public" "200" "jellyseerr"
   check_http "http://localhost:8000/healthcheck" "200" "audiobookshelf"
   check_http "http://localhost:3000" "200" "homepage"
-  check_http "http://localhost:7681" "200" "ttyd"
   check_http "http://localhost:8581/api/auth/settings" "200" "homebridge"
   check_http "http://localhost:2019/config/" "200" "caddy-admin"
 }
@@ -699,7 +696,7 @@ test_downloads() {
 test_caddy() {
   section "Caddy Routes"
 
-  local services="sonarr radarr bazarr prowlarr transmission sabnzbd plex tautulli jellyseerr homepage homebridge audiobookshelf ttyd"
+  local services="sonarr radarr bazarr prowlarr transmission sabnzbd plex tautulli jellyseerr homepage homebridge audiobookshelf"
   for svc in $services; do
     local code
     code=$(http_code "https://${svc}.${DOMAIN}" --insecure --resolve "${svc}.${DOMAIN}:443:127.0.0.1")

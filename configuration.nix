@@ -82,7 +82,6 @@ in
     ./services/servarr/jellyseerr.nix
     ./services/servarr/prowlarr.nix
     ./services/audiobookshelf.nix
-    ./services/ttyd.nix
     ./services/backup.nix
     ./services/wireguard.nix
     ./services/drive-check.nix

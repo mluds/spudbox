@@ -94,10 +94,6 @@ let
       encode gzip zstd
       reverse_proxy localhost:${toString audiobookshelfPort}
     }
-
-    ttyd.${domain} {
-      reverse_proxy localhost:${toString ttydPort}
-    }
     CADDYEOF
 
     chown caddy:caddy ${caddyFile}

@@ -296,13 +296,6 @@ in
             };
           }
           {
-            "ttyd" = {
-              icon = "terminal";
-              href = "https://ttyd.${domain}";
-              description = "Web Terminal";
-            };
-          }
-          {
             "Tautulli" = {
               icon = "tautulli";
               href = "https://tautulli.${domain}";
