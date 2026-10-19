@@ -1,9 +1,17 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 with config.my;
 
 let
-  pythonEnv = pkgs.python3.withPackages (ps: [ ps.deepmerge ps.pyyaml ]);
+  pythonEnv = pkgs.python3.withPackages (ps: [
+    ps.deepmerge
+    ps.pyyaml
+  ]);
   configScript = pkgs.writeScript "bazarr-config.py" ''
     #!${pkgs.python3}/bin/python
     import sqlite3
@@ -70,7 +78,7 @@ let
     # Read OpenSubtitles credentials from files
     opensubtitles_username_path = '${secretsDir}/opensubtitles/username'
     opensubtitles_password_path = '${secretsDir}/opensubtitles/password'
-    
+
     wait_for_file(opensubtitles_username_path)
     wait_for_file(opensubtitles_password_path)
 
@@ -165,49 +173,55 @@ let
       f.write(api_key)
     print(f"Exported Bazarr API key to {api_key_dir}/api-key")
   '';
-  configTemplate = pkgs.writeText "bazarr-config-template.yaml" (lib.generators.toYAML {} {
-    general = {
-      enabled_providers = [ "opensubtitlescom" "assrt" ];
-      serie_default_enabled = true;
-      serie_default_profile = 1;
-      movie_default_enabled = true;
-      movie_default_profile = 1;
-      parse_embedded_audio_track = false;
-      use_embedded_subs = true;
-      chmod = "0660";
-      chmod_enabled = true;
-      use_radarr = true;
-      use_sonarr = true;
-      subzero_mods = "remove_tags,remove_HI,common";
-    };
-    subsync = {
-      use_subsync = true;
-      use_subsync_movie_threshold = false;
-      use_subsync_threshold = false;
-      force_audio = true;
-      no_fix_framerate = false;
-    };
-    auth = {
-      type = "form";
-    };
-    radarr = {
-      ip = "localhost";
-      port = radarrPort;
-    };
-    sonarr = {
-      ip = "localhost";
-      port = sonarrPort;
-    };
-    opensubtitlescom = {
-      include_ai_translated = false;
-      use_hash = false;
-    };
-    assrt = {};
-  });
+  configTemplate = pkgs.writeText "bazarr-config-template.yaml" (
+    lib.generators.toYAML { } {
+      general = {
+        enabled_providers = [
+          "opensubtitlescom"
+          "assrt"
+        ];
+        serie_default_enabled = true;
+        serie_default_profile = 1;
+        movie_default_enabled = true;
+        movie_default_profile = 1;
+        parse_embedded_audio_track = false;
+        use_embedded_subs = true;
+        chmod = "0660";
+        chmod_enabled = true;
+        use_radarr = true;
+        use_sonarr = true;
+        subzero_mods = "remove_tags,remove_HI,common";
+      };
+      subsync = {
+        use_subsync = true;
+        use_subsync_movie_threshold = false;
+        use_subsync_threshold = false;
+        force_audio = true;
+        no_fix_framerate = false;
+      };
+      auth = {
+        type = "form";
+      };
+      radarr = {
+        ip = "localhost";
+        port = radarrPort;
+      };
+      sonarr = {
+        ip = "localhost";
+        port = sonarrPort;
+      };
+      opensubtitlescom = {
+        include_ai_translated = false;
+        use_hash = false;
+      };
+      assrt = { };
+    }
+  );
 
   newConfigContent = builtins.readFile configTemplate;
-in {
-  users.groups.bazarr = {};
+in
+{
+  users.groups.bazarr = { };
 
   services.bazarr = {
     enable = true;
@@ -218,7 +232,11 @@ in {
 
   systemd.services.bazarr-config = {
     description = "Bazarr Configuration Updater";
-    after = [ "bazarr.service" "radarr-config.service" "sonarr-config.service" ];
+    after = [
+      "bazarr.service"
+      "radarr-config.service"
+      "sonarr-config.service"
+    ];
     wants = [ "bazarr.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {

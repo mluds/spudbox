@@ -202,7 +202,8 @@ let
       -d '${builtins.toJSON quality.qualityProfile}' \
       --fail --silent --show-error
   '';
-in {
+in
+{
   services.sonarr = {
     enable = true;
     user = "sonarr";
@@ -213,7 +214,12 @@ in {
   systemd.services.sonarr-config = {
     wantedBy = [ "multi-user.target" ];
     after = [ "sonarr.service" ];
-    path = with pkgs; [ curl jq xmlstarlet sqlite ];
+    path = with pkgs; [
+      curl
+      jq
+      xmlstarlet
+      sqlite
+    ];
     serviceConfig = {
       User = "root";
       Type = "oneshot";

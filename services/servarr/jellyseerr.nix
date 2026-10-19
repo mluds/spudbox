@@ -1,4 +1,9 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 with config.my;
 
@@ -156,7 +161,7 @@ let
   '';
 in
 {
-  users.groups.jellyseerr = {};
+  users.groups.jellyseerr = { };
   users.users.jellyseerr = {
     isSystemUser = true;
     group = "jellyseerr";
@@ -181,7 +186,12 @@ in
 
   systemd.services.jellyseerr-config = {
     description = "Configure Jellyseerr";
-    after = [ "seerr.service" "plex-config.service" "radarr-config.service" "sonarr-config.service" ];
+    after = [
+      "seerr.service"
+      "plex-config.service"
+      "radarr-config.service"
+      "sonarr-config.service"
+    ];
     wants = [ "seerr.service" ];
     wantedBy = [ "multi-user.target" ];
 

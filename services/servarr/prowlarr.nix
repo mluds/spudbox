@@ -29,7 +29,8 @@ let
     mkdir -p ${secretsDir}/prowlarr
     xmlstarlet sel -t -v '/Config/ApiKey' /var/lib/prowlarr/config.xml > ${secretsDir}/prowlarr/api-key
   '';
-in {
+in
+{
   services.prowlarr = {
     enable = true;
     openFirewall = false;
@@ -40,7 +41,10 @@ in {
     after = [ "prowlarr.service" ];
     wants = [ "prowlarr.service" ];
     wantedBy = [ "multi-user.target" ];
-    path = with pkgs; [ xmlstarlet sqlite ];
+    path = with pkgs; [
+      xmlstarlet
+      sqlite
+    ];
     serviceConfig = {
       User = "root";
       Type = "oneshot";

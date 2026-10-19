@@ -27,11 +27,13 @@ else
   echo "$output" | head -20
 fi
 
-# nixfmt — formatting check
-if nixfmt --check ./**/*.nix 2>/dev/null; then
-  pass "nixfmt"
+# nixfmt — formatting check (find, not ./**/*.nix: bash has globstar off, so ** only matched one level deep)
+mapfile -t nix_files < <(find . -name '*.nix' -not -path './.git/*' | sort)
+if output=$(nixfmt --check "${nix_files[@]}" 2>&1); then
+  pass "nixfmt (${#nix_files[@]} files)"
 else
-  fail "nixfmt (run 'nixfmt ./**/*.nix' to fix)"
+  fail "nixfmt (run 'nixfmt \$(find . -name \"*.nix\")' to fix)"
+  echo "$output" | head -20
 fi
 
 printf "\n\033[1m── Summary ──\033[0m\n"

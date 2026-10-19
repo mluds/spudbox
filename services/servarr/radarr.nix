@@ -236,8 +236,9 @@ let
         || echo "  Failed: $TITLE"
     done
   '';
-in {
-  users.groups.radarr = {};
+in
+{
+  users.groups.radarr = { };
   users.users.radarr = {
     isSystemUser = true;
     group = "media";
@@ -257,7 +258,12 @@ in {
       radarr-config = {
         wantedBy = [ "multi-user.target" ];
         after = [ "radarr.service" ];
-        path = with pkgs; [ curl jq xmlstarlet sqlite ];
+        path = with pkgs; [
+          curl
+          jq
+          xmlstarlet
+          sqlite
+        ];
         serviceConfig = {
           User = "root";
           Type = "oneshot";
