@@ -109,13 +109,32 @@ in
     tmux
   ];
 
-  nix.settings.experimental-features = [
-    "nix-command"
-    "flakes"
-  ];
+  nix = {
+    settings.experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
+    # Weekly: prune system generations to the newest 5 (rollback targets),
+    # then GC everything no longer reachable. Count-based rather than
+    # --delete-older-than so a quiet month can't leave only one generation.
+    gc = {
+      automatic = true;
+      dates = "weekly";
+    };
+    optimise.automatic = true;
+  };
+  systemd.services.nix-gc.preStart = ''
+    ${config.nix.package}/bin/nix-env -p /nix/var/nix/profiles/system --delete-generations +5
+  '';
 
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
+  boot.loader = {
+    systemd-boot = {
+      enable = true;
+      # Matches the 5 generations kept by nix-gc; keeps /boot (487M) from filling.
+      configurationLimit = 5;
+    };
+    efi.canTouchEfiVariables = true;
+  };
   networking.networkmanager.enable = true;
   programs.nix-ld.enable = true;
   services.openssh = {
