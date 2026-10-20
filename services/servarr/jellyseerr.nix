@@ -183,6 +183,8 @@ in
       User = "jellyseerr";
       Group = "jellyseerr";
       StateDirectory = "jellyseerr";
+      # settings.json holds the Gmail app password and Plex token
+      StateDirectoryMode = "0700";
     };
   };
 

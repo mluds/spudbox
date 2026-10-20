@@ -429,7 +429,11 @@ in
   systemd = {
     services = {
       sabnzbd = {
-        serviceConfig.UMask = "0002";
+        serviceConfig = {
+          UMask = "0002";
+          # Private state (ini, queue, logs); downloads live under cacheDir
+          StateDirectoryMode = "0700";
+        };
         # Restart on config changes so a switch re-runs sabnzbd-config (pulled
         # in via wantedBy before sabnzbd starts); otherwise changes wait for a reboot.
         restartTriggers = [ configScript ];

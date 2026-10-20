@@ -43,22 +43,28 @@ in
     };
   };
 
-  systemd.services.transmission.serviceConfig.ExecStartPre = lib.mkBefore (
-    let
-      script = pkgs.writeShellScript "transmission-credentials" ''
-        mkdir -p ${credentialsDir}
-        ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
-        ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
-        ${pkgs.jq}/bin/jq -n \
-          --arg user "$ADMIN_USERNAME" \
-          --arg pass "$ADMIN_PASSWORD" \
-          '{"rpc-username": $user, "rpc-password": $pass}' \
-          > ${credentialsPath}
-        chmod 600 ${credentialsPath}
-      '';
-    in
-    [
-      "+${script}"
-    ]
-  );
+  systemd.services.transmission.serviceConfig = {
+    # settings.json holds the RPC password hash; downloads live under
+    # storageDir/cacheDir, so the media group doesn't need this dir (module: 0750)
+    StateDirectoryMode = lib.mkForce "0700";
+
+    ExecStartPre = lib.mkBefore (
+      let
+        script = pkgs.writeShellScript "transmission-credentials" ''
+          mkdir -p ${credentialsDir}
+          ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
+          ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
+          ${pkgs.jq}/bin/jq -n \
+            --arg user "$ADMIN_USERNAME" \
+            --arg pass "$ADMIN_PASSWORD" \
+            '{"rpc-username": $user, "rpc-password": $pass}' \
+            > ${credentialsPath}
+          chmod 600 ${credentialsPath}
+        '';
+      in
+      [
+        "+${script}"
+      ]
+    );
+  };
 }

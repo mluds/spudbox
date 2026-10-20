@@ -124,6 +124,8 @@ in
   };
 
   systemd.tmpfiles.rules = [
+    # Plex state (databases, Preferences.xml with its token) is private
+    "d ${config.services.plex.dataDir} 0700 plex media -"
     "d ${secretsDir} 0700 root root -"
     "d ${secretsDir}/plex 0700 root root -"
     "f ${secretsDir}/plex/token 0600 root root -"

@@ -4,7 +4,8 @@ with config.my;
 
 let
   configScript = pkgs.writeText "tautulli-config.py" ''
-    from os import getenv, path, urandom, makedirs
+    from os import getenv, path, urandom, makedirs, walk, lstat, chmod
+    from stat import S_IMODE, S_ISLNK
     import configparser
     from base64 import b64encode
     from hashlib import pbkdf2_hmac
@@ -33,11 +34,26 @@ let
       print("Updating configuration...")
       update_config(plex_token, plex_identity)
 
+      print("Locking down data dir contents...")
+      lock_down_data_dir()
+
       print("Starting Tautulli service...")
       subprocess.run(["systemctl", "start", "tautulli"], check=True)
 
       print("Exporting API key...")
       export_api_key()
+
+    def lock_down_data_dir():
+      # The module's tmpfiles rule resets the dir itself to 0755, so make
+      # everything inside it owner-only instead (config.ini has the Plex token).
+      # New files are covered by UMask=0077 on tautulli.service.
+      data_dir = path.dirname(getenv('TAUTULLI_CONFIG'))
+      for root, dirs, files in walk(data_dir):
+        for name in dirs + files:
+          p = path.join(root, name)
+          st = lstat(p)
+          if not S_ISLNK(st.st_mode) and S_IMODE(st.st_mode) & 0o077:
+            chmod(p, S_IMODE(st.st_mode) & ~0o077)
 
     SALT_LENGTH = 16
     KEY_LENGTH = 24
@@ -126,6 +142,9 @@ in
   services.tautulli = {
     enable = true;
   };
+
+  # New files owner-only; see lock_down_data_dir above
+  systemd.services.tautulli.serviceConfig.UMask = "0077";
 
   systemd.services.tautulli-config = {
     description = "Update Tautulli configuration";

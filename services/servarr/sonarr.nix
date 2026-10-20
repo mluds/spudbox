@@ -213,6 +213,8 @@ in
     settings.server.bindaddress = "127.0.0.1";
   };
 
+  systemd.services.sonarr.serviceConfig.StateDirectoryMode = "0700";
+
   systemd.services.sonarr-config = {
     wantedBy = [ "multi-user.target" ];
     after = [ "sonarr.service" ];

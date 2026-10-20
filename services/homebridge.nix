@@ -88,8 +88,9 @@ in
 {
   systemd = {
     tmpfiles.rules = [
-      "d /var/lib/homebridge 0755 root root -"
-      "d /var/lib/homebridge/volumes 0755 root root -"
+      # Private: volumes/ holds auth.json and config.json (container runs as root)
+      "d /var/lib/homebridge 0700 root root -"
+      "d /var/lib/homebridge/volumes 0700 root root -"
     ];
 
     services.homebridge = {

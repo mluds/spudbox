@@ -742,6 +742,22 @@ test_security() {
     fail "$plaintext plaintext login password files on server"
   fi
 
+  # Service state is private: a media-group daemon can't read files in other
+  # services' state dirs (their configs hold tokens and passwords)
+  local state_dirs="/var/lib/plex /var/lib/plexpy /var/lib/homebridge /var/lib/audiobookshelf /var/lib/jellyseerr /var/lib/transmission /var/lib/sabnzbd /var/lib/sonarr /var/lib/radarr /var/lib/bazarr"
+  local u d readable
+  for u in sabnzbd plex; do
+    readable=$(for d in $state_dirs; do
+      # find exits non-zero on "permission denied", which is the point
+      [ "$d" = "/var/lib/$u" ] || sudo -u "$u" find "$d" -type f -readable 2>/dev/null || true
+    done | wc -l)
+    if [ "$readable" -eq 0 ]; then
+      pass "$u can't read other services' state"
+    else
+      fail "$u can read $readable files in other services' state"
+    fi
+  done
+
   # Homepage gets its keys via LoadCredential, not group access to secrets
   local hp_groups
   hp_groups=$(systemctl show -p Group -p SupplementaryGroups --value homepage-dashboard | tr '\n' ' ')
@@ -839,7 +855,7 @@ test_security() {
 
   # SABnzbd ini ownership
   local sab_owner
-  sab_owner=$(stat -c "%U:%G" /var/lib/sabnzbd/sabnzbd.ini 2>/dev/null)
+  sab_owner=$(sudo stat -c "%U:%G" /var/lib/sabnzbd/sabnzbd.ini 2>/dev/null)
   if [ "$sab_owner" = "sabnzbd:sabnzbd" ]; then
     pass "sabnzbd.ini owned by sabnzbd:sabnzbd"
   else

@@ -189,6 +189,9 @@ in
     group = "media";
   };
 
+  # The DB holds user password hashes and the root API token
+  systemd.services.audiobookshelf.serviceConfig.StateDirectoryMode = "0700";
+
   systemd.services.audiobookshelf-config = {
     description = "Configure Audiobookshelf";
     serviceConfig = {
