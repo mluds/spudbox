@@ -407,8 +407,10 @@ let
 
     chown sabnzbd:sabnzbd /var/lib/sabnzbd/sabnzbd.ini
     chmod 660 /var/lib/sabnzbd/sabnzbd.ini
+    # --no-block: this unit is ordered before sabnzbd, so a blocking restart
+    # would wait on this script to exit and deadlock.
     if systemctl -q is-active sabnzbd.service; then
-      systemctl restart sabnzbd.service
+      systemctl restart --no-block sabnzbd.service
     fi
   '';
 in
@@ -426,7 +428,12 @@ in
 
   systemd = {
     services = {
-      sabnzbd.serviceConfig.UMask = "0002";
+      sabnzbd = {
+        serviceConfig.UMask = "0002";
+        # Restart on config changes so a switch re-runs sabnzbd-config (pulled
+        # in via wantedBy before sabnzbd starts); otherwise changes wait for a reboot.
+        restartTriggers = [ configScript ];
+      };
 
       sabnzbd-config = {
         description = "Initialize SABnzbd configuration";
