@@ -176,6 +176,7 @@ let
   configTemplate = pkgs.writeText "bazarr-config-template.yaml" (
     lib.generators.toYAML { } {
       general = {
+        ip = "127.0.0.1"; # loopback only; reached through Caddy
         enabled_providers = [
           "opensubtitlescom"
           "assrt"

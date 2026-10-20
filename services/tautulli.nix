@@ -86,6 +86,7 @@ let
         parser['General']['http_username'] = f.read().strip()
       with open(getenv('TAUTULLI_ADMIN_PASSWORD_FILE'), 'r') as f:
         parser['General']['http_password'] = make_hash(f.read().strip())
+      parser['General']['http_host'] = '127.0.0.1'  # loopback only; reached through Caddy
       parser['General']['http_port'] = getenv('TAUTULLI_PORT')
       parser['General']['first_run_complete'] = '1'
       parser['General']['system_analytics'] = '0'

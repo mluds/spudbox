@@ -794,6 +794,18 @@ test_security() {
     fail "could not read nixos-fw firewall rules"
   fi
 
+  # Web UIs behind Caddy listen on loopback only (homepage, seerr, bazarr,
+  # radarr, sabnzbd, tautulli, sonarr, prowlarr)
+  local port exposed
+  for port in 3000 5055 6767 7878 8081 8181 8989 9696; do
+    exposed=$(ss -tlnH "sport = :$port" | awk '{print $4}' | grep -vE '^(127\.0\.0\.1|\[::1\]):' || true)
+    if [ -z "$exposed" ]; then
+      pass "port $port loopback-only"
+    else
+      fail "port $port listening on $(echo "$exposed" | tr '\n' ' ')"
+    fi
+  done
+
   # SABnzbd ini ownership
   local sab_owner
   sab_owner=$(stat -c "%U:%G" /var/lib/sabnzbd/sabnzbd.ini 2>/dev/null)

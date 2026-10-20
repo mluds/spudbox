@@ -37,10 +37,11 @@ There is no dev deploy path — changes land directly on prod.
 ssh -i ~/.ssh/spudbox luds@192.168.1.42
 ```
 
-`luds` is a passwordless-sudo wheel user. Services listen on localhost and are
-reverse-proxied by Caddy at `https://<service>.spudbox.online`; from a laptop on
-the LAN you can also curl them directly by port (see `environments/default.nix`,
-e.g. plex 32400, sabnzbd 8081, seerr 5055).
+`luds` is a passwordless-sudo wheel user. Web UIs listen on loopback only and
+are reverse-proxied by Caddy at `https://<service>.spudbox.online`; that's the
+only way in from the LAN. Plex (32400) is the exception and is reachable
+directly. On the server itself you can curl services by port (see
+`environments/default.nix`, e.g. sabnzbd 8081, seerr 5055).
 
 ## Deploying
 

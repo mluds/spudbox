@@ -52,6 +52,8 @@ in
       Group = "media";
       SupplementaryGroups = "radarr";
       Environment = [
+        # Loopback only; reached through Caddy.
+        "HOSTNAME=127.0.0.1"
         "HOMEPAGE_ALLOWED_HOSTS=homepage.${domain}"
         "HOMEPAGE_FILE_PLEX_TOKEN=${secretsDir}/plex/token"
         "HOMEPAGE_FILE_ABS_API_KEY=${secretsDir}/audiobookshelf/apikey"

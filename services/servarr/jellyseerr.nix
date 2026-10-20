@@ -176,6 +176,8 @@ in
   };
 
   systemd.services.seerr = {
+    # Loopback only; reached through Caddy.
+    environment.HOST = "127.0.0.1";
     serviceConfig = {
       DynamicUser = lib.mkForce false;
       User = "jellyseerr";

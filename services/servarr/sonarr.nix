@@ -209,6 +209,8 @@ in
     user = "sonarr";
     group = "media";
     openFirewall = false;
+    # Loopback only; reached through Caddy (env var overrides config.xml).
+    settings.server.bindaddress = "127.0.0.1";
   };
 
   systemd.services.sonarr-config = {

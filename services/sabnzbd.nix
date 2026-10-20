@@ -44,7 +44,7 @@ let
     auto_browser = 1
     language = en
     enable_https_verification = 1
-    host = 0.0.0.0
+    host = 127.0.0.1
     port = ${toString sabnzbdPort}
     https_port = 8090
     username = $ADMIN_USERNAME
