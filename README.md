@@ -107,13 +107,6 @@ Open Radarr. Go to Library Import, click the path, then click Import.
 
 Open Jellyseerr. Follow the setup steps. Plex, Sonarr, and Radarr settings should be pre-filled.
 
-#### Wireguard
-
-Use this command to generate the QR code for client setup:
-```
-qrencode -t ansiutf8 < /etc/wireguard/clients/mikes-iphone/client.conf
-```
-
 #### Claude Code
 
 Lets you drive Claude Code on the server from the Claude mobile app (Code tab)

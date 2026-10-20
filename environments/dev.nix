@@ -15,6 +15,5 @@
         mount = "/mnt/storage1";
       }
     ];
-    external_interface = "eth0";
   };
 }

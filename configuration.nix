@@ -83,7 +83,6 @@ in
     ./services/servarr/prowlarr.nix
     ./services/audiobookshelf.nix
     ./services/backup.nix
-    ./services/wireguard.nix
     ./services/drive-check.nix
     ./services/docker.nix
     ./services/homebridge.nix

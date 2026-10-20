@@ -100,12 +100,6 @@ test_secrets() {
   check_secret "gmail/app-password" "gmail/app-password"
   check_secret "pushover/app-token" "pushover/app-token"
   check_secret "pushover/user-key" "pushover/user-key"
-  check_secret "wireguard/server/private-key" "wireguard/server/private-key"
-  check_secret "wireguard/server/public-key" "wireguard/server/public-key"
-  check_secret "wireguard/clients/mikes-iphone/private-key" "wireguard/clients/mikes-iphone/private-key"
-  check_secret "wireguard/clients/mikes-iphone/public-key" "wireguard/clients/mikes-iphone/public-key"
-  check_secret "wireguard/clients/mikes-pc/private-key" "wireguard/clients/mikes-pc/private-key"
-  check_secret "wireguard/clients/mikes-pc/public-key" "wireguard/clients/mikes-pc/public-key"
   check_secret "users/luds/hashed" "users/luds/hashed"
   check_secret "users/root/hashed" "users/root/hashed"
 
@@ -139,7 +133,6 @@ test_services() {
   check_service "homepage-dashboard.service"
   check_service "caddy.service"
   check_service "homebridge.service"
-  check_service "wg-quick-wg0.service"
 
   # Oneshot config services
   check_oneshot "plex-config.service"
@@ -181,7 +174,6 @@ test_ports() {
   check_port 80 t "caddy-http"
   check_port 443 t "caddy-https"
   check_port 2019 t "caddy-admin"
-  check_port 51820 u "wireguard"
 }
 
 test_http() {
@@ -478,6 +470,13 @@ test_integrations() {
     fail "jellyseerr periodic plex scan"
   fi
 
+  # Plex remote access (reachability also needs the router's TCP 32400 forward)
+  if http_get "http://localhost:32400/:/prefs?X-Plex-Token=$PLEX_TOKEN" | grep -q 'id="PublishServerOnPlexOnlineKey"[^>]*value="1"'; then
+    pass "plex remote access enabled"
+  else
+    fail "plex remote access not enabled"
+  fi
+
   # Plex custom connections URL
   if http_get "http://localhost:32400/:/prefs?X-Plex-Token=$PLEX_TOKEN" | grep -q 'customConnections.*plex\.'$DOMAIN; then
     pass "plex custom connections url"
@@ -569,57 +568,6 @@ test_storage() {
     pass "media dirs owned by media:media"
   else
     fail "media dirs owned by $owner (expected media:media)"
-  fi
-}
-
-test_wireguard() {
-  section "WireGuard"
-
-  # Interface up
-  if ip link show wg0 &>/dev/null; then
-    pass "wg0 interface exists"
-  else
-    fail "wg0 interface exists"
-  fi
-
-  # Peers configured
-  local peer_count
-  peer_count=$(sudo wg show wg0 2>/dev/null | grep -c "^peer:" || echo "0")
-  if [ "$peer_count" -eq 2 ]; then
-    pass "2 peers configured"
-  else
-    fail "$peer_count peers configured (expected 2)"
-  fi
-
-  # Config files
-  if sudo test -f /etc/wireguard/wg0.conf; then
-    pass "wg0.conf exists"
-  else
-    fail "wg0.conf exists"
-  fi
-
-  if sudo test -f /etc/wireguard/clients/mikes-iphone/client.conf && sudo test -f /etc/wireguard/clients/mikes-pc/client.conf; then
-    pass "client configs exist"
-  else
-    fail "client configs exist"
-  fi
-
-  # WireGuard server IP
-  local wg_ip
-  wg_ip=$(ip -4 addr show wg0 2>/dev/null | grep -oP 'inet \K[0-9.]+')
-  if [ "$wg_ip" = "10.42.0.1" ]; then
-    pass "wg0 server IP 10.42.0.1"
-  else
-    fail "wg0 server IP is $wg_ip (expected 10.42.0.1)"
-  fi
-
-  # IP forwarding
-  local fwd
-  fwd=$(sysctl -n net.ipv4.ip_forward 2>/dev/null || echo "0")
-  if [ "$fwd" = "1" ]; then
-    pass "IP forwarding enabled"
-  else
-    fail "IP forwarding disabled"
   fi
 }
 
@@ -808,24 +756,6 @@ test_security() {
     fail "caddyfile permissions $caddy_perms $caddy_owner (expected 640 caddy:caddy)"
   fi
 
-  # WireGuard config file permissions
-  local wg_perms
-  wg_perms=$(sudo stat -c "%a" /etc/wireguard/wg0.conf 2>/dev/null)
-  if [ "$wg_perms" = "600" ]; then
-    pass "wg0.conf permissions 600"
-  else
-    fail "wg0.conf permissions $wg_perms (expected 600)"
-  fi
-
-  # WireGuard client config permissions
-  local wg_bad_clients
-  wg_bad_clients=$(sudo find /etc/wireguard/clients -name "client.conf" ! -perm 600 2>/dev/null | wc -l)
-  if [ "$wg_bad_clients" -eq 0 ]; then
-    pass "wireguard client configs 600"
-  else
-    fail "wireguard client configs not 600 ($wg_bad_clients bad)"
-  fi
-
   # SABnzbd ini ownership
   local sab_owner
   sab_owner=$(stat -c "%U:%G" /var/lib/sabnzbd/sabnzbd.ini 2>/dev/null)
@@ -854,7 +784,7 @@ test_security() {
 
 # ─── Runner ────────────────────────────────────────────────────
 
-CATEGORIES="secrets services ports http api_auth integrations downloads caddy docker storage wireguard security"
+CATEGORIES="secrets services ports http api_auth integrations downloads caddy docker storage security"
 
 if [ $# -gt 0 ]; then
   CATEGORIES="$*"

@@ -102,6 +102,11 @@ let
       plex.settings.fSEventLibraryUpdatesEnabled = True
       plex.settings.fSEventLibraryPartialScanEnabled = True
       plex.settings.customConnections = access_url
+      # Remote access through a router port forward of TCP 32400 -> this host.
+      # Plex Pass covers remote streaming; Plex tracks the public IP itself.
+      plex.settings.publishServerOnPlexOnlineKey = True
+      plex.settings.manualPortMappingMode = True
+      plex.settings.manualPortMappingPort = 32400
       plex.settings.save()
 
     if __name__ == '__main__':

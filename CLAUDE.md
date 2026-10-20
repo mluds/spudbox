@@ -7,7 +7,7 @@ install and per-app manual setup steps, see `README.md`.
 
 A NixOS flake config for a self-hosted media stack (Plex, the *arr apps,
 Jellyseerr/seerr, sabnzbd, transmission, audiobookshelf, Caddy, homepage,
-homebridge, WireGuard). Almost every package version flows from a single
+homebridge). Almost every package version flows from a single
 `nixpkgs` flake input; a few things are pinned by hand (see Upgrades).
 
 - `flake.nix` — inputs + `nixosConfigurations.spudbox-{dev,prod}`; also the Plex
@@ -15,7 +15,7 @@ homebridge, WireGuard). Almost every package version flows from a single
 - `configuration.nix` — shared config, `environment.systemPackages`, imports of
   every `services/*.nix`.
 - `environments/default.nix` — all ports, dirs, and the `my.*` option values.
-  `environments/{prod,dev}.nix` — per-host domain, drives, interface.
+  `environments/{prod,dev}.nix` — per-host domain and drives.
 - `services/**` — one file per service, each typically defining the NixOS
   service plus a `*-config` oneshot that configures it via its HTTP API on boot.
 - `secrets/` — git-crypt encrypted (see README "Secrets").
@@ -158,6 +158,6 @@ A big jump won't be a clean one-shot. Expected failure classes, all seen on the
 ## Verifying
 
 `./deploy.sh test` runs `test.sh` on the server — ~190 checks across services,
-ports, HTTP health, config integration, storage, WireGuard, and security. A
+ports, HTTP health, config integration, storage, and security. A
 green run (`N passed, 0 failed`) is the bar for a good deploy. The deploy's
 built-in wait loop polls the main service ports before tests run.
