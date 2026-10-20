@@ -146,6 +146,7 @@ in
   programs.nix-ld.enable = true;
   services.openssh = {
     enable = true;
+    openFirewall = false; # opened in networking.firewall.extraCommands
     settings = {
       PasswordAuthentication = false;
       PermitRootLogin = "no";
@@ -161,12 +162,16 @@ in
   system.stateVersion = "25.05";
   nixpkgs.config.allowUnfree = true;
 
+  # SSH and Caddy: any IPv4 source (LAN; the router only forwards Plex), but on
+  # IPv6 only link-local/ULA sources. The host has a global IPv6 address, so
+  # this keeps it from depending on the router blocking inbound IPv6.
   networking.firewall = {
     enable = true;
-    allowedTCPPorts = [
-      80
-      443
-    ];
+    extraCommands = ''
+      iptables -A nixos-fw -p tcp -m multiport --dports 22,80,443 -j nixos-fw-accept
+      ip6tables -A nixos-fw -p tcp -m multiport --dports 22,80,443 -s fe80::/10 -j nixos-fw-accept
+      ip6tables -A nixos-fw -p tcp -m multiport --dports 22,80,443 -s fc00::/7 -j nixos-fw-accept
+    '';
   };
 
   users = {

@@ -806,6 +806,22 @@ test_security() {
     fi
   done
 
+  # SSH/Caddy (22/80/443): open on IPv4, but IPv6 only from link-local/ULA
+  local fw4 fw6 open6
+  fw4=$(sudo iptables -S nixos-fw 2>/dev/null || true)
+  fw6=$(sudo ip6tables -S nixos-fw 2>/dev/null || true)
+  open6=$(grep -E -- '--dports? ([0-9,]+,)?(22|80|443)(,| )' <<< "$fw6" | grep -vE -- '-s (fe80::/10|fc00::/7) ' || true)
+  if grep -q -- '--dports 22,80,443 -j nixos-fw-accept' <<< "$fw4"; then
+    pass "ipv4 firewall allows 22/80/443"
+  else
+    fail "ipv4 firewall does not allow 22/80/443"
+  fi
+  if [ -n "$fw6" ] && [ -z "$open6" ]; then
+    pass "ipv6 firewall limits 22/80/443 to link-local/ULA"
+  else
+    fail "ipv6 firewall opens 22/80/443 to any source: $(echo "$open6" | tr '\n' ' ')"
+  fi
+
   # SABnzbd ini ownership
   local sab_owner
   sab_owner=$(stat -c "%U:%G" /var/lib/sabnzbd/sabnzbd.ini 2>/dev/null)
