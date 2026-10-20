@@ -149,8 +149,6 @@ A big jump won't be a clean one-shot. Expected failure classes, all seen on the
   3. Update `version` + `sha256` in the overlay, then `./deploy.sh all`.
   Note: the pinned `sha256` is amd64-only, so a dev (aarch64) build would need
   the arm64 `.deb` hash instead. Deploys only target prod, so this is fine.
-- **autorestic** — `services/backup.nix`: bump `version` + `sha256` (from the
-  `mluds/autorestic` fork).
 - **Caddy cloudflare-dns plugin** — `services/caddy.nix`: plugin ref + `hash`.
 - **homebridge** — `services/homebridge.nix` pins the docker image by date tag
   + digest. Pick the newest plain `YYYY-MM-DD` tag (skip `alpha-`/`beta-`) and
@@ -161,6 +159,36 @@ A big jump won't be a clean one-shot. Expected failure classes, all seen on the
   ```
   Update the `image:` line, deploy, then `sudo systemctl restart homebridge`
   (the compose file lives in /etc, so a switch alone doesn't restart it).
+
+## Backups
+
+`services/backup.nix` — restic, nightly at 02:30, backs up `/var/lib` (app
+configs + DBs, ~5 GB; excludes Docker images and the Plex cache). Media is not
+backed up.
+
+- **local** — `/mnt/storage/backups/restic` on the HDD. Services are stopped for
+  the backup and restarted afterwards (even on failure).
+- **r2** — Cloudflare R2 bucket `spudbox-backups`, filled by `restic copy` from
+  the local repo once the local backup succeeds, then pruned and checked.
+- Retention on both: 7 daily, 4 weekly, 12 monthly.
+
+Secrets (root-only, in `/var/lib/secrets`): `restic/password` (shared by both
+repos — **without it nothing can be restored; keep it in the password
+manager**), `r2/s3-credentials.env` (R2 S3 keys), `r2/account-id`,
+`r2/api-token` (the Cloudflare token the S3 keys are derived from).
+
+Restoring — `restic-local` / `restic-r2` are wrappers with the repo and
+credentials preset:
+
+```bash
+sudo restic-local snapshots
+sudo restic-local restore latest --target /tmp/restore --include /var/lib/sonarr
+# stop the service, copy files back into /var/lib/<app>, fix ownership, start it
+```
+
+If the server is gone, restore from R2 on any machine with restic: repo
+`s3:https://8b37a4bbd0f5e7e52c56476fd07bc4f8.r2.cloudflarestorage.com/spudbox-backups`,
+the `AWS_*` values from `r2/s3-credentials.env`, and the restic password.
 
 ## Verifying
 

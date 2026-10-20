@@ -63,6 +63,14 @@ let
     chown -R radarr:radarr ${secretsDir}/radarr
     chmod 750 ${secretsDir}/radarr
     find ${secretsDir}/radarr -type f -exec chmod 640 {} \;
+
+    # Backup password and R2 credentials: root only (restic runs as root)
+    for dir in ${secretsDir}/restic ${secretsDir}/r2; do
+      [ -d "$dir" ] || continue
+      chown -R root:root "$dir"
+      chmod 700 "$dir"
+      find "$dir" -type f -exec chmod 600 {} \;
+    done
   '';
 in
 {

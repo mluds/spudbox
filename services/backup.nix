@@ -2,105 +2,96 @@
 
 with config.my;
 
+# Nightly restic backup of /var/lib (app configs + databases; media is not
+# backed up, it's re-downloadable and the *arr DBs record what we had).
+#
+#   restic-backups-local  02:30, services stopped, -> ${backupDir}/restic (HDD)
+#   restic-backups-r2     on local success, `restic copy` -> Cloudflare R2
+#
+# Both repos share secrets/restic/password — keep it in the password manager
+# too; without it the backups can't be decrypted. Restores: see CLAUDE.md.
 let
-  autoresticCustom = pkgs.stdenv.mkDerivation rec {
-    name = "autoresticCustom";
-    version = "1.8.4";
-    src = pkgs.fetchurl {
-      url = "https://github.com/mluds/autorestic/releases/download/v${version}/autorestic_${version}_linux_amd64.bz2";
-      sha256 = "1m4g1y8vr8mczjfwlnxp1a8k7m8jzz58dn3a3yyv53ggj4ayfx3c";
-    };
-    nativeBuildInputs = [ pkgs.bzip2 ];
-    dontUnpack = true;
-    installPhase = ''
-      mkdir -p $out/bin
-      bzip2 -dc $src > $out/bin/autorestic
-      chmod +x $out/bin/autorestic
-    '';
-  };
+  localRepo = "${backupDir}/restic";
+  passwordFile = "${secretsDir}/restic/password";
+  r2Repo = "s3:https://8b37a4bbd0f5e7e52c56476fd07bc4f8.r2.cloudflarestorage.com/spudbox-backups";
+  restic = "${pkgs.restic}/bin/restic";
+
+  # Stopped for a consistent copy of their SQLite DBs.
+  stoppedServices = [
+    "homepage-dashboard"
+    "sonarr"
+    "radarr"
+    "bazarr"
+    "prowlarr"
+    "seerr"
+    "plex"
+    "transmission"
+    "sabnzbd"
+    "tautulli"
+    "audiobookshelf"
+  ];
+
+  pruneOpts = [
+    "--keep-daily 7"
+    "--keep-weekly 4"
+    "--keep-monthly 12"
+  ];
 in
 {
-  environment.systemPackages = with pkgs; [
-    autoresticCustom
-    restic
-  ];
-  system.activationScripts.autorestic-config = ''
-    mkdir -p /var/lib/autorestic
-    cat > /var/lib/autorestic/config.yml <<'EOF'
-    version: 2
+  environment.systemPackages = [ pkgs.restic ];
 
-    locations:
-      varlib:
-        from: /var/lib
-        to: local-backup
-        forget: prune
-        options:
-          forget:
-            keep-daily: 7
-            keep-weekly: 4
-            keep-monthly: 12
-        hooks:
-          before:
-            - systemctl stop homepage-dashboard
-            - systemctl stop sonarr
-            - systemctl stop radarr
-            - systemctl stop bazarr
-            - systemctl stop prowlarr
-            - systemctl stop seerr
-            - systemctl stop plex
-            - systemctl stop transmission
-            - systemctl stop sabnzbd
-            - systemctl stop caddy
-            - systemctl stop tautulli
-            - systemctl stop audiobookshelf
-          after:
-            - systemctl start homepage-dashboard
-            - systemctl start sonarr
-            - systemctl start radarr
-            - systemctl start bazarr
-            - systemctl start prowlarr
-            - systemctl start seerr
-            - systemctl start plex
-            - systemctl start transmission
-            - systemctl start sabnzbd
-            - systemctl start caddy
-            - systemctl start tautulli
-            - systemctl start audiobookshelf
-
-    backends:
-      local-backup:
-        type: local
-        path: ${backupDir}
-    EOF
-    chmod 600 /var/lib/autorestic/config.yml
-  '';
-
-  systemd.services.autorestic-backup = {
-    description = "Autorestic backup job";
-    path = with pkgs; [
-      bash
-      restic
-    ];
-    serviceConfig = {
-      Type = "oneshot";
-      User = "root";
-      ExecStart = "${autoresticCustom}/bin/autorestic -c /var/lib/autorestic/config.yml --ci backup -a";
-      TimeoutStopSec = "infinity";
+  services.restic.backups = {
+    local = {
+      repository = localRepo;
+      inherit passwordFile pruneOpts;
+      initialize = true;
+      createWrapper = true;
+      paths = [ "/var/lib" ];
+      exclude = [
+        "/var/lib/docker"
+        "/var/lib/plex/Plex Media Server/Cache"
+        "/var/lib/systemd/coredump"
+      ];
+      backupPrepareCommand = ''
+        ${pkgs.coreutils}/bin/mkdir -p ${backupDir}
+        ${pkgs.coreutils}/bin/chmod 700 ${backupDir}
+        ${pkgs.systemd}/bin/systemctl stop ${toString stoppedServices}
+      '';
+      # Runs as ExecStopPost, so services come back even if the backup fails.
+      backupCleanupCommand = ''
+        ${pkgs.systemd}/bin/systemctl start ${toString stoppedServices}
+      '';
+      timerConfig = {
+        OnCalendar = "*-*-* 02:30:00";
+        Persistent = true;
+      };
     };
-    preStart = ''
-      mkdir -p ${backupDir}
-      chmod 700 ${backupDir}
-      ${autoresticCustom}/bin/autorestic -c /var/lib/autorestic/config.yml --ci check
-    '';
+
+    # No paths: the module's "prepare" hook copies the local snapshots up,
+    # then the unit prunes and checks the R2 repo. Services stay up.
+    r2 = {
+      repository = r2Repo;
+      inherit passwordFile pruneOpts;
+      environmentFile = "${secretsDir}/r2/s3-credentials.env";
+      createWrapper = true;
+      runCheck = true;
+      timerConfig = null;
+      backupPrepareCommand = ''
+        if ! ${restic} cat config >/dev/null 2>&1; then
+          ${restic} init --copy-chunker-params \
+            --from-repo ${localRepo} --from-password-file ${passwordFile}
+        fi
+        ${restic} copy --from-repo ${localRepo} --from-password-file ${passwordFile}
+      '';
+    };
   };
 
-  systemd.timers.autorestic-backup = {
-    description = "Timer for autorestic backups";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "*-*-* 02:30:00";
-      Persistent = true;
-      Unit = "autorestic-backup.service";
+  systemd.services = {
+    restic-backups-local = {
+      # /mnt/storage is mounted nofail; never back up onto the NVMe by accident.
+      unitConfig.RequiresMountsFor = [ backupDir ];
+      onSuccess = [ "restic-backups-r2.service" ];
     };
+    restic-backups-r2.unitConfig.RequiresMountsFor = [ backupDir ];
   };
 }

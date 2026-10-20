@@ -5,7 +5,7 @@ set -euo pipefail
 SECRETS_DIR="/var/lib/secrets"
 STORAGE_DIR="/mnt/storage"
 CACHE_DIR="/mnt/cache"
-BACKUP_DIR="/mnt/backup"
+BACKUP_DIR="/mnt/storage/backups"
 DOMAIN="spudbox.online"
 
 # ─── Counters & Helpers ────────────────────────────────────────
@@ -102,6 +102,8 @@ test_secrets() {
   check_secret "pushover/user-key" "pushover/user-key"
   check_secret "users/luds/hashed" "users/luds/hashed"
   check_secret "users/root/hashed" "users/root/hashed"
+  check_secret "restic/password" "restic/password"
+  check_secret "r2/s3-credentials.env" "r2/s3-credentials.env"
 
   # Runtime-generated secrets
   check_secret "plex/token" "plex/token"
@@ -151,7 +153,7 @@ test_services() {
   # Timers
   check_service "sabnzbd-resume.timer"
   check_service "radarr-auto-import.timer"
-  check_service "autorestic-backup.timer"
+  check_service "restic-backups-local.timer"
   check_service "check-drive-status.timer"
   check_service "drive-status-http.service"
 }
@@ -789,26 +791,42 @@ test_security() {
     fail "sabnzbd.ini owned by $sab_owner (expected sabnzbd:sabnzbd)"
   fi
 
-  # Backup config exists and is locked down
-  local backup_perms
-  backup_perms=$(sudo stat -c "%a" /var/lib/autorestic/config.yml 2>/dev/null)
-  if [ "$backup_perms" = "600" ]; then
-    pass "autorestic config 600"
+  # Backup credentials root-only
+  local bad_backup_secrets
+  bad_backup_secrets=$(sudo find /var/lib/secrets/restic /var/lib/secrets/r2 -type f \( ! -user root -o -perm /077 \) 2>/dev/null | wc -l)
+  if [ "$bad_backup_secrets" -eq 0 ]; then
+    pass "backup secrets root-only 600"
   else
-    fail "autorestic config permissions $backup_perms (expected 600)"
+    fail "$bad_backup_secrets backup secret files not root-only 600"
   fi
+}
 
-  # Restic backup repo initialized (check for repo structure)
-  if sudo test -f /mnt/backup/config && sudo test -d /mnt/backup/data; then
-    pass "restic backup repo initialized"
-  else
-    fail "restic backup repo not initialized"
-  fi
+test_backups() {
+  section "Backups"
+
+  # Latest snapshot in each repo is less than 48h old
+  local repo latest age
+  for repo in local r2; do
+    latest=$(sudo restic-$repo snapshots --latest 1 --json 2>/dev/null | jq -r '.[-1].time // empty')
+    if [ -z "$latest" ]; then
+      fail "restic $repo: no snapshots"
+      continue
+    fi
+    age=$(( ($(date +%s) - $(date -d "$latest" +%s)) / 3600 ))
+    if [ "$age" -lt 48 ]; then
+      pass "restic $repo latest snapshot ${age}h old"
+    else
+      fail "restic $repo latest snapshot ${age}h old (expected < 48h)"
+    fi
+  done
+
+  check_oneshot "restic-backups-local.service"
+  check_oneshot "restic-backups-r2.service"
 }
 
 # ─── Runner ────────────────────────────────────────────────────
 
-CATEGORIES="secrets services ports http api_auth integrations downloads caddy docker storage security"
+CATEGORIES="secrets services ports http api_auth integrations downloads caddy docker storage security backups"
 
 if [ $# -gt 0 ]; then
   CATEGORIES="$*"

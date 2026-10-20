@@ -3,12 +3,13 @@ _:
 let
   cacheDir = "/mnt/cache";
   appdataDir = "${cacheDir}/appdata";
+  storageDir = "/mnt/storage";
 in
 {
   my = {
-    inherit cacheDir appdataDir;
-    storageDir = "/mnt/storage";
-    backupDir = "/mnt/backup";
+    inherit cacheDir appdataDir storageDir;
+    # Local restic repo lives on the HDD, not the NVMe holding /var/lib.
+    backupDir = "${storageDir}/backups";
     backupDrives = [ ];
     secretsDir = "/var/lib/secrets";
 
