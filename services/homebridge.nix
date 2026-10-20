@@ -16,6 +16,20 @@ let
       sleep 2
     done
 
+    # Bind the UI to loopback; Caddy reaches it at homebridge.${domain}.
+    # The container uses host networking, so this is the host's loopback.
+    CONFIG_JSON=/var/lib/homebridge/volumes/config.json
+    if [ "$($JQ -r '.platforms[] | select(.platform == "config") | .host // ""' $CONFIG_JSON)" != "127.0.0.1" ]; then
+      echo "Binding Homebridge UI to 127.0.0.1..."
+      $JQ '(.platforms[] | select(.platform == "config")).host = "127.0.0.1"' $CONFIG_JSON > $CONFIG_JSON.tmp
+      cat $CONFIG_JSON.tmp > $CONFIG_JSON
+      rm -f $CONFIG_JSON.tmp
+      systemctl restart homebridge.service
+      until $CURL -sSf "$BASE/api/auth/settings" >/dev/null 2>&1; do
+        sleep 2
+      done
+    fi
+
     SETUP_COMPLETE=$($CURL -s "$BASE/api/auth/settings" | $JQ -r '.env.setupWizardComplete')
     if [ "$SETUP_COMPLETE" = "true" ]; then
       echo "Homebridge already set up, skipping."

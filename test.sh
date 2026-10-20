@@ -795,9 +795,9 @@ test_security() {
   fi
 
   # Web UIs behind Caddy listen on loopback only (homepage, seerr, bazarr,
-  # radarr, sabnzbd, tautulli, sonarr, prowlarr)
+  # radarr, sabnzbd, tautulli, homebridge, sonarr, prowlarr)
   local port exposed
-  for port in 3000 5055 6767 7878 8081 8181 8989 9696; do
+  for port in 3000 5055 6767 7878 8081 8181 8581 8989 9696; do
     exposed=$(ss -tlnH "sport = :$port" | awk '{print $4}' | grep -vE '^(127\.0\.0\.1|\[::1\]):' || true)
     if [ -z "$exposed" ]; then
       pass "port $port loopback-only"
