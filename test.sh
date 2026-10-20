@@ -782,6 +782,18 @@ test_security() {
     fail "homebridge image not pinned"
   fi
 
+  # Homebridge UI not opened on the LAN (only reachable through Caddy)
+  local fw_rules
+  if fw_rules=$(sudo iptables -S nixos-fw 2>/dev/null && sudo ip6tables -S nixos-fw 2>/dev/null); then
+    if grep -q -- "--dport 8581 " <<< "$fw_rules"; then
+      fail "homebridge ui port 8581 open in firewall"
+    else
+      pass "homebridge ui port 8581 closed in firewall"
+    fi
+  else
+    fail "could not read nixos-fw firewall rules"
+  fi
+
   # SABnzbd ini ownership
   local sab_owner
   sab_owner=$(stat -c "%U:%G" /var/lib/sabnzbd/sabnzbd.ini 2>/dev/null)

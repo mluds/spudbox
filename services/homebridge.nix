@@ -120,9 +120,10 @@ in
     };
   };
 
+  # The UI port (homebridgePort) stays closed: the UI is served over TLS by
+  # Caddy at https://homebridge.<domain>, which reaches it via loopback.
   networking.firewall = {
     allowedTCPPorts = [
-      homebridgePort
       51215 # homebridge HAP bridge port
     ];
     allowedUDPPorts = [
