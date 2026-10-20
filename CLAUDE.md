@@ -43,6 +43,22 @@ only way in from the LAN. Plex (32400) is the exception and is reachable
 directly. On the server itself you can curl services by port (see
 `environments/default.nix`, e.g. sabnzbd 8081, seerr 5055).
 
+### IPv6
+
+IPv6 is disabled (`networking.enableIPv6 = false`). NetworkManager turns it
+back on for any profile with `ipv6.method=auto`, and that can't be set as a
+global default, so the wired profile is set by hand. It's saved in
+`/etc/NetworkManager/system-connections/`, outside the Nix config. On a
+fresh install, run this once (it keeps the profile's UUID and DHCP lease):
+
+```bash
+sudo nmcli connection modify "Wired connection 1" ipv6.method disabled
+sudo nmcli device reapply eno1
+```
+
+`test.sh` fails if any interface has a global IPv6 address or an active
+ethernet profile still has IPv6 enabled.
+
 ## Deploying
 
 ```bash

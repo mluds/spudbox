@@ -784,7 +784,7 @@ test_security() {
 
   # Homebridge UI not opened on the LAN (only reachable through Caddy)
   local fw_rules
-  if fw_rules=$(sudo iptables -S nixos-fw 2>/dev/null && sudo ip6tables -S nixos-fw 2>/dev/null); then
+  if fw_rules=$(sudo iptables -S nixos-fw 2>/dev/null && { sudo ip6tables -S nixos-fw 2>/dev/null || true; }); then
     if grep -q -- "--dport 8581 " <<< "$fw_rules"; then
       fail "homebridge ui port 8581 open in firewall"
     else
@@ -806,20 +806,25 @@ test_security() {
     fi
   done
 
-  # SSH/Caddy (22/80/443): open on IPv4, but IPv6 only from link-local/ULA
-  local fw4 fw6 open6
-  fw4=$(sudo iptables -S nixos-fw 2>/dev/null || true)
-  fw6=$(sudo ip6tables -S nixos-fw 2>/dev/null || true)
-  open6=$(grep -E -- '--dports? ([0-9,]+,)?(22|80|443)(,| )' <<< "$fw6" | grep -vE -- '-s (fe80::/10|fc00::/7) ' || true)
-  if grep -q -- '--dports 22,80,443 -j nixos-fw-accept' <<< "$fw4"; then
-    pass "ipv4 firewall allows 22/80/443"
+  # IPv6 disabled: sysctl set and no global IPv6 address on any interface
+  local v6_off v6_global
+  v6_off=$(sysctl -n net.ipv6.conf.all.disable_ipv6 2>/dev/null || echo 0)
+  v6_global=$(ip -6 -o addr show scope global 2>/dev/null | awk '{print $2": "$4}')
+  if [ "$v6_off" = "1" ] && [ -z "$v6_global" ]; then
+    pass "ipv6 disabled"
   else
-    fail "ipv4 firewall does not allow 22/80/443"
+    fail "ipv6 not disabled (disable_ipv6=$v6_off) $(echo "$v6_global" | tr '\n' ' ')"
   fi
-  if [ -n "$fw6" ] && [ -z "$open6" ]; then
-    pass "ipv6 firewall limits 22/80/443 to link-local/ULA"
+
+  # NetworkManager won't re-enable it: every active ethernet profile has
+  # ipv6.method=disabled (set by hand, see "IPv6" in CLAUDE.md)
+  local nm_auto
+  nm_auto=$(nmcli -t -f UUID,TYPE con show --active 2>/dev/null | awk -F: '$2 == "802-3-ethernet" {print $1}' \
+    | while read -r uuid; do [ "$(nmcli -g ipv6.method con show "$uuid")" = "disabled" ] || nmcli -g connection.id con show "$uuid"; done)
+  if [ -z "$nm_auto" ]; then
+    pass "networkmanager ethernet profiles ipv6 disabled"
   else
-    fail "ipv6 firewall opens 22/80/443 to any source: $(echo "$open6" | tr '\n' ' ')"
+    fail "networkmanager profile with ipv6 enabled: $nm_auto"
   fi
 
   # SABnzbd ini ownership
