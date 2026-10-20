@@ -217,3 +217,18 @@ the `AWS_*` values from `r2/s3-credentials.env`, and the restic password.
 ports, HTTP health, config integration, storage, and security. A
 green run (`N passed, 0 failed`) is the bar for a good deploy. The deploy's
 built-in wait loop polls the main service ports before tests run.
+
+## Accepted risks
+
+Decided on purpose; don't re-raise these in reviews or audits unless the
+setup they describe changes.
+
+- **Claude Code runs on prod with root (decided 2026-10-20).** The
+  `claude-remote-control` service (`services/claude-code.nix`) runs as
+  `luds`, which has passwordless sudo, so a Claude session here can rebuild
+  and reconfigure prod without approval of each command. Anyone who controls
+  the claude.ai account, or a prompt injection reaching a session (web pages,
+  file names, downloads), effectively gets root. Accepted so Claude can
+  deploy and run `test.sh` end to end. Alternatives considered: a separate
+  non-sudo user (Claude could no longer deploy or test), a sudo password
+  (breaks `deploy.sh`), a command allowlist (`nixos-rebuild` is root anyway).

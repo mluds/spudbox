@@ -4,6 +4,9 @@ _:
 # claude.ai/code. The binary is the native install at ~/.local/bin/claude
 # (self-updating; runs via nix-ld) rather than pkgs.claude-code, which lags.
 # One-time setup is in README.md ("Claude Code").
+#
+# Runs as luds, who has passwordless sudo, so sessions have root on prod.
+# That's an accepted risk; see "Accepted risks" in CLAUDE.md before changing.
 let
   user = "luds";
   home = "/home/${user}";
