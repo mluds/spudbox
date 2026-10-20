@@ -152,8 +152,15 @@ A big jump won't be a clean one-shot. Expected failure classes, all seen on the
 - **autorestic** — `services/backup.nix`: bump `version` + `sha256` (from the
   `mluds/autorestic` fork).
 - **Caddy cloudflare-dns plugin** — `services/caddy.nix`: plugin ref + `hash`.
-- **homebridge** — `services/homebridge.nix` uses the `:latest` docker image;
-  floats on container pull, nothing to pin.
+- **homebridge** — `services/homebridge.nix` pins the docker image by date tag
+  + digest. Pick the newest plain `YYYY-MM-DD` tag (skip `alpha-`/`beta-`) and
+  its digest:
+  ```bash
+  TAG=<YYYY-MM-DD>
+  curl -s "https://hub.docker.com/v2/repositories/homebridge/homebridge/tags/$TAG" | jq -r .digest
+  ```
+  Update the `image:` line, deploy, then `sudo systemctl restart homebridge`
+  (the compose file lives in /etc, so a switch alone doesn't restart it).
 
 ## Verifying
 

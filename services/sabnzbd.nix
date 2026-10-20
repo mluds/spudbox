@@ -55,7 +55,7 @@ let
     https_cert = server.cert
     https_key = server.key
     https_chain = ""
-    enable_https = 1
+    enable_https = 0
     inet_exposure = 3
     api_key = $SABNZBD_API_KEY
     nzb_key = $SABNZBD_NZB_KEY
@@ -356,7 +356,7 @@ let
         password = $USENET_PASSWORD
         connections = 20
         ssl = 1
-        ssl_verify = 0
+        ssl_verify = 3
         ssl_ciphers = ""
         enable = 1
         required = 0

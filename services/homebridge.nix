@@ -130,12 +130,13 @@ in
     ];
   };
 
+  # Image pinned by date tag + digest so a container restart can't silently
+  # upgrade Homebridge. To bump, see "Hand-pinned versions" in CLAUDE.md.
   environment.etc."homebridge/docker-compose.yml" = {
     text = ''
-      version: '3'
       services:
         homebridge:
-          image: homebridge/homebridge:latest
+          image: homebridge/homebridge:2026-02-25@sha256:180e4ba165c4474d13d4f74e1de655bfb5afcf16a4ff3233de000bea4b8e2904
           container_name: homebridge
           restart: unless-stopped
           network_mode: host

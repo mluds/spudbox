@@ -756,6 +756,30 @@ test_security() {
     fail "caddyfile permissions $caddy_perms $caddy_owner (expected 640 caddy:caddy)"
   fi
 
+  # SABnzbd verifies usenet server certificates (3 = Strict)
+  local SABNZBD_KEY unverified
+  SABNZBD_KEY=$(read_secret "sabnzbd/api-key")
+  unverified=$(http_get "http://localhost:8081/api?mode=get_config&section=servers&apikey=$SABNZBD_KEY&output=json" | jq '[.config.servers[] | select(.ssl_verify != 3)] | length')
+  if [ "$unverified" = "0" ]; then
+    pass "sabnzbd usenet servers ssl_verify strict"
+  else
+    fail "sabnzbd usenet servers without strict ssl_verify: $unverified"
+  fi
+
+  # SABnzbd built-in HTTPS disabled (Caddy terminates TLS)
+  if ss -tln | grep -q ":8090 "; then
+    fail "sabnzbd https port 8090 listening"
+  else
+    pass "sabnzbd https port 8090 closed"
+  fi
+
+  # Homebridge image pinned (not :latest)
+  if sudo docker inspect homebridge --format '{{.Config.Image}}' 2>/dev/null | grep -q '^homebridge/homebridge:[0-9-]*@sha256:'; then
+    pass "homebridge image pinned"
+  else
+    fail "homebridge image not pinned"
+  fi
+
   # SABnzbd ini ownership
   local sab_owner
   sab_owner=$(stat -c "%U:%G" /var/lib/sabnzbd/sabnzbd.ini 2>/dev/null)
