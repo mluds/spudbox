@@ -53,24 +53,16 @@ let
       chmod -R 0775 "${dir}"
     '') usenetDirs}
 
-    # Lock down all secrets: readable by media group (services that need them)
-    chown -R root:media ${secretsDir}
-    chmod 750 ${secretsDir}
-    find ${secretsDir} -type d -exec chmod 750 {} \;
-    find ${secretsDir} -type f -exec chmod 640 {} \;
+    # Secrets are root-only. Everything that reads them runs as root (the
+    # *-config oneshots, restic, transmission's ExecStartPre); homepage gets
+    # its keys via LoadCredential.
+    chown -R root:root ${secretsDir}
+    find ${secretsDir} -type d -exec chmod 700 {} \;
+    find ${secretsDir} -type f -exec chmod 600 {} \;
 
-    # Radarr reads its own API key directly
-    chown -R radarr:radarr ${secretsDir}/radarr
-    chmod 750 ${secretsDir}/radarr
-    find ${secretsDir}/radarr -type f -exec chmod 640 {} \;
-
-    # Backup password and R2 credentials: root only (restic runs as root)
-    for dir in ${secretsDir}/restic ${secretsDir}/r2; do
-      [ -d "$dir" ] || continue
-      chown -R root:root "$dir"
-      chmod 700 "$dir"
-      find "$dir" -type f -exec chmod 600 {} \;
-    done
+    # Login passwords in plaintext are for recovery only; they stay in the
+    # repo and the password manager, never on the server (deploy.sh skips them).
+    rm -f ${secretsDir}/users/*/plaintext
   '';
 in
 {

@@ -714,31 +714,41 @@ test_docker() {
 test_security() {
   section "Security"
 
-  # No world-readable secret files
-  local world_readable
-  world_readable=$(sudo find /var/lib/secrets -type f -perm -o+r 2>/dev/null | wc -l)
-  if [ "$world_readable" -eq 0 ]; then
-    pass "no world-readable secrets"
+  # Secrets root-only: nothing under /var/lib/secrets owned by another user
+  # or accessible to group/other
+  local loose_secrets
+  loose_secrets=$(sudo find /var/lib/secrets \( ! -user root -o ! -group root -o -perm /077 \) 2>/dev/null | wc -l)
+  if [ "$loose_secrets" -eq 0 ]; then
+    pass "secrets root-only (700/600 root:root)"
   else
-    fail "$world_readable world-readable secret files"
+    fail "$loose_secrets secret paths not root-only"
   fi
 
-  # Secrets dir not world-traversable
+  # Secrets dir itself 700
   local dir_perms
-  dir_perms=$(stat -c "%a" /var/lib/secrets 2>/dev/null)
-  if [ "$dir_perms" = "750" ]; then
-    pass "secrets dir 750"
+  dir_perms=$(sudo stat -c "%a %U:%G" /var/lib/secrets 2>/dev/null)
+  if [ "$dir_perms" = "700 root:root" ]; then
+    pass "secrets dir 700 root:root"
   else
-    fail "secrets dir is $dir_perms (expected 750)"
+    fail "secrets dir is $dir_perms (expected 700 root:root)"
   fi
 
-  # Secrets owned by root:media
-  local dir_owner
-  dir_owner=$(stat -c "%U:%G" /var/lib/secrets 2>/dev/null)
-  if [ "$dir_owner" = "root:media" ]; then
-    pass "secrets dir owned by root:media"
+  # Plaintext login passwords are recovery copies, never on the server
+  local plaintext
+  plaintext=$(sudo find /var/lib/secrets/users -name plaintext 2>/dev/null | wc -l)
+  if [ "$plaintext" -eq 0 ]; then
+    pass "no plaintext login passwords on server"
   else
-    fail "secrets dir owned by $dir_owner (expected root:media)"
+    fail "$plaintext plaintext login password files on server"
+  fi
+
+  # Homepage gets its keys via LoadCredential, not group access to secrets
+  local hp_groups
+  hp_groups=$(systemctl show -p Group -p SupplementaryGroups --value homepage-dashboard | tr '\n' ' ')
+  if ! grep -qwE 'media|radarr' <<< "$hp_groups"; then
+    pass "homepage not in media/radarr groups"
+  else
+    fail "homepage groups: $hp_groups"
   fi
 
   # Caddy admin bound to localhost

@@ -158,7 +158,12 @@ let
           if username in existing_usernames:
             print(f"User {username} already exists")
             continue
+          # Plaintext login passwords aren't deployed to the server (see
+          # deploy.sh); copy one to this path by hand to create the user.
           password_file = os.path.join("${secretsDir}", "users", username, "plaintext")
+          if not os.path.exists(password_file):
+            print(f"Skipping user {username}: no {password_file}")
+            continue
           with open(password_file, 'r') as f:
             password = f.read().strip()
           new_user = {

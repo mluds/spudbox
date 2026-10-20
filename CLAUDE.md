@@ -18,7 +18,11 @@ homebridge). Almost every package version flows from a single
   `environments/{prod,dev}.nix` — per-host domain and drives.
 - `services/**` — one file per service, each typically defining the NixOS
   service plus a `*-config` oneshot that configures it via its HTTP API on boot.
-- `secrets/` — git-crypt encrypted (see README "Secrets").
+- `secrets/` — git-crypt encrypted (see README "Secrets"). Deployed to
+  `/var/lib/secrets` as root-only (700/600). Only root-run units read it; a
+  non-root service that needs a secret gets it via `LoadCredential=` (see
+  `services/homepage.nix`), never group access. `users/*/plaintext` are
+  recovery copies and are never copied to the server.
 
 ## Hosts
 

@@ -124,11 +124,11 @@ in
   };
 
   systemd.tmpfiles.rules = [
-    "d ${secretsDir} 0750 root media -"
-    "d ${secretsDir}/plex 0750 root media -"
-    "f ${secretsDir}/plex/token 0660 root media -"
-    "f ${secretsDir}/plex/username 0660 root media -"
-    "f ${secretsDir}/plex/password 0660 root media -"
+    "d ${secretsDir} 0700 root root -"
+    "d ${secretsDir}/plex 0700 root root -"
+    "f ${secretsDir}/plex/token 0600 root root -"
+    "f ${secretsDir}/plex/username 0600 root root -"
+    "f ${secretsDir}/plex/password 0600 root root -"
   ];
 
   systemd.services.plex-config = {

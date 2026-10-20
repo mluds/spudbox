@@ -47,28 +47,45 @@ let
 in
 
 {
-  systemd.services.homepage-dashboard = {
-    serviceConfig = {
-      Group = "media";
-      SupplementaryGroups = "radarr";
-      Environment = [
-        # Loopback only; reached through Caddy.
-        "HOSTNAME=127.0.0.1"
-        "HOMEPAGE_ALLOWED_HOSTS=homepage.${domain}"
-        "HOMEPAGE_FILE_PLEX_TOKEN=${secretsDir}/plex/token"
-        "HOMEPAGE_FILE_ABS_API_KEY=${secretsDir}/audiobookshelf/apikey"
-        "HOMEPAGE_FILE_RADARR_API_KEY=${secretsDir}/radarr/api-key"
-        "HOMEPAGE_FILE_SONARR_API_KEY=${secretsDir}/sonarr/api-key"
-        "HOMEPAGE_FILE_BAZARR_API_KEY=${secretsDir}/bazarr/api-key"
-        "HOMEPAGE_FILE_PROWLARR_API_KEY=${secretsDir}/prowlarr/api-key"
-        "HOMEPAGE_FILE_TAUTULLI_API_KEY=${secretsDir}/tautulli/api-key"
-        "HOMEPAGE_FILE_JELLYSEERR_API_KEY=${secretsDir}/jellyseerr/api-key"
-        "HOMEPAGE_FILE_SABNZBD_API_KEY=${secretsDir}/sabnzbd/api-key"
-        "HOMEPAGE_FILE_ADMIN_USERNAME=${secretsDir}/admin/username"
-        "HOMEPAGE_FILE_ADMIN_PASSWORD=${secretsDir}/admin/password"
+  systemd.services.homepage-dashboard =
+    let
+      # HOMEPAGE_FILE_<NAME> -> secret file. systemd copies each into this
+      # unit's private credentials dir (%d), so /var/lib/secrets stays root-only.
+      credentials = {
+        PLEX_TOKEN = "plex/token";
+        ABS_API_KEY = "audiobookshelf/apikey";
+        RADARR_API_KEY = "radarr/api-key";
+        SONARR_API_KEY = "sonarr/api-key";
+        BAZARR_API_KEY = "bazarr/api-key";
+        PROWLARR_API_KEY = "prowlarr/api-key";
+        TAUTULLI_API_KEY = "tautulli/api-key";
+        JELLYSEERR_API_KEY = "jellyseerr/api-key";
+        SABNZBD_API_KEY = "sabnzbd/api-key";
+        ADMIN_USERNAME = "admin/username";
+        ADMIN_PASSWORD = "admin/password";
+      };
+    in
+    {
+      # Several keys are exported by these oneshots on first boot; a missing
+      # credential fails the unit, so start after them and retry slowly.
+      after = [
+        "plex-config.service"
+        "bazarr-config.service"
+        "prowlarr-config.service"
+        "tautulli-config.service"
+        "jellyseerr-config.service"
       ];
+      serviceConfig = {
+        LoadCredential = lib.mapAttrsToList (name: path: "${name}:${secretsDir}/${path}") credentials;
+        Environment = [
+          # Loopback only; reached through Caddy.
+          "HOSTNAME=127.0.0.1"
+          "HOMEPAGE_ALLOWED_HOSTS=homepage.${domain}"
+        ]
+        ++ lib.mapAttrsToList (name: _: "HOMEPAGE_FILE_${name}=%d/${name}") credentials;
+        RestartSec = "30s";
+      };
     };
-  };
   services.homepage-dashboard = {
     enable = true;
     listenPort = homepagePort;
