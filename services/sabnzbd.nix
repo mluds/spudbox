@@ -11,6 +11,7 @@ let
   configScript = pkgs.writeScriptBin "sabnzbd-config" ''
     #!/bin/sh
     set -e
+    umask 077 # sabnzbd.ini holds passwords; chmod'ed to 660 below
     mkdir -p /var/log/sabnzbd
     chown -R sabnzbd:sabnzbd /var/log/sabnzbd
 

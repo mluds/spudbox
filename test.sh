@@ -649,7 +649,7 @@ test_caddy() {
   local services="sonarr radarr bazarr prowlarr transmission sabnzbd plex tautulli jellyseerr homepage homebridge audiobookshelf"
   for svc in $services; do
     local code
-    code=$(http_code "https://${svc}.${DOMAIN}" --insecure --resolve "${svc}.${DOMAIN}:443:127.0.0.1")
+    code=$(http_code "https://${svc}.${DOMAIN}" --resolve "${svc}.${DOMAIN}:443:127.0.0.1")
     if [ "$code" != "502" ] && [ "$code" != "503" ] && [ "$code" != "000" ]; then
       pass "${svc}.${DOMAIN} (HTTP $code)"
     else
@@ -782,6 +782,24 @@ test_security() {
     pass "caddyfile permissions 640 caddy:caddy"
   else
     fail "caddyfile permissions $caddy_perms $caddy_owner (expected 640 caddy:caddy)"
+  fi
+
+  # Cloudflare token only in Caddy's environment: not in the Caddyfile or the
+  # admin API's config, and the env file is root-only
+  local cf_token cf_leaks env_perms
+  cf_token=$(read_secret "cloudflare/api-token")
+  cf_leaks=0
+  if [ -z "$cf_token" ]; then
+    cf_leaks=1
+  else
+    sudo grep -qF -- "$cf_token" /etc/caddy/Caddyfile && cf_leaks=$((cf_leaks + 1))
+    curl -s --max-time 5 http://localhost:2019/config/ | grep -qF -- "$cf_token" && cf_leaks=$((cf_leaks + 1))
+  fi
+  env_perms=$(sudo stat -c "%a %U:%G" /run/caddy-config/caddy.env 2>/dev/null)
+  if [ "$cf_leaks" -eq 0 ] && [ "$env_perms" = "600 root:root" ]; then
+    pass "cloudflare token not in caddyfile or admin api"
+  else
+    fail "cloudflare token exposed ($cf_leaks places) or env file is '$env_perms'"
   fi
 
   # SABnzbd verifies usenet server certificates (3 = Strict)

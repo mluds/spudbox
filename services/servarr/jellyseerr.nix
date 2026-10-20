@@ -46,7 +46,7 @@ let
               "smtpPort": 587,
               "secure": false,
               "ignoreTls": false,
-              "requireTls": false,
+              "requireTls": true,
               "authUser": $authUser,
               "authPass": $authPass,
               "allowSelfSigned": false,

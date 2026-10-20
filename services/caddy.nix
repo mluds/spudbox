@@ -4,12 +4,17 @@ with config.my;
 
 let
   caddyFile = "/etc/caddy/Caddyfile";
+  # The Cloudflare token reaches Caddy only through its environment, so it
+  # isn't in the Caddyfile or in the config served by the admin API (which
+  # shows the {env.*} placeholder).
+  envFile = "/run/caddy-config/caddy.env";
   configScript = pkgs.writeScriptBin "caddy-config" ''
     #!/bin/sh
     set -e
+    umask 077
 
-    # Read secrets from files
-    CLOUDFLARE_API_TOKEN=$(cat ${secretsDir}/cloudflare/api-token)
+    mkdir -p "$(dirname ${envFile})"
+    printf 'CLOUDFLARE_API_TOKEN=%s\n' "$(cat ${secretsDir}/cloudflare/api-token)" > ${envFile}
 
     mkdir -p /etc/caddy
 
@@ -21,11 +26,10 @@ let
     *.${domain} {
       tls {
         issuer acme {
-          dns cloudflare $CLOUDFLARE_API_TOKEN
+          dns cloudflare {env.CLOUDFLARE_API_TOKEN}
           resolvers 1.1.1.1
           disable_http_challenge
           disable_tlsalpn_challenge
-          preferred_chains smallest
         }
       }
     }
@@ -119,5 +123,10 @@ in
       hash = "sha256-xRJ5evsAJ2akg47j3Bt6YDXJOgX88B/rKNP50KSVyNY=";
     };
     configFile = caddyFile;
+    environmentFile = envFile;
   };
+
+  # caddy-config only runs before caddy starts (wantedBy), so restart caddy
+  # when the script changes; otherwise Caddyfile changes wait for a reboot.
+  systemd.services.caddy.restartTriggers = [ configScript ];
 }
