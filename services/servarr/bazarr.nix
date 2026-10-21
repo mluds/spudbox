@@ -231,6 +231,8 @@ in
     openFirewall = false;
   };
 
+  systemd.services.bazarr.serviceConfig = import ../hardening.nix;
+
   systemd.services.bazarr-config = {
     description = "Bazarr Configuration Updater";
     after = [

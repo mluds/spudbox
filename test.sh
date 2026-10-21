@@ -744,6 +744,26 @@ test_security() {
     fi
   done
 
+  # Sandboxing on services that handle untrusted input (services/hardening.nix)
+  local unit props
+  for unit in bazarr sabnzbd audiobookshelf tautulli drive-status-http; do
+    props=$(systemctl show -p NoNewPrivileges -p ProtectProc --value "$unit" | tr '\n' ' ')
+    if [ "$props" = "yes invisible " ]; then
+      pass "$unit sandboxed (NoNewPrivileges, ProtectProc=invisible)"
+    else
+      fail "$unit not sandboxed: $props"
+    fi
+  done
+
+  # Jobs that don't need root run as dynamic users
+  for unit in drive-status-http sabnzbd-resume radarr-auto-import; do
+    if [ "$(systemctl show -p DynamicUser --value "$unit")" = "yes" ]; then
+      pass "$unit runs as a dynamic user"
+    else
+      fail "$unit runs as root"
+    fi
+  done
+
   # Homepage gets its keys via LoadCredential, not group access to secrets
   local hp_groups
   hp_groups=$(systemctl show -p Group -p SupplementaryGroups --value homepage-dashboard | tr '\n' ' ')

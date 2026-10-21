@@ -84,9 +84,11 @@ in
       drive-status-http = {
         description = "Serve drive status JSON";
         wantedBy = [ "multi-user.target" ];
-        serviceConfig = {
+        # Only reads the world-readable status files, so no root needed
+        serviceConfig = import ./hardening.nix // {
           ExecStart = "${pkgs.darkhttpd}/bin/darkhttpd ${statusDir} --port 9100 --addr 127.0.0.1";
           Restart = "always";
+          DynamicUser = true;
         };
       };
     };

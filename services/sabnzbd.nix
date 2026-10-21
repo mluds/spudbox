@@ -430,7 +430,7 @@ in
   systemd = {
     services = {
       sabnzbd = {
-        serviceConfig = {
+        serviceConfig = import ./hardening.nix // {
           UMask = "0002";
           # Private state (ini, queue, logs); downloads live under cacheDir
           StateDirectoryMode = "0700";

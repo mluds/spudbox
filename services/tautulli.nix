@@ -143,8 +143,10 @@ in
     enable = true;
   };
 
-  # New files owner-only; see lock_down_data_dir above
-  systemd.services.tautulli.serviceConfig.UMask = "0077";
+  systemd.services.tautulli.serviceConfig = import ./hardening.nix // {
+    # New files owner-only; see lock_down_data_dir above
+    UMask = "0077";
+  };
 
   systemd.services.tautulli-config = {
     description = "Update Tautulli configuration";
