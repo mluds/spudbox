@@ -30,27 +30,46 @@ let
       done
     fi
 
-    SETUP_COMPLETE=$($CURL -s "$BASE/api/auth/settings" | $JQ -r '.env.setupWizardComplete')
-    if [ "$SETUP_COMPLETE" = "true" ]; then
-      echo "Homebridge already set up, skipping."
-      exit 0
-    fi
-
     # Credentials and session tokens reach curl through files (-d @file,
     # -H @file), never as arguments, which any local user could read from
     # /proc/<pid>/cmdline.
     umask 077
     TMP=$(mktemp -d)
     trap 'rm -rf "$TMP"' EXIT
-    $JQ -n --rawfile u ${secretsDir}/admin/username --rawfile p ${secretsDir}/admin/password \
-      '{username: ($u | rtrimstr("\n")), password: ($p | rtrimstr("\n"))}' > "$TMP/login.json"
+    creds() { # USERNAME_FILE PASSWORD_FILE
+      $JQ -n --rawfile u "$1" --rawfile p "$2" \
+        '{username: ($u | rtrimstr("\n")), password: ($p | rtrimstr("\n"))}'
+    }
+    creds ${secretsDir}/admin/username ${secretsDir}/homebridge/password > "$TMP/login.json"
+    # The shared admin password, for rotating an install set up before
+    # Homebridge had its own (finding #5)
+    creds ${secretsDir}/admin/username ${secretsDir}/admin/password > "$TMP/old-login.json"
 
-    # login: write a fresh "Authorization: Bearer ..." header to $TMP/auth
+    # login CREDS_FILE: on success write "Authorization: Bearer ..." to $TMP/auth
     login() {
       TOKEN=$($CURL -s -X POST -H "Content-Type: application/json" \
-        -d @"$TMP/login.json" "$BASE/api/auth/login" | $JQ -r '.access_token')
+        -d @"$1" "$BASE/api/auth/login" | $JQ -r '.access_token // empty')
+      [ -n "$TOKEN" ] || return 1
       printf 'Authorization: Bearer %s\n' "$TOKEN" > "$TMP/auth"
     }
+
+    SETUP_COMPLETE=$($CURL -s "$BASE/api/auth/settings" | $JQ -r '.env.setupWizardComplete')
+    if [ "$SETUP_COMPLETE" = "true" ]; then
+      if ! login "$TMP/login.json"; then
+        if login "$TMP/old-login.json"; then
+          echo "Changing the Homebridge admin password to homebridge/password..."
+          $JQ -n --rawfile c ${secretsDir}/admin/password --rawfile n ${secretsDir}/homebridge/password \
+            '{currentPassword: ($c | rtrimstr("\n")), newPassword: ($n | rtrimstr("\n"))}' |
+            $CURL -sf -X POST -H @"$TMP/auth" -H "Content-Type: application/json" \
+              -d @- "$BASE/api/users/change-password" >/dev/null
+          login "$TMP/login.json" || { echo "ERROR: new password rejected after the change"; exit 1; }
+        else
+          echo "WARNING: neither homebridge/password nor admin/password logs in; password left unchanged"
+        fi
+      fi
+      echo "Homebridge already set up."
+      exit 0
+    fi
 
     echo "Getting setup wizard token..."
     TOKEN=$($CURL -s "$BASE/api/setup-wizard/get-setup-wizard-token" | $JQ -r '.access_token')
@@ -62,7 +81,7 @@ let
         -d @- "$BASE/api/setup-wizard/create-first-user" >/dev/null
 
     echo "Logging in..."
-    login
+    login "$TMP/login.json"
 
     echo "Installing homebridge-dummy plugin..."
     ${pkgs.docker}/bin/docker exec homebridge npm install homebridge-dummy
@@ -83,7 +102,7 @@ let
     done
 
     echo "Logging in again..."
-    login
+    login "$TMP/login.json"
 
     echo "Resetting cached accessories..."
     $CURL -s -X PUT -H @"$TMP/auth" "$BASE/api/server/reset-cached-accessories" >/dev/null

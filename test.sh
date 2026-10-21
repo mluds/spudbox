@@ -31,7 +31,7 @@ auth_header jellyseerr X-Api-Key jellyseerr/api-key
 auth_header plex X-Plex-Token plex/token
 printf 'Authorization: Bearer %s\n' "$(read_secret audiobookshelf/apikey)" > "$AUTH_DIR/abs"
 printf 'Authorization: Basic %s\n' \
-  "$(printf '%s:%s' "$(read_secret admin/username)" "$(read_secret admin/password)" | base64 -w0)" > "$AUTH_DIR/transmission"
+  "$(printf '%s:%s' "$(read_secret admin/username)" "$(read_secret transmission/password)" | base64 -w0)" > "$AUTH_DIR/transmission"
 # SABnzbd and Tautulli take apikey as a parameter; sent as a POST body instead of in the URL
 printf 'apikey=%s' "$(read_secret sabnzbd/api-key)" > "$AUTH_DIR/sabnzbd"
 printf 'apikey=%s' "$(read_secret tautulli/api-key)" > "$AUTH_DIR/tautulli"
@@ -769,6 +769,41 @@ test_security() {
       fail "$u can read $readable files in other services' state"
     fi
   done
+
+  # Each web login has its own password (finding #5). create-dirs seeds a
+  # missing one from admin/password, so this fails until
+  # scripts/generate-service-passwords.sh has been run and deployed.
+  local svc shared dupes
+  local password_services="sonarr radarr prowlarr bazarr sabnzbd transmission tautulli homebridge audiobookshelf"
+  shared=0
+  for svc in $password_services; do
+    if sudo cmp -s "/var/lib/secrets/$svc/password" /var/lib/secrets/admin/password; then
+      shared=$((shared + 1))
+    fi
+  done
+  dupes=$(for svc in $password_services; do sudo sha256sum "/var/lib/secrets/$svc/password"; done | awk '{print $1}' | sort | uniq -d | wc -l)
+  if [ "$shared" -eq 0 ] && [ "$dupes" -eq 0 ]; then
+    pass "per-service web passwords (none shared)"
+  else
+    fail "$shared services on the shared admin password, $dupes reused (run scripts/generate-service-passwords.sh)"
+  fi
+
+  # Prowlarr stores a salted PBKDF2 hash (it imports config.xml credentials itself)
+  local prowlarr_salted
+  prowlarr_salted=$(sudo sqlite3 -readonly /var/lib/private/prowlarr/prowlarr.db \
+    "select count(*) from Users where Salt is not null and Salt != '' and Iterations > 0;" 2>/dev/null || echo 0)
+  if [ "$prowlarr_salted" = "1" ]; then
+    pass "prowlarr password hash salted"
+  else
+    fail "prowlarr password hash not salted"
+  fi
+
+  # Homepage's Audiobookshelf key belongs to the read-only homepage user, not root
+  if [ "$(http_get "http://localhost:8000/api/me" -H @"$AUTH_DIR/abs" | jq -r '.username + ":" + .type')" = "homepage:user" ]; then
+    pass "homepage audiobookshelf key is the read-only homepage user"
+  else
+    fail "homepage audiobookshelf key isn't the homepage user"
+  fi
 
   # Sandboxing on services that handle untrusted input (services/hardening.nix)
   local unit props

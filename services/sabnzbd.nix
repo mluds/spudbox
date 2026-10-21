@@ -17,7 +17,7 @@ let
 
     # Read secrets from files
     ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
-    ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
+    ADMIN_PASSWORD=$(cat ${secretsDir}/sabnzbd/password)
     SABNZBD_API_KEY=$(cat ${secretsDir}/sabnzbd/api-key)
     SABNZBD_NZB_KEY=$(cat ${secretsDir}/sabnzbd/nzb-key)
     USENET_USERNAME=$(cat ${secretsDir}/usenet/username)

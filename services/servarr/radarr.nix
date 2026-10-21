@@ -27,7 +27,7 @@ let
       "${cfgFile}"
     ${setConfigXml}/bin/set-config-xml "${cfgFile}" \
       Authentication/Username=${secretsDir}/admin/username \
-      Authentication/Password=${secretsDir}/admin/password \
+      Authentication/Password=${secretsDir}/radarr/password \
       ApiKey=${secretsDir}/radarr/api-key
     if systemctl -q is-active radarr.service; then
       systemctl restart radarr.service

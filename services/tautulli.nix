@@ -168,7 +168,7 @@ in
       PLEX_PORT = toString plexPort;
       TAUTULLI_PORT = toString tautulliPort;
       TAUTULLI_ADMIN_USERNAME_FILE = "${secretsDir}/admin/username";
-      TAUTULLI_ADMIN_PASSWORD_FILE = "${secretsDir}/admin/password";
+      TAUTULLI_ADMIN_PASSWORD_FILE = "${secretsDir}/tautulli/password";
     };
   };
 }

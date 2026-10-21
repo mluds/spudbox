@@ -35,6 +35,22 @@ let
     "${cacheDir}/data/usenet/incomplete/tv"
   ];
 
+  # Each of these has its own web login password in secrets/<name>/password
+  # (finding #5: one shared admin password meant one leak unlocked them all).
+  # Until a service's file is deployed, create-dirs seeds it from
+  # admin/password, so consumers can always read <name>/password.
+  passwordServices = [
+    "sonarr"
+    "radarr"
+    "prowlarr"
+    "bazarr"
+    "sabnzbd"
+    "transmission"
+    "tautulli"
+    "homebridge"
+    "audiobookshelf"
+  ];
+
   createDirsScript = pkgs.writeScript "create-dirs.sh" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
@@ -52,6 +68,15 @@ let
       chown -R sabnzbd:media "${dir}"
       chmod -R 0775 "${dir}"
     '') usenetDirs}
+
+    # Per-service passwords: fall back to the shared one until generated
+    # (see scripts/generate-service-passwords.sh)
+    for svc in ${lib.concatStringsSep " " passwordServices}; do
+      if [ ! -s "${secretsDir}/$svc/password" ]; then
+        mkdir -p "${secretsDir}/$svc"
+        cp "${secretsDir}/admin/password" "${secretsDir}/$svc/password"
+      fi
+    done
 
     # Secrets are root-only. Everything that reads them runs as root (the
     # *-config oneshots, restic, transmission's ExecStartPre); homepage gets
@@ -204,6 +229,19 @@ in
   systemd.services.create-dirs = {
     description = "Create directories";
     after = [ "local-fs.target" ];
+    # Seeds the per-service password files the units below read
+    before = [
+      "sonarr-config.service"
+      "radarr-config.service"
+      "prowlarr-config.service"
+      "bazarr-config.service"
+      "sabnzbd-config.service"
+      "transmission.service"
+      "tautulli-config.service"
+      "homebridge-config.service"
+      "audiobookshelf-access.service"
+      "homepage-dashboard.service"
+    ];
     requires = [ "local-fs.target" ];
     serviceConfig = {
       Type = "oneshot";

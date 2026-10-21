@@ -56,7 +56,7 @@ in
           # --rawfile reads the secrets itself, keeping them off jq's argv
           ${pkgs.jq}/bin/jq -n \
             --rawfile user ${secretsDir}/admin/username \
-            --rawfile pass ${secretsDir}/admin/password \
+            --rawfile pass ${secretsDir}/transmission/password \
             '{"rpc-username": ($user | rtrimstr("\n")), "rpc-password": ($pass | rtrimstr("\n"))}' \
             > ${credentialsPath}
           chmod 600 ${credentialsPath}

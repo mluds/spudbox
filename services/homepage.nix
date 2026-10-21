@@ -62,7 +62,7 @@ in
         JELLYSEERR_API_KEY = "jellyseerr/api-key";
         SABNZBD_API_KEY = "sabnzbd/api-key";
         ADMIN_USERNAME = "admin/username";
-        ADMIN_PASSWORD = "admin/password";
+        TRANSMISSION_PASSWORD = "transmission/password";
       };
     in
     {
@@ -74,6 +74,7 @@ in
         "prowlarr-config.service"
         "tautulli-config.service"
         "jellyseerr-config.service"
+        "audiobookshelf-access.service"
       ];
       serviceConfig = {
         LoadCredential = lib.mapAttrsToList (name: path: "${name}:${secretsDir}/${path}") credentials;
@@ -292,7 +293,7 @@ in
                 type = "transmission";
                 url = "http://localhost:${toString transmissionPort}";
                 username = "{{HOMEPAGE_FILE_ADMIN_USERNAME}}";
-                password = "{{HOMEPAGE_FILE_ADMIN_PASSWORD}}";
+                password = "{{HOMEPAGE_FILE_TRANSMISSION_PASSWORD}}";
                 fields = [
                   "leech"
                   "download"

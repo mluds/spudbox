@@ -27,7 +27,7 @@ let
       "${cfgFile}"
     ${setConfigXml}/bin/set-config-xml "${cfgFile}" \
       Authentication/Username=${secretsDir}/admin/username \
-      Authentication/Password=${secretsDir}/admin/password \
+      Authentication/Password=${secretsDir}/sonarr/password \
       ApiKey=${secretsDir}/sonarr/api-key
     if systemctl -q is-active sonarr.service; then
       systemctl restart sonarr.service

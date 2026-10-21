@@ -103,7 +103,7 @@ let
     import hashlib
     with open('${secretsDir}/admin/username', 'r') as f:
         admin_username = f.read().strip()
-    with open('${secretsDir}/admin/password', 'r') as f:
+    with open('${secretsDir}/bazarr/password', 'r') as f:
         admin_password_md5 = hashlib.md5(f.read().strip().encode()).hexdigest()
     new_config.setdefault('auth', {})
     new_config['auth']['type'] = 'form'
