@@ -228,9 +228,11 @@ test_api_auth() {
   check_http "http://localhost:9696/api/v1/system/status" "200" "prowlarr" \
     -H @"$AUTH_DIR/prowlarr"
 
-  check_http "http://localhost:8081/api?mode=version&output=json" -d @"$AUTH_DIR/sabnzbd" "200" "sabnzbd"
+  check_http "http://localhost:8081/api?mode=version&output=json" "200" "sabnzbd" \
+    -d @"$AUTH_DIR/sabnzbd"
 
-  check_http "http://localhost:8181/api/v2?cmd=arnold" -d @"$AUTH_DIR/tautulli" "200" "tautulli"
+  check_http "http://localhost:8181/api/v2?cmd=arnold" "200" "tautulli" \
+    -d @"$AUTH_DIR/tautulli"
 
   check_http "http://localhost:6767/api/system/status" "200" "bazarr" \
     -H @"$AUTH_DIR/bazarr"
@@ -241,7 +243,8 @@ test_api_auth() {
   check_http "http://localhost:8000/api/libraries" "200" "audiobookshelf" \
     -H @"$AUTH_DIR/abs"
 
-  check_http "http://localhost:32400/identity" -H @"$AUTH_DIR/plex" "200" "plex"
+  check_http "http://localhost:32400/identity" "200" "plex" \
+    -H @"$AUTH_DIR/plex"
 
   check_http "http://localhost:9091/transmission/rpc" "409" "transmission" \
     -H @"$AUTH_DIR/transmission"

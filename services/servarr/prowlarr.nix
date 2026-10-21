@@ -3,36 +3,42 @@
 with config.my;
 
 let
-  dbFile = "/var/lib/prowlarr/prowlarr.db";
   cfgFile = "/var/lib/prowlarr/config.xml";
-  setConfigXml = import ./set-config-xml.nix { inherit pkgs; };
-  # Like Sonarr/Radarr: clear the user, put the credentials in config.xml,
-  # and Prowlarr imports them on start as a salted PBKDF2 hash and removes
-  # them from config.xml. (Inserting the row directly meant an unsalted
-  # SHA-256 hash, and a password on sqlite3's command line.)
+  # The web login is set through the host-config API, as the UI does, and
+  # Prowlarr stores a salted PBKDF2 hash. Unlike Sonarr/Radarr, Prowlarr
+  # 2.x drops credentials put in config.xml without creating a user, and
+  # inserting the row directly meant an unsalted SHA-256 hash. Secrets go
+  # to curl and jq through files, never on a command line.
   configScript = pkgs.writeScriptBin "prowlarr-config" ''
     #!/bin/sh
-    set -e
+    set -eu
     umask 077
+    TMP=$(mktemp -d)
+    trap 'rm -rf "$TMP"' EXIT
+    API="http://localhost:${toString prowlarrPort}/api/v1"
 
-    if [ -f "${dbFile}" ]; then
-      sqlite3 "${dbFile}" "DELETE FROM Users;"
-    fi
-
-    xmlstarlet ed -L \
-      -u "/Config/AuthenticationMethod" -v "Forms" \
-      "${cfgFile}"
-    ${setConfigXml}/bin/set-config-xml "${cfgFile}" \
-      Authentication/Username=${secretsDir}/admin/username \
-      Authentication/Password=${secretsDir}/prowlarr/password
-
-    if systemctl -q is-active prowlarr.service; then
-      systemctl restart prowlarr.service
-    fi
+    echo "Waiting for Prowlarr to start..."
+    until curl -sf -o /dev/null "http://localhost:${toString prowlarrPort}/ping"; do
+      sleep 2
+    done
 
     echo "Exporting Prowlarr API key..."
     mkdir -p ${secretsDir}/prowlarr
-    xmlstarlet sel -t -v '/Config/ApiKey' /var/lib/prowlarr/config.xml > ${secretsDir}/prowlarr/api-key
+    xmlstarlet sel -t -v '/Config/ApiKey' ${cfgFile} > ${secretsDir}/prowlarr/api-key
+    printf 'X-Api-Key: %s\n' "$(cat ${secretsDir}/prowlarr/api-key)" > "$TMP/key"
+
+    echo "Setting the web login..."
+    curl -sS --fail -H @"$TMP/key" "$API/config/host" > "$TMP/host.json"
+    jq --rawfile user ${secretsDir}/admin/username \
+      --rawfile pass ${secretsDir}/prowlarr/password \
+      '($pass | rtrimstr("\n")) as $pass
+      | .authenticationMethod = "forms"
+      | .username = ($user | rtrimstr("\n"))
+      | .password = $pass
+      | .passwordConfirmation = $pass' \
+      "$TMP/host.json" > "$TMP/new.json"
+    curl -sS --fail -X PUT -H @"$TMP/key" -H 'Content-Type: application/json' \
+      -d @"$TMP/new.json" "$API/config/host/$(jq '.id' "$TMP/host.json")" > /dev/null
   '';
 in
 {
@@ -49,8 +55,9 @@ in
     wants = [ "prowlarr.service" ];
     wantedBy = [ "multi-user.target" ];
     path = with pkgs; [
+      curl
+      jq
       xmlstarlet
-      sqlite
     ];
     serviceConfig = {
       User = "root";
