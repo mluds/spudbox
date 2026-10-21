@@ -25,8 +25,10 @@ EOF
 sync_files() {
   echo "Syncing files to server..."
   # Plaintext login passwords are recovery copies; they never leave this machine.
-  rsync -az --delete --exclude='.git' --exclude='secrets/users/*/plaintext' -e "ssh -i $SSH_KEY" "$SCRIPT_DIR/" "$HOST:~/deploy/"
-  $SSH "sudo cp -r ~/deploy/secrets/* /var/lib/secrets/ && find ~/deploy/secrets/ -type f ! -name 'default.json' -delete"
+  # secrets/default.json is the old, untracked (so unencrypted) secrets file.
+  rsync -az --delete --exclude='.git' --exclude='secrets/users/*/plaintext' --exclude='secrets/default.json' \
+    -e "ssh -i $SSH_KEY" "$SCRIPT_DIR/" "$HOST:~/deploy/"
+  $SSH "sudo cp -r ~/deploy/secrets/* /var/lib/secrets/ && find ~/deploy/secrets/ -type f -delete"
 }
 
 rebuild() {

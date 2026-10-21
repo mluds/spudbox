@@ -63,6 +63,9 @@ let
     # Login passwords in plaintext are for recovery only; they stay in the
     # repo and the password manager, never on the server (deploy.sh skips them).
     rm -f ${secretsDir}/users/*/plaintext
+
+    # Legacy secrets file (pre-git-crypt layout); nothing reads it anymore.
+    rm -f ${secretsDir}/default.json
   '';
 in
 {

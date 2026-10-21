@@ -25,9 +25,16 @@ let
       exit 1
     fi
 
-    # Check if partition exists
+    # Only ever initialise blank disks. Kernel names like /dev/sda can move
+    # between boots, so a disk with any partition table or filesystem
+    # signature is left alone rather than repartitioned or reformatted.
+    # (blkid -p exits 0 when it finds a signature, 2 when there is none.)
     if [ ! -e "$PARTITION" ]; then
-      echo "Creating partition on $DEVICE"
+      if blkid -p "$DEVICE" >/dev/null 2>&1; then
+        echo "ERROR: $DEVICE has a partition table or filesystem but no $PARTITION; refusing to repartition it"
+        exit 1
+      fi
+      echo "Creating partition on blank disk $DEVICE"
       echo -e "g\nn\n1\n\n\nw" | fdisk "$DEVICE"
 
       # Force kernel to re-read partition table
@@ -49,8 +56,12 @@ let
     fi
 
     if ! xfs_admin -l "$PARTITION" >/dev/null 2>&1; then
-      echo "Creating XFS filesystem on $PARTITION"
-      mkfs.xfs -f "$PARTITION"
+      if blkid -p "$PARTITION" >/dev/null 2>&1; then
+        echo "ERROR: $PARTITION has a signature but isn't readable XFS; refusing to format it"
+        exit 1
+      fi
+      echo "Creating XFS filesystem on blank partition $PARTITION"
+      mkfs.xfs "$PARTITION"
       if ! xfs_admin -l "$PARTITION" >/dev/null 2>&1; then
         echo "ERROR: XFS creation failed!"
         exit 1

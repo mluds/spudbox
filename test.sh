@@ -764,6 +764,13 @@ test_security() {
     fi
   done
 
+  # Legacy secrets file (admin password, WireGuard keys) is gone
+  if sudo test -e /var/lib/secrets/default.json; then
+    fail "legacy secrets/default.json still on server"
+  else
+    pass "no legacy secrets/default.json on server"
+  fi
+
   # Homepage gets its keys via LoadCredential, not group access to secrets
   local hp_groups
   hp_groups=$(systemctl show -p Group -p SupplementaryGroups --value homepage-dashboard | tr '\n' ' ')

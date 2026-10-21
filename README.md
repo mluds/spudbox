@@ -23,7 +23,7 @@ export FLAKE=spudbox-prod
 ```
 
 ```bash
-rm ~/.ssh/known_hosts
+ssh-keygen -R ${HOST_IP}  # forget only this host's old key
 ssh -o StrictHostKeyChecking=accept-new root@${HOST_IP}
 ```
 
@@ -77,12 +77,12 @@ reboot
 
 Now run these commands from the deployment host to install the full system:
 ```bash
-rm -f ~/.ssh/known_hosts && \
+ssh-keygen -R ${HOST_IP} && \
 scp -o StrictHostKeyChecking=accept-new -r ./* root@${HOST_IP}:~/deploy/ && \
 ssh root@${HOST_IP} "cd ~/deploy && nixos-rebuild switch --impure --flake .#${FLAKE}"
 ```
 
-After this, root login will be disabled and you must login using one of the users specified in `secrets/defaults.json`.
+After this, root login will be disabled and you must login using one of the users in `my.users` (`environments/default.nix`), with its SSH key.
 
 ### Manual Steps
 
@@ -90,10 +90,10 @@ After this, root login will be disabled and you must login using one of the user
 
 Claim the Plex server by opening an SSH tunnel.
 ```
-ssh -i ~/.ssh/spudbox -L 32400:localhost:32400 luds@192.168.0.42
+ssh -i ~/.ssh/spudbox -L 32400:localhost:32400 luds@192.168.1.42
 ```
 
-Then visit http://localhost:324000/web in a browser and follow the setup. (Plex _requires_ claiming from localhost)
+Then visit http://localhost:32400/web in a browser and follow the setup. (Plex _requires_ claiming from localhost)
 
 #### Sonarr
 
