@@ -245,6 +245,32 @@ test_api_auth() {
 
   check_http "http://localhost:9091/transmission/rpc" "409" "transmission" \
     -H @"$AUTH_DIR/transmission"
+
+  # Without credentials every API refuses (catches auth being switched off).
+  # Codes are each app's own: SABnzbd 403, Tautulli 400 "apikey is required".
+  check_http "http://localhost:7878/api/v3/system/status" "401" "radarr rejects anonymous"
+  check_http "http://localhost:8989/api/v3/system/status" "401" "sonarr rejects anonymous"
+  check_http "http://localhost:9696/api/v1/system/status" "401" "prowlarr rejects anonymous"
+  check_http "http://localhost:6767/api/system/status" "401" "bazarr rejects anonymous"
+  check_http "http://localhost:8081/api?mode=queue&output=json" "403" "sabnzbd rejects anonymous"
+  check_http "http://localhost:8181/api/v2?cmd=arnold" "400 401" "tautulli rejects anonymous"
+  check_http "http://localhost:5055/api/v1/settings/main" "401 403" "jellyseerr rejects anonymous"
+  check_http "http://localhost:8000/api/libraries" "401" "audiobookshelf rejects anonymous"
+  check_http "http://localhost:32400/library/sections" "401" "plex rejects anonymous"
+  check_http "http://localhost:9091/transmission/rpc" "401" "transmission rejects anonymous"
+  check_http "http://localhost:8581/api/config-editor" "401" "homebridge rejects anonymous"
+
+  # Same through Caddy, which is what LAN clients reach
+  local svc path
+  for svc in radarr:/api/v3/system/status sonarr:/api/v3/system/status prowlarr:/api/v1/system/status \
+    bazarr:/api/system/status "sabnzbd:/api?mode=queue&output=json" jellyseerr:/api/v1/settings/main \
+    audiobookshelf:/api/libraries plex:/library/sections transmission:/transmission/rpc \
+    homebridge:/api/config-editor; do
+    path=${svc#*:}
+    svc=${svc%%:*}
+    check_http "https://${svc}.${DOMAIN}${path}" "401 403" "${svc} via caddy rejects anonymous" \
+      --resolve "${svc}.${DOMAIN}:443:127.0.0.1"
+  done
 }
 
 test_integrations() {
