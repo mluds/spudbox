@@ -2,11 +2,10 @@
 set -euo pipefail
 
 # ─── Configuration ──────────────────────────────────────────────
-SECRETS_DIR="/var/lib/secrets"
-STORAGE_DIR="/mnt/storage"
-CACHE_DIR="/mnt/cache"
-BACKUP_DIR="/mnt/storage/backups"
-DOMAIN="spudbox.online"
+# Dirs, domain, every *_PORT and CADDY_HOSTS, generated from the Nix config
+# (common/env.nix, services/caddy.nix). SPUDBOX_ENV overrides the path.
+# shellcheck source=/dev/null
+source "${SPUDBOX_ENV:-/etc/spudbox/env}"
 
 # ─── Counters & Helpers ────────────────────────────────────────
 PASS_COUNT=0
@@ -16,25 +15,43 @@ pass() { PASS_COUNT=$((PASS_COUNT + 1)); printf "  \033[32mPASS\033[0m  %s\n" "$
 fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); printf "  \033[31mFAIL\033[0m  %s\n" "$1"; }
 section() { printf "\n\033[1m── %s ──\033[0m\n" "$1"; }
 
+# check LABEL CMD...: pass if CMD succeeds
+check() {
+  local label=$1
+  shift
+  if "$@" >/dev/null 2>&1; then pass "$label"; else fail "$label"; fi
+}
+
+# check_eq LABEL ACTUAL EXPECTED
+check_eq() {
+  if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (got '$2', expected '$3')"; fi
+}
+
 read_secret() { sudo cat "$SECRETS_DIR/$1" 2>/dev/null | tr -d '\n'; }
 
-# Credentials reach curl through files in a private dir (-H @file, -d @file),
-# never as arguments, which any local user can read from /proc/<pid>/cmdline.
-AUTH_DIR=$(umask 077 && mktemp -d)
-trap 'rm -rf "$AUTH_DIR"' EXIT
-auth_header() { printf '%s: %s\n' "$2" "$(read_secret "$3")" > "$AUTH_DIR/$1"; }
-auth_header radarr X-Api-Key radarr/api-key
-auth_header sonarr X-Api-Key sonarr/api-key
-auth_header prowlarr X-Api-Key prowlarr/api-key
-auth_header bazarr X-API-KEY bazarr/api-key
-auth_header jellyseerr X-Api-Key jellyseerr/api-key
-auth_header plex X-Plex-Token plex/token
-printf 'Authorization: Bearer %s\n' "$(read_secret audiobookshelf/apikey)" > "$AUTH_DIR/abs"
-printf 'Authorization: Basic %s\n' \
-  "$(printf '%s:%s' "$(read_secret admin/username)" "$(read_secret transmission/password)" | base64 -w0)" > "$AUTH_DIR/transmission"
-# SABnzbd and Tautulli take apikey as a parameter; sent as a POST body instead of in the URL
-printf 'apikey=%s' "$(read_secret sabnzbd/api-key)" > "$AUTH_DIR/sabnzbd"
-printf 'apikey=%s' "$(read_secret tautulli/api-key)" > "$AUTH_DIR/tautulli"
+# Secrets reach curl and grep through files in this private dir, never as
+# arguments, which any local user could read from /proc/<pid>/cmdline.
+AUTH=$(umask 077 && mktemp -d)
+trap 'rm -rf "$AUTH"' EXIT
+# auth_file NAME FORMAT SECRET...: write FORMAT filled with the secrets to $AUTH/NAME
+auth_file() {
+  local name=$1 format=$2 values=()
+  shift 2
+  for s in "$@"; do values+=("$(read_secret "$s")"); done
+  # shellcheck disable=SC2059 # FORMAT is ours
+  printf "$format" "${values[@]}" > "$AUTH/$name"
+}
+auth_file radarr 'X-Api-Key: %s\n' radarr/api-key
+auth_file sonarr 'X-Api-Key: %s\n' sonarr/api-key
+auth_file prowlarr 'X-Api-Key: %s\n' prowlarr/api-key
+auth_file bazarr 'X-API-KEY: %s\n' bazarr/api-key
+auth_file jellyseerr 'X-Api-Key: %s\n' jellyseerr/api-key
+auth_file abs 'Authorization: Bearer %s\n' audiobookshelf/apikey
+auth_file plex 'X-Plex-Token: %s\n' plex/token
+auth_file tautulli 'apikey=%s' tautulli/api-key
+auth_file sabnzbd 'apikey=%s' sabnzbd/api-key
+auth_file transmission 'user = "%s:%s"\n' admin/username transmission/password
+auth_file cloudflare '%s\n' cloudflare/api-token
 
 http_code() {
   local url="$1"; shift
@@ -45,43 +62,41 @@ http_code() {
 
 http_get() {
   local url="$1"; shift
-  curl -s --max-time 5 "$@" "$url" 2>/dev/null
+  curl -s --max-time 5 "$@" "$url" 2>/dev/null || true
 }
 
-check_secret() {
-  local path="$1" label="$2"
-  if sudo test -s "$SECRETS_DIR/$path"; then
-    pass "$label"
-  else
-    fail "$label"
-  fi
+# App APIs, authenticated from $AUTH. APP PATH [curl args...]
+radarr() { http_get "http://localhost:$RADARR_PORT/api/v3/$1" -H @"$AUTH/radarr" "${@:2}"; }
+sonarr() { http_get "http://localhost:$SONARR_PORT/api/v3/$1" -H @"$AUTH/sonarr" "${@:2}"; }
+bazarr() { http_get "http://localhost:$BAZARR_PORT/api/$1" -H @"$AUTH/bazarr" "${@:2}"; }
+seerr() { http_get "http://localhost:$JELLYSEERR_PORT/api/v1/$1" -H @"$AUTH/jellyseerr" "${@:2}"; }
+abs() { http_get "http://localhost:$AUDIOBOOKSHELF_PORT/api/$1" -H @"$AUTH/abs" "${@:2}"; }
+plex() { http_get "http://localhost:$PLEX_PORT/$1" -H @"$AUTH/plex" "${@:2}"; }
+# The key goes in the POST body: QUERY is e.g. "mode=queue&output=json"
+sabnzbd() { http_get "http://localhost:$SABNZBD_PORT/api" -d @"$AUTH/sabnzbd" -d "$1"; }
+tautulli() { http_get "http://localhost:$TAUTULLI_PORT/api/v2" -d @"$AUTH/tautulli" -d "cmd=$1"; }
+
+# check_json LABEL FILTER CMD...: pass if jq FILTER is truthy on CMD's output
+check_json() {
+  local label=$1 filter=$2
+  shift 2
+  if "$@" | jq -e "$filter" >/dev/null 2>&1; then pass "$label"; else fail "$label"; fi
 }
 
-check_service() {
-  local unit="$1"
-  if systemctl is-active --quiet "$unit"; then
-    pass "$unit"
-  else
-    fail "$unit"
-  fi
-}
-
-check_oneshot() {
-  local unit="$1"
-  if systemctl is-failed --quiet "$unit"; then
-    fail "$unit"
-  else
-    pass "$unit"
-  fi
+check_secret() { check "$1" sudo test -s "$SECRETS_DIR/$1"; }
+check_service() { check "$1" systemctl is-active --quiet "$1"; }
+check_oneshot() { check "$1" not systemctl is-failed --quiet "$1"; }
+not() { ! "$@"; }
+# no_match PATTERN_FILE [FILE]: grep found none of the patterns (and no error)
+no_match() {
+  local rc=0
+  grep -qFf "$@" || rc=$?
+  [ "$rc" -eq 1 ]
 }
 
 check_port() {
   local port="$1" proto="$2" label="$3"
-  if ss -"${proto}lnp" | grep -q ":${port} "; then
-    pass "$label :${port}/${proto}"
-  else
-    fail "$label :${port}/${proto}"
-  fi
+  check "$label :${port}/${proto}" grep -q ":${port} " <<< "$(ss -"${proto}lnp")"
 }
 
 check_http() {
@@ -89,7 +104,7 @@ check_http() {
   shift 3
   local code
   code=$(http_code "$url" "$@")
-  if echo "$expected" | grep -qw "$code"; then
+  if grep -qw "$code" <<< "$expected"; then
     pass "$label (HTTP $code)"
   else
     fail "$label (HTTP $code, expected $expected)"
@@ -101,167 +116,114 @@ check_http() {
 test_secrets() {
   section "Secrets"
 
+  local s
   # Deployed secrets
-  check_secret "admin/username" "admin/username"
-  check_secret "admin/password" "admin/password"
-  check_secret "plex/username" "plex/username"
-  check_secret "plex/password" "plex/password"
-  check_secret "cloudflare/api-token" "cloudflare/api-token"
-  check_secret "usenet/username" "usenet/username"
-  check_secret "usenet/password" "usenet/password"
-  check_secret "nzbgeek/api-key" "nzbgeek/api-key"
-  check_secret "opensubtitles/username" "opensubtitles/username"
-  check_secret "opensubtitles/password" "opensubtitles/password"
-  check_secret "assrt/api-token" "assrt/api-token"
-  check_secret "audiobookshelf/token-secret" "audiobookshelf/token-secret"
-  check_secret "gmail/address" "gmail/address"
-  check_secret "gmail/app-password" "gmail/app-password"
-  check_secret "pushover/app-token" "pushover/app-token"
-  check_secret "pushover/user-key" "pushover/user-key"
-  check_secret "users/luds/hashed" "users/luds/hashed"
-  check_secret "users/root/hashed" "users/root/hashed"
-  check_secret "restic/password" "restic/password"
-  check_secret "r2/s3-credentials.env" "r2/s3-credentials.env"
+  for s in admin/username admin/password plex/username plex/password \
+    cloudflare/api-token usenet/username usenet/password nzbgeek/api-key \
+    opensubtitles/username opensubtitles/password assrt/api-token \
+    audiobookshelf/token-secret gmail/address gmail/app-password \
+    pushover/app-token pushover/user-key users/luds/hashed users/root/hashed \
+    restic/password r2/s3-credentials.env; do
+    check_secret "$s"
+  done
 
   # Runtime-generated secrets
-  check_secret "plex/token" "plex/token"
-  check_secret "radarr/api-key" "radarr/api-key"
-  check_secret "sonarr/api-key" "sonarr/api-key"
-  check_secret "bazarr/api-key" "bazarr/api-key"
-  check_secret "prowlarr/api-key" "prowlarr/api-key"
-  check_secret "sabnzbd/api-key" "sabnzbd/api-key"
-  check_secret "sabnzbd/nzb-key" "sabnzbd/nzb-key"
-  check_secret "tautulli/api-key" "tautulli/api-key"
-  check_secret "jellyseerr/api-key" "jellyseerr/api-key"
-  check_secret "audiobookshelf/apikey" "audiobookshelf/apikey"
+  for s in plex/token radarr/api-key sonarr/api-key bazarr/api-key \
+    prowlarr/api-key sabnzbd/api-key sabnzbd/nzb-key tautulli/api-key \
+    jellyseerr/api-key audiobookshelf/apikey; do
+    check_secret "$s"
+  done
 }
 
 test_services() {
   section "Services"
 
+  local u
   # Long-running services
-  check_service "plex.service"
-  check_service "tautulli.service"
-  check_service "sonarr.service"
-  check_service "radarr.service"
-  check_service "bazarr.service"
-  check_service "prowlarr.service"
-  check_service "sabnzbd.service"
-  check_service "transmission.service"
-  check_service "seerr.service"
-  check_service "audiobookshelf.service"
-  check_service "homepage-dashboard.service"
-  check_service "caddy.service"
-  check_service "homebridge.service"
+  for u in plex tautulli sonarr radarr bazarr prowlarr sabnzbd transmission \
+    seerr audiobookshelf homepage-dashboard caddy homebridge drive-status-http; do
+    check_service "$u.service"
+  done
 
   # Oneshot config services
-  check_oneshot "plex-config.service"
-  check_oneshot "tautulli-config.service"
-  check_oneshot "radarr-config.service"
-  check_oneshot "sonarr-config.service"
-  check_oneshot "bazarr-config.service"
-  check_oneshot "prowlarr-config.service"
-  check_oneshot "jellyseerr-config.service"
-  check_oneshot "sabnzbd-config.service"
-  check_oneshot "audiobookshelf-config.service"
-  check_oneshot "homebridge-config.service"
-  check_oneshot "caddy-config.service"
+  for u in plex tautulli radarr sonarr bazarr prowlarr jellyseerr \
+    audiobookshelf homebridge caddy; do
+    check_oneshot "$u-config.service"
+  done
+  check_oneshot "audiobookshelf-access.service"
   check_oneshot "create-dirs.service"
 
   # Timers
-  check_service "sabnzbd-resume.timer"
-  check_service "radarr-auto-import.timer"
-  check_service "restic-backups-local.timer"
-  check_service "check-drive-status.timer"
-  check_service "drive-status-http.service"
+  for u in sabnzbd-resume radarr-auto-import restic-backups-local check-drive-status; do
+    check_service "$u.timer"
+  done
 }
 
 test_ports() {
   section "Ports"
 
-  check_port 32400 t "plex"
-  check_port 8181 t "tautulli"
-  check_port 8989 t "sonarr"
-  check_port 7878 t "radarr"
-  check_port 6767 t "bazarr"
-  check_port 9696 t "prowlarr"
-  check_port 8081 t "sabnzbd"
-  check_port 9091 t "transmission"
-  check_port 5055 t "jellyseerr"
-  check_port 8000 t "audiobookshelf"
-  check_port 3000 t "homepage"
-  check_port 8581 t "homebridge"
+  check_port "$PLEX_PORT" t "plex"
+  check_port "$TAUTULLI_PORT" t "tautulli"
+  check_port "$SONARR_PORT" t "sonarr"
+  check_port "$RADARR_PORT" t "radarr"
+  check_port "$BAZARR_PORT" t "bazarr"
+  check_port "$PROWLARR_PORT" t "prowlarr"
+  check_port "$SABNZBD_PORT" t "sabnzbd"
+  check_port "$TRANSMISSION_PORT" t "transmission"
+  check_port "$JELLYSEERR_PORT" t "jellyseerr"
+  check_port "$AUDIOBOOKSHELF_PORT" t "audiobookshelf"
+  check_port "$HOMEPAGE_PORT" t "homepage"
+  check_port "$HOMEBRIDGE_PORT" t "homebridge"
   check_port 80 t "caddy-http"
   check_port 443 t "caddy-https"
-  check_port 2019 t "caddy-admin"
+  check_port "$CADDY_ADMIN_PORT" t "caddy-admin"
 }
 
 test_http() {
   section "HTTP Endpoints"
 
-  check_http "http://localhost:32400/identity" "200" "plex"
-  check_http "http://localhost:8181" "200 302 303" "tautulli"
-  check_http "http://localhost:8989" "200 302" "sonarr"
-  check_http "http://localhost:7878" "200 302" "radarr"
-  check_http "http://localhost:6767" "200 302" "bazarr"
-  check_http "http://localhost:9696" "200 302" "prowlarr"
-  check_http "http://localhost:8081" "200 302 303" "sabnzbd"
-  check_http "http://localhost:9091" "401" "transmission"
-  check_http "http://localhost:5055/api/v1/settings/public" "200" "jellyseerr"
-  check_http "http://localhost:8000/healthcheck" "200" "audiobookshelf"
-  check_http "http://localhost:3000" "200" "homepage"
-  check_http "http://localhost:8581/api/auth/settings" "200" "homebridge"
-  check_http "http://localhost:2019/config/" "200" "caddy-admin"
+  check_http "http://localhost:$PLEX_PORT/identity" "200" "plex"
+  check_http "http://localhost:$TAUTULLI_PORT" "200 302 303" "tautulli"
+  check_http "http://localhost:$SONARR_PORT" "200 302" "sonarr"
+  check_http "http://localhost:$RADARR_PORT" "200 302" "radarr"
+  check_http "http://localhost:$BAZARR_PORT" "200 302" "bazarr"
+  check_http "http://localhost:$PROWLARR_PORT" "200 302" "prowlarr"
+  check_http "http://localhost:$SABNZBD_PORT" "200 302 303" "sabnzbd"
+  check_http "http://localhost:$TRANSMISSION_PORT" "401" "transmission"
+  check_http "http://localhost:$JELLYSEERR_PORT/api/v1/settings/public" "200" "jellyseerr"
+  check_http "http://localhost:$AUDIOBOOKSHELF_PORT/healthcheck" "200" "audiobookshelf"
+  check_http "http://localhost:$HOMEPAGE_PORT" "200" "homepage"
+  check_http "http://localhost:$HOMEBRIDGE_PORT/api/auth/settings" "200" "homebridge"
+  check_http "http://localhost:$CADDY_ADMIN_PORT/config/" "200" "caddy-admin"
 }
 
 test_api_auth() {
   section "API Authentication"
 
-
-
-  check_http "http://localhost:7878/api/v3/system/status" "200" "radarr" \
-    -H @"$AUTH_DIR/radarr"
-
-  check_http "http://localhost:8989/api/v3/system/status" "200" "sonarr" \
-    -H @"$AUTH_DIR/sonarr"
-
-  check_http "http://localhost:9696/api/v1/system/status" "200" "prowlarr" \
-    -H @"$AUTH_DIR/prowlarr"
-
-  check_http "http://localhost:8081/api?mode=version&output=json" "200" "sabnzbd" \
-    -d @"$AUTH_DIR/sabnzbd"
-
-  check_http "http://localhost:8181/api/v2?cmd=arnold" "200" "tautulli" \
-    -d @"$AUTH_DIR/tautulli"
-
-  check_http "http://localhost:6767/api/system/status" "200" "bazarr" \
-    -H @"$AUTH_DIR/bazarr"
-
-  check_http "http://localhost:5055/api/v1/settings/main" "200" "jellyseerr" \
-    -H @"$AUTH_DIR/jellyseerr"
-
-  check_http "http://localhost:8000/api/libraries" "200" "audiobookshelf" \
-    -H @"$AUTH_DIR/abs"
-
-  check_http "http://localhost:32400/identity" "200" "plex" \
-    -H @"$AUTH_DIR/plex"
-
-  check_http "http://localhost:9091/transmission/rpc" "409" "transmission" \
-    -H @"$AUTH_DIR/transmission"
+  check_http "http://localhost:$RADARR_PORT/api/v3/system/status" "200" "radarr" -H @"$AUTH/radarr"
+  check_http "http://localhost:$SONARR_PORT/api/v3/system/status" "200" "sonarr" -H @"$AUTH/sonarr"
+  check_http "http://localhost:$PROWLARR_PORT/api/v1/system/status" "200" "prowlarr" -H @"$AUTH/prowlarr"
+  check_http "http://localhost:$SABNZBD_PORT/api" "200" "sabnzbd" -d @"$AUTH/sabnzbd" -d "mode=version&output=json"
+  check_http "http://localhost:$TAUTULLI_PORT/api/v2" "200" "tautulli" -d @"$AUTH/tautulli" -d "cmd=arnold"
+  check_http "http://localhost:$BAZARR_PORT/api/system/status" "200" "bazarr" -H @"$AUTH/bazarr"
+  check_http "http://localhost:$JELLYSEERR_PORT/api/v1/settings/main" "200" "jellyseerr" -H @"$AUTH/jellyseerr"
+  check_http "http://localhost:$AUDIOBOOKSHELF_PORT/api/libraries" "200" "audiobookshelf" -H @"$AUTH/abs"
+  check_http "http://localhost:$PLEX_PORT/identity" "200" "plex" -H @"$AUTH/plex"
+  check_http "http://localhost:$TRANSMISSION_PORT/transmission/rpc" "409" "transmission" -K "$AUTH/transmission"
 
   # Without credentials every API refuses (catches auth being switched off).
   # Codes are each app's own: SABnzbd 403, Tautulli 400 "apikey is required".
-  check_http "http://localhost:7878/api/v3/system/status" "401" "radarr rejects anonymous"
-  check_http "http://localhost:8989/api/v3/system/status" "401" "sonarr rejects anonymous"
-  check_http "http://localhost:9696/api/v1/system/status" "401" "prowlarr rejects anonymous"
-  check_http "http://localhost:6767/api/system/status" "401" "bazarr rejects anonymous"
-  check_http "http://localhost:8081/api?mode=queue&output=json" "403" "sabnzbd rejects anonymous"
-  check_http "http://localhost:8181/api/v2?cmd=arnold" "400 401" "tautulli rejects anonymous"
-  check_http "http://localhost:5055/api/v1/settings/main" "401 403" "jellyseerr rejects anonymous"
-  check_http "http://localhost:8000/api/libraries" "401" "audiobookshelf rejects anonymous"
-  check_http "http://localhost:32400/library/sections" "401" "plex rejects anonymous"
-  check_http "http://localhost:9091/transmission/rpc" "401" "transmission rejects anonymous"
-  check_http "http://localhost:8581/api/config-editor" "401" "homebridge rejects anonymous"
+  check_http "http://localhost:$RADARR_PORT/api/v3/system/status" "401" "radarr rejects anonymous"
+  check_http "http://localhost:$SONARR_PORT/api/v3/system/status" "401" "sonarr rejects anonymous"
+  check_http "http://localhost:$PROWLARR_PORT/api/v1/system/status" "401" "prowlarr rejects anonymous"
+  check_http "http://localhost:$BAZARR_PORT/api/system/status" "401" "bazarr rejects anonymous"
+  check_http "http://localhost:$SABNZBD_PORT/api?mode=queue&output=json" "403" "sabnzbd rejects anonymous"
+  check_http "http://localhost:$TAUTULLI_PORT/api/v2?cmd=arnold" "400 401" "tautulli rejects anonymous"
+  check_http "http://localhost:$JELLYSEERR_PORT/api/v1/settings/main" "401 403" "jellyseerr rejects anonymous"
+  check_http "http://localhost:$AUDIOBOOKSHELF_PORT/api/libraries" "401" "audiobookshelf rejects anonymous"
+  check_http "http://localhost:$PLEX_PORT/library/sections" "401" "plex rejects anonymous"
+  check_http "http://localhost:$TRANSMISSION_PORT/transmission/rpc" "401" "transmission rejects anonymous"
+  check_http "http://localhost:$HOMEBRIDGE_PORT/api/config-editor" "401" "homebridge rejects anonymous"
 
   # Same through Caddy, which is what LAN clients reach
   local svc path
@@ -279,391 +241,106 @@ test_api_auth() {
 test_integrations() {
   section "Integrations"
 
+  local app category
+  for app in radarr sonarr; do
+    check_json "$app -> sabnzbd" 'any(.[]; .name | test("SABnzbd"))' "$app" downloadclient
+    check_json "$app -> nzbgeek" 'any(.[]; .name | test("nzbgeek"; "i"))' "$app" indexer
+    check_json "$app quality profiles" 'length > 0' "$app" qualityprofile
+    check_json "$app download cleanup enabled" \
+      '.[0].removeCompletedDownloads and .[0].removeFailedDownloads' "$app" downloadclient
+  done
+  check_json "radarr root folder" '.[0].path | test("movies")' radarr rootfolder
+  check_json "sonarr root folder" '.[0].path | test("tv")' sonarr rootfolder
 
+  category=$(radarr downloadclient | jq -r '.[0].fields[] | select(.name == "movieCategory") | .value')
+  check_eq "radarr sabnzbd category" "$category" movies
+  category=$(sonarr downloadclient | jq -r '.[0].fields[] | select(.name == "tvCategory") | .value')
+  check_eq "sonarr sabnzbd category" "$category" tv
 
-  # Radarr integrations
-  if http_get "http://localhost:7878/api/v3/downloadclient" -H @"$AUTH_DIR/radarr" | jq -e '.[].name' | grep -q "SABnzbd"; then
-    pass "radarr -> sabnzbd"
-  else
-    fail "radarr -> sabnzbd"
-  fi
+  # Jellyseerr
+  check_json "jellyseerr initialized (plex connected)" '.initialized' seerr settings/public
+  check_json "jellyseerr -> radarr" '.[0].hostname == "localhost"' seerr settings/radarr
+  check_json "jellyseerr -> sonarr" '.[0].hostname == "localhost"' seerr settings/sonarr
+  check_json "jellyseerr radarr external url" ".[0].externalUrl | test(\"radarr.$DOMAIN\")" seerr settings/radarr
+  check_json "jellyseerr sonarr external url" ".[0].externalUrl | test(\"sonarr.$DOMAIN\")" seerr settings/sonarr
+  # Email disabled (replaced by pushover)
+  check_json "jellyseerr email notifications disabled" '.enabled == false' seerr settings/notifications/email
+  check_json "jellyseerr pushover notifications" '.enabled' seerr settings/notifications/pushover
+  check_json "jellyseerr plex libraries enabled" '[.libraries[] | select(.enabled)] | length > 0' seerr settings/plex
+  check_json "jellyseerr periodic plex scan" '.periodicScanning > 0' seerr settings/plex
 
-  if http_get "http://localhost:7878/api/v3/indexer" -H @"$AUTH_DIR/radarr" | jq -e '.[].name' | grep -qi "NZBgeek"; then
-    pass "radarr -> nzbgeek"
-  else
-    fail "radarr -> nzbgeek"
-  fi
+  # Bazarr
+  check_json "bazarr opensubtitles provider" '.general.enabled_providers | index("opensubtitlescom")' bazarr system/settings
+  check_json "bazarr assrt provider" '.general.enabled_providers | index("assrt")' bazarr system/settings
+  check_json "bazarr -> radarr/sonarr" '.data' bazarr system/health
 
-  if http_get "http://localhost:7878/api/v3/rootfolder" -H @"$AUTH_DIR/radarr" | jq -e '.[0].path' | grep -q "movies"; then
-    pass "radarr root folder"
-  else
-    fail "radarr root folder"
-  fi
+  check_json "tautulli -> plex" '.response.result == "success"' tautulli get_server_info
 
-  # Sonarr integrations
-  if http_get "http://localhost:8989/api/v3/downloadclient" -H @"$AUTH_DIR/sonarr" | jq -e '.[].name' | grep -q "SABnzbd"; then
-    pass "sonarr -> sabnzbd"
-  else
-    fail "sonarr -> sabnzbd"
-  fi
+  # Plex
+  local sections prefs
+  sections=$(plex library/sections)
+  check "plex movies library" grep -q 'title="Movies"' <<< "$sections"
+  check "plex tv library" grep -q 'title="TV Shows"' <<< "$sections"
+  check "plex videos library" grep -q 'title="Videos"' <<< "$sections"
+  prefs=$(plex :/prefs)
+  # Reachability also needs the router's TCP 32400 forward
+  check "plex remote access enabled" grep -q 'id="PublishServerOnPlexOnlineKey"[^>]*value="1"' <<< "$prefs"
+  check "plex custom connections url" grep -q "customConnections.*plex\.$DOMAIN" <<< "$prefs"
 
-  if http_get "http://localhost:8989/api/v3/indexer" -H @"$AUTH_DIR/sonarr" | jq -e '.[].name' | grep -qi "NZBgeek"; then
-    pass "sonarr -> nzbgeek"
-  else
-    fail "sonarr -> nzbgeek"
-  fi
-
-  if http_get "http://localhost:8989/api/v3/rootfolder" -H @"$AUTH_DIR/sonarr" | jq -e '.[0].path' | grep -q "tv"; then
-    pass "sonarr root folder"
-  else
-    fail "sonarr root folder"
-  fi
-
-  # Jellyseerr integrations
-  if http_get "http://localhost:5055/api/v1/settings/public" | jq -e '.initialized' | grep -q "true"; then
-    pass "jellyseerr initialized (plex connected)"
-  else
-    fail "jellyseerr initialized (plex connected)"
-  fi
-
-  if http_get "http://localhost:5055/api/v1/settings/radarr" -H @"$AUTH_DIR/jellyseerr" | jq -e '.[0].hostname' | grep -q "localhost"; then
-    pass "jellyseerr -> radarr"
-  else
-    fail "jellyseerr -> radarr"
-  fi
-
-  if http_get "http://localhost:5055/api/v1/settings/sonarr" -H @"$AUTH_DIR/jellyseerr" | jq -e '.[0].hostname' | grep -q "localhost"; then
-    pass "jellyseerr -> sonarr"
-  else
-    fail "jellyseerr -> sonarr"
-  fi
-
-  if http_get "http://localhost:5055/api/v1/settings/radarr" -H @"$AUTH_DIR/jellyseerr" | jq -e '.[0].externalUrl' | grep -q "radarr.$DOMAIN"; then
-    pass "jellyseerr radarr external url"
-  else
-    fail "jellyseerr radarr external url"
-  fi
-
-  if http_get "http://localhost:5055/api/v1/settings/sonarr" -H @"$AUTH_DIR/jellyseerr" | jq -e '.[0].externalUrl' | grep -q "sonarr.$DOMAIN"; then
-    pass "jellyseerr sonarr external url"
-  else
-    fail "jellyseerr sonarr external url"
-  fi
-
-  # Radarr download cleanup flags
-  local radarr_client
-  radarr_client=$(http_get "http://localhost:7878/api/v3/downloadclient" -H @"$AUTH_DIR/radarr")
-  local radarr_rm_completed radarr_rm_failed radarr_category
-  radarr_rm_completed=$(echo "$radarr_client" | jq '.[0].removeCompletedDownloads')
-  radarr_rm_failed=$(echo "$radarr_client" | jq '.[0].removeFailedDownloads')
-  if [ "$radarr_rm_completed" = "true" ] && [ "$radarr_rm_failed" = "true" ]; then
-    pass "radarr download cleanup enabled"
-  else
-    fail "radarr download cleanup (completed=$radarr_rm_completed, failed=$radarr_rm_failed)"
-  fi
-
-  # Radarr SABnzbd category
-  radarr_category=$(echo "$radarr_client" | jq -r '.[0].fields[] | select(.name == "movieCategory") | .value')
-  if [ "$radarr_category" = "movies" ]; then
-    pass "radarr sabnzbd category = movies"
-  else
-    fail "radarr sabnzbd category = $radarr_category (expected movies)"
-  fi
-
-  # Sonarr download cleanup flags
-  local sonarr_client
-  sonarr_client=$(http_get "http://localhost:8989/api/v3/downloadclient" -H @"$AUTH_DIR/sonarr")
-  local sonarr_rm_completed sonarr_rm_failed sonarr_category
-  sonarr_rm_completed=$(echo "$sonarr_client" | jq '.[0].removeCompletedDownloads')
-  sonarr_rm_failed=$(echo "$sonarr_client" | jq '.[0].removeFailedDownloads')
-  if [ "$sonarr_rm_completed" = "true" ] && [ "$sonarr_rm_failed" = "true" ]; then
-    pass "sonarr download cleanup enabled"
-  else
-    fail "sonarr download cleanup (completed=$sonarr_rm_completed, failed=$sonarr_rm_failed)"
-  fi
-
-  # Sonarr SABnzbd category
-  sonarr_category=$(echo "$sonarr_client" | jq -r '.[0].fields[] | select(.name == "tvCategory") | .value')
-  if [ "$sonarr_category" = "tv" ]; then
-    pass "sonarr sabnzbd category = tv"
-  else
-    fail "sonarr sabnzbd category = $sonarr_category (expected tv)"
-  fi
-
-  # Bazarr subtitle providers
-  local bazarr_providers
-  bazarr_providers=$(http_get "http://localhost:6767/api/system/settings" -H @"$AUTH_DIR/bazarr" | jq -r '.general.enabled_providers // empty' 2>/dev/null)
-  if echo "$bazarr_providers" | grep -q "opensubtitlescom"; then
-    pass "bazarr opensubtitles provider"
-  else
-    fail "bazarr opensubtitles provider not enabled"
-  fi
-  if echo "$bazarr_providers" | grep -q "assrt"; then
-    pass "bazarr assrt provider"
-  else
-    fail "bazarr assrt provider not enabled"
-  fi
-
-  # Tautulli -> Plex
-  if http_get "http://localhost:8181/api/v2?cmd=get_server_info" -d @"$AUTH_DIR/tautulli" | jq -e '.response.result' | grep -q "success"; then
-    pass "tautulli -> plex"
-  else
-    fail "tautulli -> plex"
-  fi
-
-  # Bazarr integrations
-
-  if http_get "http://localhost:6767/api/system/health" -H @"$AUTH_DIR/bazarr" | jq -e '.data' &>/dev/null; then
-    pass "bazarr -> radarr/sonarr"
-  else
-    fail "bazarr -> radarr/sonarr"
-  fi
-
-  # Quality profiles
-  if http_get "http://localhost:7878/api/v3/qualityprofile" -H @"$AUTH_DIR/radarr" | jq -e 'length > 0' | grep -q "true"; then
-    pass "radarr quality profiles"
-  else
-    fail "radarr quality profiles"
-  fi
-
-  if http_get "http://localhost:8989/api/v3/qualityprofile" -H @"$AUTH_DIR/sonarr" | jq -e 'length > 0' | grep -q "true"; then
-    pass "sonarr quality profiles"
-  else
-    fail "sonarr quality profiles"
-  fi
-
-  # Plex libraries
-
-  if http_get "http://localhost:32400/library/sections" -H @"$AUTH_DIR/plex" | grep -q 'title="Movies"'; then
-    pass "plex movies library"
-  else
-    fail "plex movies library"
-  fi
-
-  if http_get "http://localhost:32400/library/sections" -H @"$AUTH_DIR/plex" | grep -q 'title="TV Shows"'; then
-    pass "plex tv library"
-  else
-    fail "plex tv library"
-  fi
-
-  if http_get "http://localhost:32400/library/sections" -H @"$AUTH_DIR/plex" | grep -q 'title="Videos"'; then
-    pass "plex videos library"
-  else
-    fail "plex videos library"
-  fi
-
-  # Audiobookshelf library
-
-  if http_get "http://localhost:8000/api/libraries" -H @"$AUTH_DIR/abs" | jq -e '.libraries[0].name' &>/dev/null; then
-    pass "audiobookshelf library"
-  else
-    fail "audiobookshelf library"
-  fi
-
-  # Jellyseerr email notifications (disabled, replaced by pushover)
-  if http_get "http://localhost:5055/api/v1/settings/notifications/email" -H @"$AUTH_DIR/jellyseerr" | jq -e '.enabled == false' | grep -q "true"; then
-    pass "jellyseerr email notifications disabled"
-  else
-    fail "jellyseerr email notifications disabled"
-  fi
-
-  # Jellyseerr Pushover notifications
-  if http_get "http://localhost:5055/api/v1/settings/notifications/pushover" -H @"$AUTH_DIR/jellyseerr" | jq -e '.enabled' | grep -q "true"; then
-    pass "jellyseerr pushover notifications"
-  else
-    fail "jellyseerr pushover notifications"
-  fi
-
-  # Jellyseerr plex libraries enabled
-  local plex_settings
-  plex_settings=$(http_get "http://localhost:5055/api/v1/settings/plex" -H @"$AUTH_DIR/jellyseerr")
-  local plex_libs_enabled
-  plex_libs_enabled=$(echo "$plex_settings" | jq '[.libraries[] | select(.enabled == true)] | length')
-  if [ "$plex_libs_enabled" -gt 0 ] 2>/dev/null; then
-    pass "jellyseerr plex libraries enabled ($plex_libs_enabled)"
-  else
-    fail "jellyseerr no plex libraries enabled"
-  fi
-
-  # Jellyseerr periodic full scan enabled
-  if echo "$plex_settings" | jq -e '.periodicScanning > 0' | grep -q "true"; then
-    pass "jellyseerr periodic plex scan"
-  else
-    fail "jellyseerr periodic plex scan"
-  fi
-
-  # Plex remote access (reachability also needs the router's TCP 32400 forward)
-  if http_get "http://localhost:32400/:/prefs" -H @"$AUTH_DIR/plex" | grep -q 'id="PublishServerOnPlexOnlineKey"[^>]*value="1"'; then
-    pass "plex remote access enabled"
-  else
-    fail "plex remote access not enabled"
-  fi
-
-  # Plex custom connections URL
-  if http_get "http://localhost:32400/:/prefs" -H @"$AUTH_DIR/plex" | grep -q 'customConnections.*plex\.'$DOMAIN; then
-    pass "plex custom connections url"
-  else
-    fail "plex custom connections url not set"
-  fi
-
-  # Audiobookshelf library name and path
+  # Audiobookshelf
   local abs_lib
-  abs_lib=$(http_get "http://localhost:8000/api/libraries" -H @"$AUTH_DIR/abs" | jq -r '.libraries[0]')
-  local abs_name abs_path
-  abs_name=$(echo "$abs_lib" | jq -r '.name')
-  abs_path=$(echo "$abs_lib" | jq -r '.folders[0].fullPath')
-  if [ "$abs_name" = "Audiobooks" ]; then
-    pass "audiobookshelf library named Audiobooks"
-  else
-    fail "audiobookshelf library named $abs_name (expected Audiobooks)"
-  fi
-  if [ "$abs_path" = "/mnt/storage/data/media/audiobooks" ]; then
-    pass "audiobookshelf library path correct"
-  else
-    fail "audiobookshelf library path $abs_path (expected /mnt/storage/data/media/audiobooks)"
-  fi
+  abs_lib=$(abs libraries | jq -c '.libraries[0]')
+  check_eq "audiobookshelf library name" "$(jq -r '.name' <<< "$abs_lib")" Audiobooks
+  check_eq "audiobookshelf library path" "$(jq -r '.folders[0].fullPath' <<< "$abs_lib")" "$STORAGE_DIR/data/media/audiobooks"
 }
 
 test_storage() {
   section "Storage"
 
-  # Mounts
-  if mountpoint -q "$STORAGE_DIR" 2>/dev/null; then
-    pass "$STORAGE_DIR mounted"
-  else
-    fail "$STORAGE_DIR mounted"
-  fi
+  check "$STORAGE_DIR mounted" mountpoint -q "$STORAGE_DIR"
 
-  # Key directories
-  local dirs=(
-    "$STORAGE_DIR/data/media/movies"
-    "$STORAGE_DIR/data/media/tv"
-    "$STORAGE_DIR/data/media/audiobooks"
-    "$CACHE_DIR/data/usenet/complete"
-    "$CACHE_DIR/data/torrents/complete"
-  )
-  for dir in "${dirs[@]}"; do
-    if [ -d "$dir" ]; then
-      pass "$dir exists"
-    else
-      fail "$dir exists"
-    fi
+  local dir
+  for dir in "$STORAGE_DIR/data/media/movies" "$STORAGE_DIR/data/media/tv" \
+    "$STORAGE_DIR/data/media/audiobooks" "$STORAGE_DIR/data/media/videos" \
+    "$CACHE_DIR/data" "$CACHE_DIR/data/usenet/complete" "$CACHE_DIR/data/usenet/incomplete" \
+    "$CACHE_DIR/data/torrents/complete" "$CACHE_DIR/data/torrents/incomplete" "$BACKUP_DIR"; do
+    check "$dir exists" test -d "$dir"
   done
 
-  # Videos dir (transmission download target, Plex Videos library)
-  if [ -d "$STORAGE_DIR/data/media/videos" ]; then
-    pass "$STORAGE_DIR/data/media/videos exists"
-  else
-    fail "$STORAGE_DIR/data/media/videos exists"
-  fi
+  check_eq "media dirs owned by media:media" \
+    "$(stat -c "%U:%G" "$STORAGE_DIR/data/media/movies" 2>/dev/null)" media:media
 
-  # Incomplete dirs
-  if [ -d "$CACHE_DIR/data/usenet/incomplete" ]; then
-    pass "$CACHE_DIR/data/usenet/incomplete exists"
-  else
-    fail "$CACHE_DIR/data/usenet/incomplete exists"
-  fi
-
-  if [ -d "$CACHE_DIR/data/torrents/incomplete" ]; then
-    pass "$CACHE_DIR/data/torrents/incomplete exists"
-  else
-    fail "$CACHE_DIR/data/torrents/incomplete exists"
-  fi
-
-  # Cache and backup dirs accessible
-  if [ -d "$CACHE_DIR/data" ]; then
-    pass "$CACHE_DIR accessible"
-  else
-    fail "$CACHE_DIR not accessible"
-  fi
-
-  if [ -d "$BACKUP_DIR" ]; then
-    pass "$BACKUP_DIR accessible"
-  else
-    fail "$BACKUP_DIR not accessible"
-  fi
-
-  # Ownership
-  local owner
-  owner=$(stat -c "%U:%G" "$STORAGE_DIR/data/media/movies" 2>/dev/null || echo "unknown")
-  if [ "$owner" = "media:media" ]; then
-    pass "media dirs owned by media:media"
-  else
-    fail "media dirs owned by $owner (expected media:media)"
-  fi
+  # Drive status (spindown monitor) served for homepage
+  check_json "drive status JSON valid" '.device' http_get "http://localhost:$DRIVE_STATUS_PORT/status_sda.json"
 }
 
 test_downloads() {
   section "Downloads"
 
+  local queue
+  queue=$(sabnzbd "mode=queue&output=json")
+  check_eq "sabnzbd queue active" "$(jq -r '.queue.paused' <<< "$queue")" false
+  check_json "sabnzbd queue accessible" '.queue.status != null' echo "$queue"
+  check_json "sabnzbd usenet server configured" '[.config.servers[] | select(.enable == 1)] | length > 0' \
+    sabnzbd "mode=get_config&section=servers&output=json"
+  check_json "sabnzbd categories (movies, tv)" '[.config.categories[].name] | index("movies") and index("tv")' \
+    sabnzbd "mode=get_config&section=categories&output=json"
 
-  # SABnzbd not paused
-  local paused
-  paused=$(http_get "http://localhost:8081/api?mode=queue&output=json" -d @"$AUTH_DIR/sabnzbd" | jq -r '.queue.paused')
-  if [ "$paused" = "false" ]; then
-    pass "sabnzbd queue active"
-  else
-    fail "sabnzbd queue is paused"
-  fi
-
-  # SABnzbd queue accessible
-  local queue_status
-  queue_status=$(http_get "http://localhost:8081/api?mode=queue&output=json" -d @"$AUTH_DIR/sabnzbd" | jq -r '.queue.status')
-  if [ -n "$queue_status" ] && [ "$queue_status" != "null" ]; then
-    pass "sabnzbd queue accessible"
-  else
-    fail "sabnzbd queue accessible"
-  fi
-
-  # SABnzbd usenet server configured
-  local server_count
-  server_count=$(http_get "http://localhost:8081/api?mode=get_config&section=servers&output=json" -d @"$AUTH_DIR/sabnzbd" | jq '[.config.servers[] | select(.enable == 1)] | length')
-  if [ "$server_count" -gt 0 ]; then
-    pass "sabnzbd usenet server configured ($server_count)"
-  else
-    fail "sabnzbd no usenet servers configured"
-  fi
-
-  # SABnzbd categories
-  local sab_categories
-  sab_categories=$(http_get "http://localhost:8081/api?mode=get_config&section=categories&output=json" -d @"$AUTH_DIR/sabnzbd" | jq -r '[.config.categories[].name] | join(",")')
-  local cat_ok=true
-  for cat in movies tv; do
-    if ! echo "$sab_categories" | grep -q "$cat"; then
-      cat_ok=false
-    fi
-  done
-  if [ "$cat_ok" = "true" ]; then
-    pass "sabnzbd categories (movies, tv)"
-  else
-    fail "sabnzbd categories missing (got: $sab_categories)"
-  fi
-
-  # Transmission download-dir
+  # Transmission download-dir (needs a session id from a first request)
   local sid
-  sid=$(curl -s --max-time 5 -H @"$AUTH_DIR/transmission" "http://localhost:9091/transmission/rpc" 2>/dev/null | grep -oP 'X-Transmission-Session-Id: \K[^<]+' || true)
-  if [ -n "$sid" ]; then
-    local download_dir
-    download_dir=$(curl -s --max-time 5 -H @"$AUTH_DIR/transmission" \
-      -H "X-Transmission-Session-Id: $sid" \
-      -d '{"method":"session-get","arguments":{"fields":["download-dir"]}}' \
-      "http://localhost:9091/transmission/rpc" | jq -r '.arguments["download-dir"]')
-    if [ "$download_dir" = "/mnt/storage/data/media/videos" ]; then
-      pass "transmission download-dir"
-    else
-      fail "transmission download-dir is $download_dir (expected /mnt/storage/data/media/videos)"
-    fi
-  else
-    fail "transmission download-dir (could not get session)"
-  fi
+  sid=$(curl -s --max-time 5 -K "$AUTH/transmission" "http://localhost:$TRANSMISSION_PORT/transmission/rpc" \
+    | grep -oP 'X-Transmission-Session-Id: \K[^<]+' || true)
+  check_eq "transmission download-dir" "$(http_get "http://localhost:$TRANSMISSION_PORT/transmission/rpc" \
+    -K "$AUTH/transmission" -H "X-Transmission-Session-Id: $sid" \
+    -d '{"method":"session-get","arguments":{"fields":["download-dir"]}}' \
+    | jq -r '.arguments["download-dir"]')" "$STORAGE_DIR/data/media/videos"
 }
 
 test_caddy() {
   section "Caddy Routes"
 
-  local services="sonarr radarr bazarr prowlarr transmission sabnzbd plex tautulli jellyseerr homepage homebridge audiobookshelf"
-  for svc in $services; do
-    local code
+  local svc code
+  for svc in "${CADDY_HOSTS[@]}"; do
     code=$(http_code "https://${svc}.${DOMAIN}" --resolve "${svc}.${DOMAIN}:443:127.0.0.1")
     if [ "$code" != "502" ] && [ "$code" != "503" ] && [ "$code" != "000" ]; then
       pass "${svc}.${DOMAIN} (HTTP $code)"
@@ -676,86 +353,28 @@ test_caddy() {
 test_docker() {
   section "Docker"
 
-  # Drive status HTTP service
-  if systemctl is-active --quiet drive-status-http; then
-    pass "drive-status-http running"
-  else
-    fail "drive-status-http not running"
-  fi
-
-  # Drive status JSON endpoint
-  local drive_json
-  drive_json=$(http_get "http://localhost:9100/status_sda.json")
-  if echo "$drive_json" | jq -e '.device' &>/dev/null; then
-    pass "drive status JSON valid"
-  else
-    fail "drive status JSON invalid"
-  fi
-
-  if sudo docker ps &>/dev/null; then
-    pass "docker daemon running"
-  else
-    fail "docker daemon running"
-  fi
-
-  if sudo docker ps | grep -q "homebridge"; then
-    pass "homebridge container running"
-  else
-    fail "homebridge container running"
-  fi
-
-  # Homebridge HAP port listening
-  if ss -tlnp | grep -q ":51215 "; then
-    pass "homebridge HAP port 51215"
-  else
-    fail "homebridge HAP port 51215 not listening"
-  fi
-
-  # Avahi/mDNS running for HomeKit discovery
-  if systemctl is-active --quiet avahi-daemon; then
-    pass "avahi-daemon running"
-  else
-    fail "avahi-daemon not running"
-  fi
-
-  # mDNS port open
-  if ss -ulnp | grep -q ":5353 "; then
-    pass "mDNS port 5353"
-  else
-    fail "mDNS port 5353 not listening"
-  fi
+  check "docker daemon running" sudo docker ps
+  check "homebridge container running" grep -q homebridge <<< "$(sudo docker ps)"
+  check "homebridge HAP port 51215" grep -q ":51215 " <<< "$(ss -tlnp)"
+  # Avahi/mDNS for HomeKit discovery
+  check "avahi-daemon running" systemctl is-active --quiet avahi-daemon
+  check "mDNS port 5353" grep -q ":5353 " <<< "$(ss -ulnp)"
 }
 
 test_security() {
   section "Security"
 
-  # Secrets root-only: nothing under /var/lib/secrets owned by another user
+  # Secrets root-only: nothing under the secrets dir owned by another user
   # or accessible to group/other
-  local loose_secrets
-  loose_secrets=$(sudo find /var/lib/secrets \( ! -user root -o ! -group root -o -perm /077 \) 2>/dev/null | wc -l)
-  if [ "$loose_secrets" -eq 0 ]; then
-    pass "secrets root-only (700/600 root:root)"
-  else
-    fail "$loose_secrets secret paths not root-only"
-  fi
-
-  # Secrets dir itself 700
-  local dir_perms
-  dir_perms=$(sudo stat -c "%a %U:%G" /var/lib/secrets 2>/dev/null)
-  if [ "$dir_perms" = "700 root:root" ]; then
-    pass "secrets dir 700 root:root"
-  else
-    fail "secrets dir is $dir_perms (expected 700 root:root)"
-  fi
-
+  check_eq "secrets root-only (700/600 root:root)" \
+    "$(sudo find "$SECRETS_DIR" \( ! -user root -o ! -group root -o -perm /077 \) 2>/dev/null | wc -l)" 0
+  check_eq "secrets dir 700 root:root" "$(sudo stat -c "%a %U:%G" "$SECRETS_DIR" 2>/dev/null)" "700 root:root"
   # Plaintext login passwords are recovery copies, never on the server
-  local plaintext
-  plaintext=$(sudo find /var/lib/secrets/users -name plaintext 2>/dev/null | wc -l)
-  if [ "$plaintext" -eq 0 ]; then
-    pass "no plaintext login passwords on server"
-  else
-    fail "$plaintext plaintext login password files on server"
-  fi
+  check_eq "no plaintext login passwords on server" \
+    "$(sudo find "$SECRETS_DIR/users" -name plaintext 2>/dev/null | wc -l)" 0
+  # Backup credentials root-only
+  check_eq "backup secrets root-only 600" \
+    "$(sudo find "$SECRETS_DIR/restic" "$SECRETS_DIR/r2" -type f \( ! -user root -o -perm /077 \) 2>/dev/null | wc -l)" 0
 
   # Service state is private: a media-group daemon can't read files in other
   # services' state dirs (their configs hold tokens and passwords)
@@ -766,205 +385,93 @@ test_security() {
       # find exits non-zero on "permission denied", which is the point
       [ "$d" = "/var/lib/$u" ] || sudo -u "$u" find "$d" -type f -readable 2>/dev/null || true
     done | wc -l)
-    if [ "$readable" -eq 0 ]; then
-      pass "$u can't read other services' state"
-    else
-      fail "$u can read $readable files in other services' state"
-    fi
+    check_eq "$u can't read other services' state (readable files)" "$readable" 0
   done
 
   # Each web login has its own password (finding #5). create-dirs seeds a
   # missing one from admin/password, so this fails until
   # scripts/generate-service-passwords.sh has been run and deployed.
-  local svc shared dupes
   local password_services="sonarr radarr prowlarr bazarr sabnzbd transmission tautulli homebridge audiobookshelf"
-  shared=0
-  for svc in $password_services; do
-    if sudo cmp -s "/var/lib/secrets/$svc/password" /var/lib/secrets/admin/password; then
-      shared=$((shared + 1))
-    fi
+  local shared=0 dupes
+  for u in $password_services; do
+    sudo cmp -s "$SECRETS_DIR/$u/password" "$SECRETS_DIR/admin/password" && shared=$((shared + 1))
   done
-  dupes=$(for svc in $password_services; do sudo sha256sum "/var/lib/secrets/$svc/password"; done | awk '{print $1}' | sort | uniq -d | wc -l)
-  if [ "$shared" -eq 0 ] && [ "$dupes" -eq 0 ]; then
-    pass "per-service web passwords (none shared)"
-  else
-    fail "$shared services on the shared admin password, $dupes reused (run scripts/generate-service-passwords.sh)"
-  fi
+  dupes=$(for u in $password_services; do sudo sha256sum "$SECRETS_DIR/$u/password"; done | awk '{print $1}' | sort | uniq -d | wc -l)
+  check_eq "per-service web passwords (shared with admin, reused)" "$shared $dupes" "0 0"
 
-  # Prowlarr stores a salted PBKDF2 hash (it imports config.xml credentials itself)
-  local prowlarr_salted
-  prowlarr_salted=$(sudo sqlite3 -readonly /var/lib/private/prowlarr/prowlarr.db \
-    "select count(*) from Users where Salt is not null and Salt != '' and Iterations > 0;" 2>/dev/null || echo 0)
-  if [ "$prowlarr_salted" = "1" ]; then
-    pass "prowlarr password hash salted"
-  else
-    fail "prowlarr password hash not salted"
-  fi
+  # Prowlarr stores a salted PBKDF2 hash (prowlarr-config sets it via the API)
+  check_eq "prowlarr password hash salted (salted users)" \
+    "$(sudo sqlite3 -readonly /var/lib/private/prowlarr/prowlarr.db \
+      "select count(*) from Users where Salt is not null and Salt != '' and Iterations > 0;" 2>/dev/null || echo 0)" 1
 
   # Homepage's Audiobookshelf key belongs to the read-only homepage user, not root
-  if [ "$(http_get "http://localhost:8000/api/me" -H @"$AUTH_DIR/abs" | jq -r '.username + ":" + .type')" = "homepage:user" ]; then
-    pass "homepage audiobookshelf key is the read-only homepage user"
-  else
-    fail "homepage audiobookshelf key isn't the homepage user"
-  fi
+  check_eq "homepage audiobookshelf key user" "$(abs me | jq -r '.username + ":" + .type')" homepage:user
 
   # Sandboxing on services that handle untrusted input (services/hardening.nix)
-  local unit props
+  local unit
   for unit in bazarr sabnzbd audiobookshelf tautulli drive-status-http; do
-    props=$(systemctl show -p NoNewPrivileges -p ProtectProc --value "$unit" | tr '\n' ' ')
-    if [ "$props" = "yes invisible " ]; then
-      pass "$unit sandboxed (NoNewPrivileges, ProtectProc=invisible)"
-    else
-      fail "$unit not sandboxed: $props"
-    fi
+    check_eq "$unit sandboxed (NoNewPrivileges, ProtectProc)" \
+      "$(systemctl show -p NoNewPrivileges -p ProtectProc --value "$unit" | xargs)" "yes invisible"
   done
 
   # Jobs that don't need root run as dynamic users
   for unit in drive-status-http sabnzbd-resume radarr-auto-import; do
-    if [ "$(systemctl show -p DynamicUser --value "$unit")" = "yes" ]; then
-      pass "$unit runs as a dynamic user"
-    else
-      fail "$unit runs as root"
-    fi
+    check_eq "$unit runs as a dynamic user" "$(systemctl show -p DynamicUser --value "$unit")" yes
   done
 
   # Legacy secrets file (admin password, WireGuard keys) is gone
-  if sudo test -e /var/lib/secrets/default.json; then
-    fail "legacy secrets/default.json still on server"
-  else
-    pass "no legacy secrets/default.json on server"
-  fi
+  check "no legacy secrets/default.json on server" not sudo test -e "$SECRETS_DIR/default.json"
 
   # Homepage gets its keys via LoadCredential, not group access to secrets
   local hp_groups
   hp_groups=$(systemctl show -p Group -p SupplementaryGroups --value homepage-dashboard | tr '\n' ' ')
-  if ! grep -qwE 'media|radarr' <<< "$hp_groups"; then
-    pass "homepage not in media/radarr groups"
-  else
-    fail "homepage groups: $hp_groups"
-  fi
+  check "homepage not in media/radarr groups ($hp_groups)" not grep -qwE 'media|radarr' <<< "$hp_groups"
 
-  # Caddy admin bound to localhost
-  if sudo grep -q 'admin localhost' /etc/caddy/Caddyfile 2>/dev/null; then
-    pass "caddy admin localhost-only"
-  else
-    fail "caddy admin not bound to localhost"
-  fi
+  # Cloudflare token only in Caddy's environment: not in the generated config
+  # or the admin API's, and the env file is root-only
+  check "cloudflare token not in caddy config" no_match "$AUTH/cloudflare" /etc/caddy/caddy_config
+  check "cloudflare token not in caddy admin api" \
+    no_match "$AUTH/cloudflare" <<< "$(http_get "http://localhost:$CADDY_ADMIN_PORT/config/")"
+  check_eq "caddy env file root-only" "$(sudo stat -c "%a %U:%G" /run/caddy-config/caddy.env 2>/dev/null)" "600 root:root"
 
-  # Caddy config file permissions
-  local caddy_perms caddy_owner
-  caddy_perms=$(stat -c "%a" /etc/caddy/Caddyfile 2>/dev/null)
-  caddy_owner=$(stat -c "%U:%G" /etc/caddy/Caddyfile 2>/dev/null)
-  if [ "$caddy_perms" = "640" ] && [ "$caddy_owner" = "caddy:caddy" ]; then
-    pass "caddyfile permissions 640 caddy:caddy"
-  else
-    fail "caddyfile permissions $caddy_perms $caddy_owner (expected 640 caddy:caddy)"
-  fi
-
-  # Cloudflare token only in Caddy's environment: not in the Caddyfile or the
-  # admin API's config, and the env file is root-only
-  local cf_leaks env_perms
-  # grep -f reads the token from a file, keeping it off grep's argv
-  read_secret "cloudflare/api-token" > "$AUTH_DIR/cf-token"
-  cf_leaks=0
-  if [ ! -s "$AUTH_DIR/cf-token" ]; then
-    cf_leaks=1
-  else
-    sudo grep -qFf "$AUTH_DIR/cf-token" /etc/caddy/Caddyfile && cf_leaks=$((cf_leaks + 1))
-    curl -s --max-time 5 http://localhost:2019/config/ | grep -qFf "$AUTH_DIR/cf-token" && cf_leaks=$((cf_leaks + 1))
-  fi
-  env_perms=$(sudo stat -c "%a %U:%G" /run/caddy-config/caddy.env 2>/dev/null)
-  if [ "$cf_leaks" -eq 0 ] && [ "$env_perms" = "600 root:root" ]; then
-    pass "cloudflare token not in caddyfile or admin api"
-  else
-    fail "cloudflare token exposed ($cf_leaks places) or env file is '$env_perms'"
-  fi
-
-  # SABnzbd verifies usenet server certificates (3 = Strict)
-  local unverified
-  unverified=$(http_get "http://localhost:8081/api?mode=get_config&section=servers&output=json" -d @"$AUTH_DIR/sabnzbd" | jq '[.config.servers[] | select(.ssl_verify != 3)] | length')
-  if [ "$unverified" = "0" ]; then
-    pass "sabnzbd usenet servers ssl_verify strict"
-  else
-    fail "sabnzbd usenet servers without strict ssl_verify: $unverified"
-  fi
-
-  # SABnzbd built-in HTTPS disabled (Caddy terminates TLS)
-  if ss -tln | grep -q ":8090 "; then
-    fail "sabnzbd https port 8090 listening"
-  else
-    pass "sabnzbd https port 8090 closed"
-  fi
+  # SABnzbd: verifies usenet server certificates (3 = Strict); built-in
+  # HTTPS off (Caddy terminates TLS); ini private
+  check_json "sabnzbd usenet servers ssl_verify strict" 'all(.config.servers[]; .ssl_verify == 3)' \
+    sabnzbd "mode=get_config&section=servers&output=json"
+  check "sabnzbd https port 8090 closed" not grep -q ":8090 " <<< "$(ss -tln)"
+  check_eq "sabnzbd.ini owner and mode" \
+    "$(sudo stat -c "%U:%G %a" /var/lib/sabnzbd/sabnzbd.ini 2>/dev/null)" "sabnzbd:media 600"
 
   # Homebridge image pinned (not :latest)
-  if sudo docker inspect homebridge --format '{{.Config.Image}}' 2>/dev/null | grep -q '^homebridge/homebridge:[0-9-]*@sha256:'; then
-    pass "homebridge image pinned"
-  else
-    fail "homebridge image not pinned"
-  fi
+  check "homebridge image pinned" grep -q '^homebridge/homebridge:[0-9-]*@sha256:' \
+    <<< "$(sudo docker inspect homebridge --format '{{.Config.Image}}' 2>/dev/null)"
 
   # Homebridge UI not opened on the LAN (only reachable through Caddy)
   local fw_rules
   if fw_rules=$(sudo iptables -S nixos-fw 2>/dev/null && { sudo ip6tables -S nixos-fw 2>/dev/null || true; }); then
-    if grep -q -- "--dport 8581 " <<< "$fw_rules"; then
-      fail "homebridge ui port 8581 open in firewall"
-    else
-      pass "homebridge ui port 8581 closed in firewall"
-    fi
+    check "homebridge ui port $HOMEBRIDGE_PORT closed in firewall" not grep -q -- "--dport $HOMEBRIDGE_PORT " <<< "$fw_rules"
   else
     fail "could not read nixos-fw firewall rules"
   fi
 
-  # Web UIs behind Caddy listen on loopback only (homepage, seerr, bazarr,
-  # radarr, sabnzbd, tautulli, homebridge, sonarr, prowlarr)
+  # Everything behind Caddy, and Caddy's admin API, listen on loopback only
   local port exposed
-  for port in 3000 5055 6767 7878 8081 8181 8581 8989 9696; do
+  for port in "$HOMEPAGE_PORT" "$JELLYSEERR_PORT" "$BAZARR_PORT" "$RADARR_PORT" "$SABNZBD_PORT" \
+    "$TAUTULLI_PORT" "$HOMEBRIDGE_PORT" "$SONARR_PORT" "$PROWLARR_PORT" "$CADDY_ADMIN_PORT"; do
     exposed=$(ss -tlnH "sport = :$port" | awk '{print $4}' | grep -vE '^(127\.0\.0\.1|\[::1\]):' || true)
-    if [ -z "$exposed" ]; then
-      pass "port $port loopback-only"
-    else
-      fail "port $port listening on $(echo "$exposed" | tr '\n' ' ')"
-    fi
+    check_eq "port $port loopback-only (other listeners)" "$(tr '\n' ' ' <<< "$exposed" | xargs)" ""
   done
 
   # IPv6 disabled: sysctl set and no global IPv6 address on any interface
-  local v6_off v6_global
-  v6_off=$(sysctl -n net.ipv6.conf.all.disable_ipv6 2>/dev/null || echo 0)
-  v6_global=$(ip -6 -o addr show scope global 2>/dev/null | awk '{print $2": "$4}')
-  if [ "$v6_off" = "1" ] && [ -z "$v6_global" ]; then
-    pass "ipv6 disabled"
-  else
-    fail "ipv6 not disabled (disable_ipv6=$v6_off) $(echo "$v6_global" | tr '\n' ' ')"
-  fi
+  check_eq "ipv6 disabled (disable_ipv6)" "$(sysctl -n net.ipv6.conf.all.disable_ipv6 2>/dev/null || echo 0)" 1
+  check_eq "no global ipv6 addresses" "$(ip -6 -o addr show scope global 2>/dev/null | awk '{print $2": "$4}' | xargs)" ""
 
   # NetworkManager won't re-enable it: every active ethernet profile has
   # ipv6.method=disabled (set by hand, see "IPv6" in CLAUDE.md)
   local nm_auto
   nm_auto=$(nmcli -t -f UUID,TYPE con show --active 2>/dev/null | awk -F: '$2 == "802-3-ethernet" {print $1}' \
     | while read -r uuid; do [ "$(nmcli -g ipv6.method con show "$uuid")" = "disabled" ] || nmcli -g connection.id con show "$uuid"; done)
-  if [ -z "$nm_auto" ]; then
-    pass "networkmanager ethernet profiles ipv6 disabled"
-  else
-    fail "networkmanager profile with ipv6 enabled: $nm_auto"
-  fi
-
-  # SABnzbd ini ownership
-  local sab_owner
-  sab_owner=$(sudo stat -c "%U:%G" /var/lib/sabnzbd/sabnzbd.ini 2>/dev/null)
-  if [ "$sab_owner" = "sabnzbd:sabnzbd" ]; then
-    pass "sabnzbd.ini owned by sabnzbd:sabnzbd"
-  else
-    fail "sabnzbd.ini owned by $sab_owner (expected sabnzbd:sabnzbd)"
-  fi
-
-  # Backup credentials root-only
-  local bad_backup_secrets
-  bad_backup_secrets=$(sudo find /var/lib/secrets/restic /var/lib/secrets/r2 -type f \( ! -user root -o -perm /077 \) 2>/dev/null | wc -l)
-  if [ "$bad_backup_secrets" -eq 0 ]; then
-    pass "backup secrets root-only 600"
-  else
-    fail "$bad_backup_secrets backup secret files not root-only 600"
-  fi
+  check_eq "networkmanager ethernet profiles with ipv6 enabled" "$nm_auto" ""
 }
 
 test_backups() {
@@ -973,7 +480,7 @@ test_backups() {
   # Latest snapshot in each repo is less than 48h old
   local repo latest age
   for repo in local r2; do
-    latest=$(sudo restic-$repo snapshots --latest 1 --json 2>/dev/null | jq -r '.[-1].time // empty')
+    latest=$(sudo "restic-$repo" snapshots --latest 1 --json 2>/dev/null | jq -r '.[-1].time // empty')
     if [ -z "$latest" ]; then
       fail "restic $repo: no snapshots"
       continue

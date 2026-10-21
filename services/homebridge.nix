@@ -1,114 +1,132 @@
-{ config, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  helpers,
+  ...
+}:
 
 with config.my;
 
 let
-  configScript = pkgs.writeScriptBin "homebridge-config" ''
-    #!/bin/sh
-    set -e
+  dummySwitch = {
+    platform = "HomebridgeDummy";
+    name = "HomebridgeDummy";
+    accessories = [
+      {
+        type = "Switch";
+        name = "Dummy Door Switch";
+        stateful = true;
+      }
+    ];
+  };
 
-    CURL="${pkgs.curl}/bin/curl"
-    JQ="${pkgs.jq}/bin/jq"
-    BASE="http://localhost:${toString homebridgePort}"
+  configScript = pkgs.writeShellApplication {
+    name = "homebridge-config";
+    runtimeInputs = with pkgs; [
+      curl
+      jq
+      docker
+      helpers
+    ];
+    text = ''
+      BASE="http://localhost:${toString homebridgePort}/api"
+      CONFIG_JSON=/var/lib/homebridge/volumes/config.json
 
-    echo "Waiting for Homebridge to start..."
-    until $CURL -sSf "$BASE/api/auth/settings" >/dev/null 2>&1; do
-      sleep 2
-    done
+      echo "Waiting for Homebridge to start..."
+      wait-for-http "$BASE/auth/settings"
 
-    # Bind the UI to loopback; Caddy reaches it at homebridge.${domain}.
-    # The container uses host networking, so this is the host's loopback.
-    CONFIG_JSON=/var/lib/homebridge/volumes/config.json
-    if [ "$($JQ -r '.platforms[] | select(.platform == "config") | .host // ""' $CONFIG_JSON)" != "127.0.0.1" ]; then
-      echo "Binding Homebridge UI to 127.0.0.1..."
-      $JQ '(.platforms[] | select(.platform == "config")).host = "127.0.0.1"' $CONFIG_JSON > $CONFIG_JSON.tmp
-      cat $CONFIG_JSON.tmp > $CONFIG_JSON
-      rm -f $CONFIG_JSON.tmp
-      systemctl restart homebridge.service
-      until $CURL -sSf "$BASE/api/auth/settings" >/dev/null 2>&1; do
-        sleep 2
-      done
-    fi
-
-    # Credentials and session tokens reach curl through files (-d @file,
-    # -H @file), never as arguments, which any local user could read from
-    # /proc/<pid>/cmdline.
-    umask 077
-    TMP=$(mktemp -d)
-    trap 'rm -rf "$TMP"' EXIT
-    creds() { # USERNAME_FILE PASSWORD_FILE
-      $JQ -n --rawfile u "$1" --rawfile p "$2" \
-        '{username: ($u | rtrimstr("\n")), password: ($p | rtrimstr("\n"))}'
-    }
-    creds ${secretsDir}/admin/username ${secretsDir}/homebridge/password > "$TMP/login.json"
-    # The shared admin password, for rotating an install set up before
-    # Homebridge had its own (finding #5)
-    creds ${secretsDir}/admin/username ${secretsDir}/admin/password > "$TMP/old-login.json"
-
-    # login CREDS_FILE: on success write "Authorization: Bearer ..." to $TMP/auth
-    login() {
-      TOKEN=$($CURL -s -X POST -H "Content-Type: application/json" \
-        -d @"$1" "$BASE/api/auth/login" | $JQ -r '.access_token // empty')
-      [ -n "$TOKEN" ] || return 1
-      printf 'Authorization: Bearer %s\n' "$TOKEN" > "$TMP/auth"
-    }
-
-    SETUP_COMPLETE=$($CURL -s "$BASE/api/auth/settings" | $JQ -r '.env.setupWizardComplete')
-    if [ "$SETUP_COMPLETE" = "true" ]; then
-      if ! login "$TMP/login.json"; then
-        if login "$TMP/old-login.json"; then
-          echo "Changing the Homebridge admin password to homebridge/password..."
-          $JQ -n --rawfile c ${secretsDir}/admin/password --rawfile n ${secretsDir}/homebridge/password \
-            '{currentPassword: ($c | rtrimstr("\n")), newPassword: ($n | rtrimstr("\n"))}' |
-            $CURL -sf -X POST -H @"$TMP/auth" -H "Content-Type: application/json" \
-              -d @- "$BASE/api/users/change-password" >/dev/null
-          login "$TMP/login.json" || { echo "ERROR: new password rejected after the change"; exit 1; }
-        else
-          echo "WARNING: neither homebridge/password nor admin/password logs in; password left unchanged"
-        fi
+      # Bind the UI to loopback; Caddy reaches it at homebridge.${domain}.
+      # The container uses host networking, so this is the host's loopback.
+      if [ "$(jq -r '.platforms[] | select(.platform == "config") | .host // ""' $CONFIG_JSON)" != 127.0.0.1 ]; then
+        echo "Binding Homebridge UI to 127.0.0.1..."
+        jq '(.platforms[] | select(.platform == "config")).host = "127.0.0.1"' $CONFIG_JSON > $CONFIG_JSON.tmp
+        cat $CONFIG_JSON.tmp > $CONFIG_JSON
+        rm -f $CONFIG_JSON.tmp
+        systemctl restart homebridge.service
+        wait-for-http "$BASE/auth/settings"
       fi
-      echo "Homebridge already set up."
-      exit 0
-    fi
 
-    echo "Getting setup wizard token..."
-    TOKEN=$($CURL -s "$BASE/api/setup-wizard/get-setup-wizard-token" | $JQ -r '.access_token')
-    printf 'Authorization: Bearer %s\n' "$TOKEN" > "$TMP/auth"
+      # Credentials and session tokens reach curl through files (-d @file,
+      # -H @file), never as arguments, which any local user could read from
+      # /proc/<pid>/cmdline.
+      umask 077
+      TMP=$(mktemp -d)
+      trap 'rm -rf "$TMP"' EXIT
+      creds() { # USERNAME_FILE PASSWORD_FILE
+        jq -n --rawfile u "$1" --rawfile p "$2" \
+          '{username: ($u | rtrimstr("\n")), password: ($p | rtrimstr("\n"))}'
+      }
+      creds ${secretsDir}/admin/username ${secretsDir}/homebridge/password > "$TMP/login.json"
+      # The shared admin password, for rotating an install set up before
+      # Homebridge had its own (finding #5)
+      creds ${secretsDir}/admin/username ${secretsDir}/admin/password > "$TMP/old-login.json"
 
-    echo "Creating admin user..."
-    $JQ '. + {name: .username, admin: true}' "$TMP/login.json" |
-      $CURL -s -X POST -H "Content-Type: application/json" -H @"$TMP/auth" \
-        -d @- "$BASE/api/setup-wizard/create-first-user" >/dev/null
+      # login CREDS_FILE: on success write "Authorization: Bearer ..." to $TMP/auth
+      login() {
+        local token
+        token=$(curl -s -X POST -H "Content-Type: application/json" \
+          -d @"$1" "$BASE/auth/login" | jq -r '.access_token // empty')
+        [ -n "$token" ] || return 1
+        printf 'Authorization: Bearer %s\n' "$token" > "$TMP/auth"
+      }
+      # api METHOD PATH [curl args...]
+      api() {
+        local method=$1 path=$2
+        shift 2
+        curl -s -X "$method" -H @"$TMP/auth" -H "Content-Type: application/json" "$BASE/$path" "$@"
+      }
 
-    echo "Logging in..."
-    login "$TMP/login.json"
+      if [ "$(curl -s "$BASE/auth/settings" | jq -r '.env.setupWizardComplete')" = true ]; then
+        if ! login "$TMP/login.json"; then
+          if login "$TMP/old-login.json"; then
+            echo "Changing the Homebridge admin password to homebridge/password..."
+            jq -n --rawfile c ${secretsDir}/admin/password --rawfile n ${secretsDir}/homebridge/password \
+              '{currentPassword: ($c | rtrimstr("\n")), newPassword: ($n | rtrimstr("\n"))}' \
+              | api POST users/change-password --fail -d @- >/dev/null
+            login "$TMP/login.json" || { echo "ERROR: new password rejected after the change"; exit 1; }
+          else
+            echo "WARNING: neither homebridge/password nor admin/password logs in; password left unchanged"
+          fi
+        fi
+        echo "Homebridge already set up."
+        exit 0
+      fi
 
-    echo "Installing homebridge-dummy plugin..."
-    ${pkgs.docker}/bin/docker exec homebridge npm install homebridge-dummy
+      echo "Getting setup wizard token..."
+      printf 'Authorization: Bearer %s\n' \
+        "$(curl -s "$BASE/setup-wizard/get-setup-wizard-token" | jq -r '.access_token')" > "$TMP/auth"
 
-    echo "Adding dummy switch to config..."
-    $CURL -s -H @"$TMP/auth" "$BASE/api/config-editor" |
-      $JQ '.platforms += [{"platform": "HomebridgeDummy", "name": "HomebridgeDummy", "accessories": [{"type": "Switch", "name": "Dummy Door Switch", "stateful": true}]}]' |
-      $CURL -s -X POST -H @"$TMP/auth" -H "Content-Type: application/json" \
-        -d @- "$BASE/api/config-editor" >/dev/null
+      echo "Creating admin user..."
+      jq '. + {name: .username, admin: true}' "$TMP/login.json" \
+        | api POST setup-wizard/create-first-user -d @- >/dev/null
 
-    echo "Restarting Homebridge..."
-    $CURL -s -X PUT -H @"$TMP/auth" "$BASE/api/server/restart" >/dev/null
+      echo "Logging in..."
+      login "$TMP/login.json"
 
-    echo "Waiting for Homebridge to come back..."
-    sleep 5
-    until $CURL -sSf "$BASE/api/auth/settings" >/dev/null 2>&1; do
-      sleep 2
-    done
+      echo "Installing homebridge-dummy plugin..."
+      docker exec homebridge npm install homebridge-dummy
 
-    echo "Logging in again..."
-    login "$TMP/login.json"
+      echo "Adding dummy switch to config..."
+      api GET config-editor | jq --argjson dummy ${lib.escapeShellArg (builtins.toJSON dummySwitch)} \
+        '.platforms += [$dummy]' | api POST config-editor -d @- >/dev/null
 
-    echo "Resetting cached accessories..."
-    $CURL -s -X PUT -H @"$TMP/auth" "$BASE/api/server/reset-cached-accessories" >/dev/null
+      echo "Restarting Homebridge..."
+      api PUT server/restart >/dev/null
 
-    echo "Homebridge setup complete."
-  '';
+      echo "Waiting for Homebridge to come back..."
+      sleep 5
+      wait-for-http "$BASE/auth/settings"
+
+      echo "Logging in again..."
+      login "$TMP/login.json"
+
+      echo "Resetting cached accessories..."
+      api PUT server/reset-cached-accessories >/dev/null
+
+      echo "Homebridge setup complete."
+    '';
+  };
 in
 {
   systemd = {
@@ -145,7 +163,7 @@ in
       serviceConfig = {
         Type = "oneshot";
         User = "root";
-        ExecStart = "${configScript}/bin/homebridge-config";
+        ExecStart = lib.getExe configScript;
       };
     };
   };

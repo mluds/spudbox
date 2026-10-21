@@ -16,7 +16,7 @@ let
         description = "Storage Drive (${dev})";
         widget = {
           type = "customapi";
-          url = "http://localhost:9100/status_${blockName}.json";
+          url = "http://localhost:${toString driveStatusPort}/status_${blockName}.json";
           refreshInterval = 30000;
           mappings = [
             {

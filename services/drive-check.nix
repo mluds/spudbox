@@ -15,55 +15,62 @@ let
   # enterprise drive (WD Ultrastar), so we manage spindown ourselves.
   spindownSeconds = 300;
 
-  checkScript = pkgs.writeShellScript "check-drive-script" ''
-    mkdir -p ${statusDir}
+  checkScript = pkgs.writeShellApplication {
+    name = "check-drive-status";
+    runtimeInputs = with pkgs; [
+      hdparm
+      jq
+    ];
+    text = ''
+      mkdir -p ${statusDir}
 
-    ${lib.concatMapStrings (dev: ''
-      DEVICE="${dev}"
-      BLOCK_NAME=$(basename "$DEVICE")
+      ${lib.concatMapStrings (dev: ''
+        DEVICE="${dev}"
+        BLOCK_NAME=$(basename "$DEVICE")
 
-      # Detect I/O activity by comparing block device stats.
-      # We never call hdparm -C because the ATA CHECK POWER MODE
-      # command resets the drive's idle timer on some drives.
-      STAT_FILE="${statusDir}/prev_stat_$BLOCK_NAME"
-      TIMESTAMP_FILE="${statusDir}/last_access_$BLOCK_NAME"
-      CURRENT_STAT=$(cat /sys/block/$BLOCK_NAME/stat 2>/dev/null | tr -s ' ')
+        # Detect I/O activity by comparing block device stats.
+        # We never call hdparm -C because the ATA CHECK POWER MODE
+        # command resets the drive's idle timer on some drives.
+        STAT_FILE="${statusDir}/prev_stat_$BLOCK_NAME"
+        TIMESTAMP_FILE="${statusDir}/last_access_$BLOCK_NAME"
+        CURRENT_STAT=$(tr -s ' ' 2>/dev/null < "/sys/block/$BLOCK_NAME/stat" || true)
 
-      if [ -f "$STAT_FILE" ]; then
-        PREV_STAT=$(cat "$STAT_FILE")
-        if [ "$CURRENT_STAT" != "$PREV_STAT" ]; then
+        if [ -f "$STAT_FILE" ]; then
+          PREV_STAT=$(cat "$STAT_FILE")
+          if [ "$CURRENT_STAT" != "$PREV_STAT" ]; then
+            date -u +%Y-%m-%dT%H:%M:%SZ > "$TIMESTAMP_FILE"
+          fi
+        else
           date -u +%Y-%m-%dT%H:%M:%SZ > "$TIMESTAMP_FILE"
         fi
-      else
-        date -u +%Y-%m-%dT%H:%M:%SZ > "$TIMESTAMP_FILE"
-      fi
-      echo "$CURRENT_STAT" > "$STAT_FILE"
+        echo "$CURRENT_STAT" > "$STAT_FILE"
 
-      LAST_ACCESS=$(cat "$TIMESTAMP_FILE" 2>/dev/null || echo "unknown")
+        LAST_ACCESS=$(cat "$TIMESTAMP_FILE" 2>/dev/null || echo "unknown")
 
-      # Determine spin state and force spindown when idle long enough
-      if [ "$LAST_ACCESS" != "unknown" ]; then
-        LAST_EPOCH=$(date -d "$LAST_ACCESS" +%s 2>/dev/null || echo 0)
-        NOW_EPOCH=$(date -u +%s)
-        IDLE_SECS=$(( NOW_EPOCH - LAST_EPOCH ))
-        if [ "$IDLE_SECS" -ge ${toString spindownSeconds} ]; then
-          ${pkgs.hdparm}/bin/hdparm -y "$DEVICE" > /dev/null 2>&1
-          STATE="standby"
+        # Determine spin state and force spindown when idle long enough
+        if [ "$LAST_ACCESS" != "unknown" ]; then
+          LAST_EPOCH=$(date -d "$LAST_ACCESS" +%s 2>/dev/null || echo 0)
+          NOW_EPOCH=$(date -u +%s)
+          IDLE_SECS=$(( NOW_EPOCH - LAST_EPOCH ))
+          if [ "$IDLE_SECS" -ge ${toString spindownSeconds} ]; then
+            hdparm -y "$DEVICE" > /dev/null 2>&1 || true
+            STATE="standby"
+          else
+            STATE="active/idle"
+          fi
         else
           STATE="active/idle"
         fi
-      else
-        STATE="active/idle"
-      fi
 
-      ${pkgs.jq}/bin/jq -n \
-        --arg device "$DEVICE" \
-        --arg state "$STATE" \
-        --arg lastAccess "$LAST_ACCESS" \
-        '{device: $device, state: $state, lastAccess: $lastAccess}' \
-        > ${statusDir}/status_$BLOCK_NAME.json
-    '') uniqueDevices}
-  '';
+        jq -n \
+          --arg device "$DEVICE" \
+          --arg state "$STATE" \
+          --arg lastAccess "$LAST_ACCESS" \
+          '{device: $device, state: $state, lastAccess: $lastAccess}' \
+          > "${statusDir}/status_$BLOCK_NAME.json"
+      '') uniqueDevices}
+    '';
+  };
 in
 {
   systemd = {
@@ -77,7 +84,7 @@ in
         serviceConfig = {
           Type = "oneshot";
           User = "root";
-          ExecStart = checkScript;
+          ExecStart = lib.getExe checkScript;
         };
       };
 
@@ -86,7 +93,7 @@ in
         wantedBy = [ "multi-user.target" ];
         # Only reads the world-readable status files, so no root needed
         serviceConfig = import ./hardening.nix // {
-          ExecStart = "${pkgs.darkhttpd}/bin/darkhttpd ${statusDir} --port 9100 --addr 127.0.0.1";
+          ExecStart = "${pkgs.darkhttpd}/bin/darkhttpd ${statusDir} --port ${toString driveStatusPort} --addr 127.0.0.1";
           Restart = "always";
           DynamicUser = true;
         };

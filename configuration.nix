@@ -97,6 +97,8 @@ in
   imports = [
     ./storage.nix
     ./common/vars.nix
+    ./common/env.nix
+    ./common/helpers.nix
     ./environments/default.nix
     ./services/caddy.nix
     ./services/homepage.nix
@@ -130,7 +132,7 @@ in
     lsof
     statix
     deadnix
-    nixfmt-rfc-style
+    nixfmt
     git
     gh
     tmux
@@ -235,7 +237,7 @@ in
       "radarr-config.service"
       "prowlarr-config.service"
       "bazarr-config.service"
-      "sabnzbd-config.service"
+      "sabnzbd.service" # loads sabnzbd/password via LoadCredential
       "transmission.service"
       "tautulli-config.service"
       "homebridge-config.service"

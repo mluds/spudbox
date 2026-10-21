@@ -1,6 +1,6 @@
 ### Installation
 
-Install the NixOS minimal ISO on a USB drive using a tool like Belena Etcher.
+Install the NixOS minimal ISO on a USB drive using a tool like balenaEtcher.
 
 Boot from the USB drive and run these commands to get an initial SSH connection.
 ```bash
@@ -63,7 +63,7 @@ cat > /mnt/etc/nixos/configuration.nix <<EOF
 { config, lib, pkgs, ... }:
 {
   imports = [ ./hardware-configuration.nix ];
-  system.stateVersion = "25.11";
+  system.stateVersion = "25.05"; # match configuration.nix
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
   services.openssh.enable = true;
@@ -82,7 +82,7 @@ scp -o StrictHostKeyChecking=accept-new -r ./* root@${HOST_IP}:~/deploy/ && \
 ssh root@${HOST_IP} "cd ~/deploy && nixos-rebuild switch --impure --flake .#${FLAKE}"
 ```
 
-After this, root login will be disabled and you must login using one of the users in `my.users` (`environments/default.nix`), with its SSH key.
+After this, root login will be disabled and you must log in as one of the users in `my.users` (`environments/default.nix`), with its SSH key.
 
 ### Manual Steps
 
@@ -123,14 +123,8 @@ The `spudbox` session then appears in the app's session list. The service skips
 startup until `~/.claude/.credentials.json` exists.
 
 ### Deploy Updates
-```bash
-./deploy.sh          # sync, rebuild, and test
-./deploy.sh switch   # sync and rebuild (no tests)
-./deploy.sh sync     # sync files only
-./deploy.sh test     # run tests
-./deploy.sh lint     # sync and run linters
-./deploy.sh ssh      # open SSH session
-```
+
+See "Deploying" in `CLAUDE.md`.
 
 ### Secrets
 

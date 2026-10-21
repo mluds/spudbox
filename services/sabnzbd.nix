@@ -1,456 +1,112 @@
 {
   config,
-  pkgs,
   lib,
+  pkgs,
   ...
 }:
 
 with config.my;
 
 let
-  configScript = pkgs.writeScriptBin "sabnzbd-config" ''
-    #!/bin/sh
-    set -e
-    umask 077 # sabnzbd.ini holds passwords; chmod'ed to 660 below
-    mkdir -p /var/log/sabnzbd
-    chown -R sabnzbd:sabnzbd /var/log/sabnzbd
+  # Placeholder in settings -> secret file. systemd copies each file into the
+  # unit's credentials dir (readable by the sabnzbd user only), and the
+  # module's preStart substitutes them into sabnzbd.ini (mode 600).
+  credentials = {
+    admin_username = "admin/username";
+    web_password = "sabnzbd/password";
+    api_key = "sabnzbd/api-key";
+    nzb_key = "sabnzbd/nzb-key";
+    usenet_username = "usenet/username";
+    usenet_password = "usenet/password";
+  };
+  secret = name: "@${name}@";
 
-    # Read secrets from files
-    ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
-    ADMIN_PASSWORD=$(cat ${secretsDir}/sabnzbd/password)
-    SABNZBD_API_KEY=$(cat ${secretsDir}/sabnzbd/api-key)
-    SABNZBD_NZB_KEY=$(cat ${secretsDir}/sabnzbd/nzb-key)
-    USENET_USERNAME=$(cat ${secretsDir}/usenet/username)
-    USENET_PASSWORD=$(cat ${secretsDir}/usenet/password)
-
-    # Create the configuration file with secret values
-    cat > /var/lib/sabnzbd/sabnzbd.ini << EOF
-    __version__ = 19
-    __encoding__ = utf-8
-    [misc]
-    config_conversion_version = 4
-    helpful_warnings = 1
-    queue_complete = ""
-    queue_complete_pers = 0
-    bandwidth_perc = 100
-    refresh_rate = 1
-    interface_settings = ""
-    queue_limit = 20
-    config_lock = 0
-    fixed_ports = 1
-    notified_new_skin = 2
-    direct_unpack_tested = 1
-    sorters_converted = 1
-    check_new_rel = 1
-    auto_browser = 1
-    language = en
-    enable_https_verification = 1
-    host = 127.0.0.1
-    port = ${toString sabnzbdPort}
-    https_port = 8090
-    username = $ADMIN_USERNAME
-    password = $ADMIN_PASSWORD
-    bandwidth_max = ""
-    cache_limit = 1G
-    web_color = Auto
-    https_cert = server.cert
-    https_key = server.key
-    https_chain = ""
-    enable_https = 0
-    inet_exposure = 3
-    api_key = $SABNZBD_API_KEY
-    nzb_key = $SABNZBD_NZB_KEY
-    socks5_proxy_url = ""
-    permissions = "775"
-    download_dir = ${cacheDir}/data/usenet/incomplete
-    download_free = ""
-    complete_dir = ${cacheDir}/data/usenet/complete
-    complete_free = ""
-    fulldisk_autoresume = 0
-    script_dir = ""
-    nzb_backup_dir = ""
-    admin_dir = /var/lib/sabnzbd/admin
-    backup_dir = ""
-    dirscan_dir = ""
-    dirscan_speed = 5
-    password_file = ""
-    log_dir = /var/lib/sabnzbd/logs
-    max_art_tries = 3
-    top_only = 0
-    sfv_check = 1
-    script_can_fail = 0
-    enable_recursive = 1
-    flat_unpack = 0
-    par_option = ""
-    pre_check = 0
-    nice = ""
-    win_process_prio = 3
-    ionice = ""
-    fail_hopeless_jobs = 1
-    fast_fail = 1
-    auto_disconnect = 1
-    pre_script = None
-    end_queue_script = None
-    no_dupes = 0
-    no_series_dupes = 0
-    no_smart_dupes = 0
-    dupes_propercheck = 1
-    pause_on_pwrar = 1
-    ignore_samples = 0
-    deobfuscate_final_filenames = 1
-    auto_sort = ""
-    direct_unpack = 1
-    propagation_delay = 0
-    folder_rename = 1
-    replace_spaces = 0
-    replace_underscores = 0
-    replace_dots = 0
-    safe_postproc = 1
-    pause_on_post_processing = 0
-    enable_all_par = 0
-    sanitize_safe = 0
-    cleanup_list = ,
-    unwanted_extensions = ,
-    action_on_unwanted_extensions = 0
-    unwanted_extensions_mode = 0
-    new_nzb_on_failure = 0
-    history_retention = 7d
-    history_retention_option = all
-    history_retention_number = 7
-    quota_size = ""
-    quota_day = ""
-    quota_resume = 0
-    quota_period = m
-    enable_tv_sorting = 0
-    tv_sort_string = ""
-    tv_categories = tv,
-    enable_movie_sorting = 0
-    movie_sort_string = ""
-    movie_sort_extra = -cd%1
-    movie_categories = movies,
-    enable_date_sorting = 0
-    date_sort_string = ""
-    date_categories = tv,
-    schedlines = ,
-    rss_rate = 60
-    ampm = 0
-    start_paused = 0
-    preserve_paused_state = 0
-    enable_par_cleanup = 1
-    process_unpacked_par2 = 1
-    disable_par2cmdline = 0
-    enable_unrar = 1
-    enable_7zip = 1
-    enable_filejoin = 1
-    enable_tsjoin = 1
-    overwrite_files = 0
-    ignore_unrar_dates = 0
-    backup_for_duplicates = 0
-    empty_postproc = 0
-    wait_for_dfolder = 0
-    rss_filenames = 0
-    api_logging = 1
-    html_login = 1
-    disable_archive = 0
-    warn_dupl_jobs = 0
-    keep_awake = 1
-    tray_icon = 1
-    allow_incomplete_nzb = 0
-    enable_broadcast = 1
-    ipv6_hosting = 0
-    ipv6_staging = 0
-    api_warnings = 1
-    no_penalties = 0
-    x_frame_options = 1
-    allow_old_ssl_tls = 0
-    enable_season_sorting = 1
-    verify_xff_header = 0
-    rss_odd_titles = nzbindex.nl/, nzbindex.com/, nzbclub.com/
-    quick_check_ext_ignore = nfo, sfv, srr
-    req_completion_rate = 100.2
-    selftest_host = self-test.sabnzbd.org
-    movie_rename_limit = 100M
-    episode_rename_limit = 20M
-    size_limit = 0
-    direct_unpack_threads = 3
-    history_limit = 10
-    wait_ext_drive = 5
-    max_foldername_length = 246
-    nomedia_marker = ""
-    ipv6_servers = 1
-    url_base = ""
-    host_whitelist = aef8c33c9062,
-    local_ranges = ,
-    max_url_retries = 10
-    downloader_sleep_time = 10
-    receive_threads = 2
-    switchinterval = 0.005
-    ssdp_broadcast_interval = 15
-    ext_rename_ignore = ,
-    email_server = ""
-    email_to = ,
-    email_from = ""
-    email_account = ""
-    email_pwd = ""
-    email_endjob = 0
-    email_full = 0
-    email_dir = ""
-    email_rss = 0
-    email_cats = *,
-    [logging]
-    log_level = 1
-    max_log_size = 5242880
-    log_backups = 5
-    [ncenter]
-    ncenter_enable = 0
-    ncenter_cats = *,
-    ncenter_prio_startup = 0
-    ncenter_prio_download = 0
-    ncenter_prio_pause_resume = 0
-    ncenter_prio_pp = 0
-    ncenter_prio_complete = 1
-    ncenter_prio_failed = 1
-    ncenter_prio_disk_full = 1
-    ncenter_prio_new_login = 0
-    ncenter_prio_warning = 0
-    ncenter_prio_error = 0
-    ncenter_prio_queue_done = 0
-    ncenter_prio_other = 1
-    [acenter]
-    acenter_enable = 0
-    acenter_cats = *,
-    acenter_prio_startup = 0
-    acenter_prio_download = 0
-    acenter_prio_pause_resume = 0
-    acenter_prio_pp = 0
-    acenter_prio_complete = 1
-    acenter_prio_failed = 1
-    acenter_prio_disk_full = 1
-    acenter_prio_new_login = 0
-    acenter_prio_warning = 0
-    acenter_prio_error = 0
-    acenter_prio_queue_done = 0
-    acenter_prio_other = 1
-    [ntfosd]
-    ntfosd_enable = 1
-    ntfosd_cats = *,
-    ntfosd_prio_startup = 0
-    ntfosd_prio_download = 0
-    ntfosd_prio_pause_resume = 0
-    ntfosd_prio_pp = 0
-    ntfosd_prio_complete = 1
-    ntfosd_prio_failed = 1
-    ntfosd_prio_disk_full = 1
-    ntfosd_prio_new_login = 0
-    ntfosd_prio_warning = 0
-    ntfosd_prio_error = 0
-    ntfosd_prio_queue_done = 0
-    ntfosd_prio_other = 1
-    [prowl]
-    prowl_enable = 0
-    prowl_cats = *,
-    prowl_apikey = ""
-    prowl_prio_startup = -3
-    prowl_prio_download = -3
-    prowl_prio_pause_resume = -3
-    prowl_prio_pp = -3
-    prowl_prio_complete = 0
-    prowl_prio_failed = 1
-    prowl_prio_disk_full = 1
-    prowl_prio_new_login = -3
-    prowl_prio_warning = -3
-    prowl_prio_error = -3
-    prowl_prio_queue_done = -3
-    prowl_prio_other = 0
-    [pushover]
-    pushover_token = ""
-    pushover_userkey = ""
-    pushover_device = ""
-    pushover_emergency_expire = 3600
-    pushover_emergency_retry = 60
-    pushover_enable = 0
-    pushover_cats = *,
-    pushover_prio_startup = -3
-    pushover_prio_download = -2
-    pushover_prio_pause_resume = -2
-    pushover_prio_pp = -3
-    pushover_prio_complete = -1
-    pushover_prio_failed = -1
-    pushover_prio_disk_full = 1
-    pushover_prio_new_login = -3
-    pushover_prio_warning = 1
-    pushover_prio_error = 1
-    pushover_prio_queue_done = -3
-    pushover_prio_other = -1
-    [pushbullet]
-    pushbullet_enable = 0
-    pushbullet_cats = *,
-    pushbullet_apikey = ""
-    pushbullet_device = ""
-    pushbullet_prio_startup = 0
-    pushbullet_prio_download = 0
-    pushbullet_prio_pause_resume = 0
-    pushbullet_prio_pp = 0
-    pushbullet_prio_complete = 1
-    pushbullet_prio_failed = 1
-    pushbullet_prio_disk_full = 1
-    pushbullet_prio_new_login = 0
-    pushbullet_prio_warning = 0
-    pushbullet_prio_error = 0
-    pushbullet_prio_queue_done = 0
-    pushbullet_prio_other = 1
-    [apprise]
-    apprise_enable = 0
-    apprise_cats = *,
-    apprise_urls = ""
-    apprise_target_startup = ""
-    apprise_target_startup_enable = 0
-    apprise_target_download = ""
-    apprise_target_download_enable = 0
-    apprise_target_pause_resume = ""
-    apprise_target_pause_resume_enable = 0
-    apprise_target_pp = ""
-    apprise_target_pp_enable = 0
-    apprise_target_complete = ""
-    apprise_target_complete_enable = 1
-    apprise_target_failed = ""
-    apprise_target_failed_enable = 1
-    apprise_target_disk_full = ""
-    apprise_target_disk_full_enable = 0
-    apprise_target_new_login = ""
-    apprise_target_new_login_enable = 1
-    apprise_target_warning = ""
-    apprise_target_warning_enable = 0
-    apprise_target_error = ""
-    apprise_target_error_enable = 0
-    apprise_target_queue_done = ""
-    apprise_target_queue_done_enable = 0
-    apprise_target_other = ""
-    apprise_target_other_enable = 1
-    [nscript]
-    nscript_enable = 0
-    nscript_cats = *,
-    nscript_script = ""
-    nscript_parameters = ""
-    nscript_prio_startup = 0
-    nscript_prio_download = 0
-    nscript_prio_pause_resume = 0
-    nscript_prio_pp = 0
-    nscript_prio_complete = 1
-    nscript_prio_failed = 1
-    nscript_prio_disk_full = 1
-    nscript_prio_new_login = 0
-    nscript_prio_warning = 0
-    nscript_prio_error = 0
-    nscript_prio_queue_done = 0
-    nscript_prio_other = 1
-    [servers]
-    ${lib.concatStrings (
-      lib.imap1 (index: host: ''
-        [[${host}]]
-        name = ${host}
-        displayname = ${host}
-        host = ${host}
-        port = ${toString usenetServerPort}
-        timeout = 60
-        username = $USENET_USERNAME
-        password = $USENET_PASSWORD
-        connections = 20
-        ssl = 1
-        ssl_verify = 3
-        ssl_ciphers = ""
-        enable = 1
-        required = 0
-        optional = 0
-        retention = 0
-        expire_date = ""
-        quota = ""
-        usage_at_start = 0
-        priority = ${toString (index - 1)}
-        notes = ""
-
-      '') usenetServerHosts
-    )}
-    [categories]
-    [[*]]
-    name = *
-    order = 0
-    pp = 3
-    script = None
-    dir = ""
-    newzbin = ""
-    priority = 0
-    [[movies]]
-    name = movies
-    order = 1
-    pp = ""
-    script = Default
-    dir = movies
-    newzbin = ""
-    priority = -100
-    [[tv]]
-    name = tv
-    order = 2
-    pp = ""
-    script = Default
-    dir = tv
-    newzbin = ""
-    priority = -100
-    [[books]]
-    name = books
-    order = 3
-    pp = ""
-    script = Default
-    dir = books
-    newzbin = ""
-    priority = -100
-    EOF
-
-    chown sabnzbd:sabnzbd /var/lib/sabnzbd/sabnzbd.ini
-    chmod 660 /var/lib/sabnzbd/sabnzbd.ini
-    # --no-block: this unit is ordered before sabnzbd, so a blocking restart
-    # would wait on this script to exit and deadlock.
-    if systemctl -q is-active sabnzbd.service; then
-      systemctl restart --no-block sabnzbd.service
-    fi
-  '';
+  category = order: dir: {
+    name = dir;
+    inherit order dir;
+  };
 in
 {
   users.groups.sabnzbd = { };
   users.users.sabnzbd.extraGroups = [ "media" ];
 
+  # Only values that differ from SABnzbd's (or the NixOS module's) defaults.
+  # The existing sabnzbd.ini is merged underneath (allowConfigWrite), so
+  # settings changed in the web UI survive until they're set here.
   services.sabnzbd = {
     enable = true;
     user = "sabnzbd";
     group = "media";
     openFirewall = false;
-    configFile = "/var/lib/sabnzbd/sabnzbd.ini";
+    configFile = null;
+    allowConfigWrite = true;
+    secretValues = lib.mapAttrs' (
+      name: _: lib.nameValuePair (secret name) "/run/credentials/sabnzbd.service/${name}"
+    ) credentials;
+    settings = {
+      misc = {
+        host = "127.0.0.1"; # loopback only; reached through Caddy
+        port = sabnzbdPort;
+        enable_https = false; # Caddy terminates TLS
+        username = secret "admin_username";
+        password = secret "web_password";
+        api_key = secret "api_key";
+        nzb_key = secret "nzb_key";
+        inet_exposure = 3;
+        verify_xff_header = false;
+        download_dir = "${cacheDir}/data/usenet/incomplete";
+        complete_dir = "${cacheDir}/data/usenet/complete";
+        download_free = "";
+        permissions = "775";
+        cache_limit = "1G";
+        direct_unpack = true;
+        refresh_rate = 1;
+        fixed_ports = true;
+        bandwidth_perc = 100; # of bandwidth_max, which is unset (no limit)
+        # Markers for one-time prompts and migrations already done. Keep
+        # config_conversion_version at SABnzbd's latest, or it re-runs them.
+        config_conversion_version = 5;
+        notified_new_skin = 2;
+        direct_unpack_tested = true;
+        sorters_converted = true;
+      };
+      servers = lib.listToAttrs (
+        lib.imap0 (
+          priority: host:
+          lib.nameValuePair host {
+            name = host;
+            displayname = host;
+            inherit host priority;
+            port = usenetServerPort;
+            username = secret "usenet_username";
+            password = secret "usenet_password";
+            connections = 20;
+            ssl_verify = "strict";
+          }
+        ) usenetServerHosts
+      );
+      categories = {
+        "*" = {
+          name = "*";
+          order = 0;
+          pp = 3;
+          script = "None";
+          priority = 0;
+        };
+        movies = category 1 "movies";
+        tv = category 2 "tv";
+        books = category 3 "books";
+      };
+    };
   };
 
   systemd = {
     services = {
-      sabnzbd = {
-        serviceConfig = import ./hardening.nix // {
-          UMask = "0002";
-          # Private state (ini, queue, logs); downloads live under cacheDir
-          StateDirectoryMode = "0700";
-        };
-        # Restart on config changes so a switch re-runs sabnzbd-config (pulled
-        # in via wantedBy before sabnzbd starts); otherwise changes wait for a reboot.
-        restartTriggers = [ configScript ];
-      };
-
-      sabnzbd-config = {
-        description = "Initialize SABnzbd configuration";
-        before = [ "sabnzbd.service" ];
-        wantedBy = [ "sabnzbd.service" ];
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${configScript}/bin/sabnzbd-config";
-          User = "root";
-          Restart = "on-failure";
-          RestartSec = "10s";
-        };
+      sabnzbd.serviceConfig = import ./hardening.nix // {
+        UMask = "0002";
+        # Private state (ini, queue, logs); downloads live under cacheDir
+        StateDirectoryMode = "0700";
+        LoadCredential = lib.mapAttrsToList (name: path: "${name}:${secretsDir}/${path}") credentials;
       };
 
       sabnzbd-resume = {

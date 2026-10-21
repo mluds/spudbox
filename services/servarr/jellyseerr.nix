@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  helpers,
   ...
 }:
 
@@ -10,160 +11,213 @@ with config.my;
 let
   settingsFile = "/var/lib/jellyseerr/config/settings.json";
 
-  configScript = pkgs.writeScriptBin "jellyseerr-config" ''
-    #!/bin/sh
-    set -e
-    umask 077
+  json = value: lib.escapeShellArg (builtins.toJSON value);
 
-    # Secrets reach curl/jq through files (-H @file, -d @-, --rawfile), never
-    # as arguments, which any local user could read from /proc/<pid>/cmdline.
-    TMP=$(mktemp -d)
-    trap 'rm -rf "$TMP"' EXIT
+  plexSettings = {
+    ip = "127.0.0.1";
+    port = plexPort;
+    useSsl = false;
+    # Periodic full scan catches movies that were unmatched when first added
+    # to Plex (race between add and metadata match).
+    periodicScanning = 21600;
+  };
 
-    CURL="${pkgs.curl}/bin/curl"
-    JQ="${pkgs.jq}/bin/jq"
-    BASE="http://localhost:''${JELLYSEERR_PORT}"
+  # Disabled (Pushover is used instead) but kept configured. The Gmail
+  # address and app password are filled in from secrets at runtime.
+  emailAgent = {
+    enabled = false;
+    types = 4;
+    options = {
+      smtpHost = "smtp.gmail.com";
+      smtpPort = 587;
+      secure = false;
+      ignoreTls = false;
+      requireTls = true;
+      allowSelfSigned = false;
+      senderName = "Jellyseerr";
+    };
+  };
 
-    echo "Waiting for Jellyseerr to start..."
-    until $CURL -sSf "$BASE/api/v1/settings/public" >/dev/null 2>&1; do
-      sleep 2
-    done
+  # apiKey filled in from radarr/sonarr secrets at runtime.
+  radarr = {
+    name = "Radarr";
+    hostname = "localhost";
+    port = radarrPort;
+    useSsl = false;
+    externalUrl = "https://radarr.${domain}";
+    activeProfileId = 1;
+    activeProfileName = "Any";
+    activeDirectory = "${storageDir}/data/media/movies";
+    is4k = false;
+    minimumAvailability = "released";
+    tags = [ ];
+    isDefault = true;
+    syncEnabled = true;
+    preventSearch = false;
+    tagRequests = false;
+  };
+  sonarr = {
+    name = "Sonarr";
+    hostname = "localhost";
+    port = sonarrPort;
+    useSsl = false;
+    externalUrl = "https://sonarr.${domain}";
+    baseUrl = "";
+    activeProfileId = 1;
+    activeProfileName = "Any";
+    activeDirectory = "${storageDir}/data/media/tv";
+    tags = [ ];
+    animeTags = [ ];
+    is4k = false;
+    isDefault = true;
+    enableSeasonFolders = false;
+    syncEnabled = true;
+    preventSearch = false;
+    tagRequests = false;
+  };
 
-    write_key_header() {
-      printf 'X-Api-Key: %s\n' "$($JQ -r '.main.apiKey' ${settingsFile})" > "$TMP/key"
-    }
+  configScript = pkgs.writeShellApplication {
+    name = "jellyseerr-config";
+    runtimeInputs = with pkgs; [
+      curl
+      jq
+      helpers
+    ];
+    text = ''
+      umask 077
+      BASE="http://localhost:${toString jellyseerrPort}/api/v1"
+      # Secrets reach curl and jq through files, never as arguments, which any
+      # local user could read from /proc/<pid>/cmdline.
+      TMP=$(mktemp -d)
+      trap 'rm -rf "$TMP"' EXIT
 
-    export_api_key() {
-      echo "Exporting API key..."
-      mkdir -p ${secretsDir}/jellyseerr
-      $JQ -r '.main.apiKey' ${settingsFile} > ${secretsDir}/jellyseerr/api-key
-    }
+      # api METHOD PATH [curl args...]: authenticated with the API key, or
+      # with the session cookie before setup has created a key.
+      api() {
+        local method=$1 path=$2
+        shift 2
+        curl -s -X "$method" "$BASE/$path" -H 'Content-Type: application/json' \
+          -H @"$TMP/key" -b "$TMP/cookies" "$@"
+      }
+      touch "$TMP/key" "$TMP/cookies"
 
-    configure_email() {
-      echo "Configuring email notifications..."
-      $JQ --rawfile address ${secretsDir}/gmail/address \
-          --rawfile authPass ${secretsDir}/gmail/app-password \
-          '($address | rtrimstr("\n")) as $emailFrom | ($authPass | rtrimstr("\n")) as $authPass |
-          .notifications.agents.email = {
-            "enabled": false,
-            "types": 4,
-            "options": {
-              "emailFrom": $emailFrom,
-              "smtpHost": "smtp.gmail.com",
-              "smtpPort": 587,
-              "secure": false,
-              "ignoreTls": false,
-              "requireTls": true,
-              "authUser": $emailFrom,
-              "authPass": $authPass,
-              "allowSelfSigned": false,
-              "senderName": "Jellyseerr"
-            }
-          }' ${settingsFile} > ${settingsFile}.tmp
-      mv ${settingsFile}.tmp ${settingsFile}
-      chown jellyseerr:jellyseerr ${settingsFile}
-    }
+      # Rewrite settings.json through a jq filter (extra jq args first).
+      edit_settings() {
+        jq "$@" ${settingsFile} > ${settingsFile}.tmp
+        mv ${settingsFile}.tmp ${settingsFile}
+        chown jellyseerr:jellyseerr ${settingsFile}
+      }
 
-    configure_pushover() {
-      echo "Configuring Pushover notifications..."
-      $JQ -n --rawfile token ${secretsDir}/pushover/app-token \
-        --rawfile user ${secretsDir}/pushover/user-key \
-        '{enabled: true, types: 24, options: {accessToken: ($token | rtrimstr("\n")), userToken: ($user | rtrimstr("\n")), sound: "pushover"}}' |
-        $CURL -s -X POST -H 'Content-Type: application/json' \
-          -H @"$TMP/key" -d @- \
-          "$BASE/api/v1/settings/notifications/pushover" >/dev/null
-    }
+      echo "Waiting for Jellyseerr to start..."
+      wait-for-http "$BASE/settings/public"
 
-    configure_plex() {
-      echo "Configuring Plex settings..."
+      use_api_key() {
+        printf 'X-Api-Key: %s\n' "$(jq -r '.main.apiKey' ${settingsFile})" > "$TMP/key"
+      }
 
-      # Enable periodic full scan to catch movies that were initially
-      # unmatched when added to Plex (race between add and metadata match)
-      $CURL -s -X POST -H 'Content-Type: application/json' \
-        -H @"$TMP/key" \
-        -d "{\"ip\": \"127.0.0.1\", \"port\": ''${PLEX_PORT}, \"useSsl\": false, \"periodicScanning\": 21600}" \
-        "$BASE/api/v1/settings/plex" >/dev/null
+      export_api_key() {
+        echo "Exporting API key..."
+        mkdir -p ${secretsDir}/jellyseerr
+        jq -r '.main.apiKey' ${settingsFile} > ${secretsDir}/jellyseerr/api-key
+      }
 
-      # Enable all libraries for scanning
-      LIB_IDS=$($CURL -s "$BASE/api/v1/settings/plex/library" \
-        -H @"$TMP/key" | $JQ -r '[.[].id] | join(",")')
-      $CURL -s "$BASE/api/v1/settings/plex/library?sync=true&enable=$LIB_IDS" \
-        -H @"$TMP/key" >/dev/null
+      configure_email() {
+        echo "Configuring email notifications..."
+        # shellcheck disable=SC2016 # jq program, not shell
+        edit_settings --argjson agent ${json emailAgent} \
+          --rawfile address ${secretsDir}/gmail/address \
+          --rawfile pass ${secretsDir}/gmail/app-password \
+          '($address | rtrimstr("\n")) as $address
+          | .notifications.agents.email = ($agent | .options += {
+              emailFrom: $address,
+              authUser: $address,
+              authPass: ($pass | rtrimstr("\n"))
+            })'
+      }
 
-      # Run recently added scan once daily instead of every 5 minutes
-      # to avoid waking the HDD with constant Plex API queries
-      $CURL -s -X POST -H 'Content-Type: application/json' \
-        -H @"$TMP/key" \
-        -d '{"schedule": "0 0 6 * * *"}' \
-        "$BASE/api/v1/settings/jobs/plex-recently-added-scan/schedule" >/dev/null
-    }
+      configure_pushover() {
+        echo "Configuring Pushover notifications..."
+        jq -n --rawfile token ${secretsDir}/pushover/app-token \
+          --rawfile user ${secretsDir}/pushover/user-key \
+          '{enabled: true, types: 24, options: {
+            accessToken: ($token | rtrimstr("\n")),
+            userToken: ($user | rtrimstr("\n")),
+            sound: "pushover"
+          }}' \
+          | api POST settings/notifications/pushover -d @- >/dev/null
+      }
 
-    set_external_urls() {
-      echo "Setting external URLs for Radarr/Sonarr..."
-      $JQ --arg radarrUrl "$RADARR_EXTERNAL_URL" \
-          --arg sonarrUrl "$SONARR_EXTERNAL_URL" \
-        '.radarr = [.radarr[] | .externalUrl = $radarrUrl] | .sonarr = [.sonarr[] | .externalUrl = $sonarrUrl]' \
-        ${settingsFile} > ${settingsFile}.tmp
-      mv ${settingsFile}.tmp ${settingsFile}
-      chown jellyseerr:jellyseerr ${settingsFile}
-    }
+      configure_plex() {
+        echo "Configuring Plex settings..."
+        api POST settings/plex -d ${json plexSettings} >/dev/null
 
-    INITIALIZED=$($CURL -s "$BASE/api/v1/settings/public" | $JQ -r '.initialized')
-    if [ "$INITIALIZED" = "true" ]; then
-      echo "Jellyseerr already initialized, skipping setup."
-      write_key_header
+        # Enable all libraries for scanning
+        LIB_IDS=$(api GET settings/plex/library | jq -r '[.[].id] | join(",")')
+        api GET "settings/plex/library?sync=true&enable=$LIB_IDS" >/dev/null
+
+        # Run recently added scan once daily instead of every 5 minutes
+        # to avoid waking the HDD with constant Plex API queries
+        api POST settings/jobs/plex-recently-added-scan/schedule \
+          -d '{"schedule": "0 0 6 * * *"}' >/dev/null
+      }
+
+      set_external_urls() {
+        echo "Setting external URLs for Radarr/Sonarr..."
+        # shellcheck disable=SC2016 # jq program, not shell
+        edit_settings \
+          '.radarr = [.radarr[] | .externalUrl = ${builtins.toJSON radarr.externalUrl}]
+          | .sonarr = [.sonarr[] | .externalUrl = ${builtins.toJSON sonarr.externalUrl}]'
+      }
+
+      # add_arr BODY SECRET PATH: POST BODY with its apiKey set to the secret.
+      add_arr() {
+        jq -n --argjson body "$1" --rawfile key "${secretsDir}/$2" \
+          '$body + {apiKey: ($key | rtrimstr("\n"))}' \
+          | api POST "$3" -d @- >/dev/null
+      }
+
+      if [ "$(api GET settings/public | jq -r '.initialized')" = true ]; then
+        echo "Jellyseerr already initialized, skipping setup."
+        use_api_key
+        export_api_key
+        configure_plex
+        configure_email
+        configure_pushover
+        set_external_urls
+        exit 0
+      fi
+
+      echo "Authenticating with Plex..."
+      jq -n --rawfile token ${secretsDir}/plex/token '{authToken: ($token | rtrimstr("\n"))}' \
+        | api POST auth/plex -c "$TMP/cookies" -d @- >/dev/null
+
+      echo "Marking setup as complete..."
+      api POST settings/initialize >/dev/null
+
+      echo "Configuring Plex server..."
+      api POST settings/plex -d ${json plexSettings} >/dev/null
+
+      echo "Syncing Plex libraries..."
+      api GET "settings/plex/library?sync=true" >/dev/null
+
+      echo "Adding Radarr..."
+      add_arr ${json radarr} radarr/api-key settings/radarr
+
+      echo "Adding Sonarr..."
+      add_arr ${json sonarr} sonarr/api-key settings/sonarr
+
+      use_api_key
       export_api_key
       configure_plex
       configure_email
       configure_pushover
-      set_external_urls
-      exit 0
-    fi
 
-    RADARR_KEY=$(tr -d '\n' < ${secretsDir}/radarr/api-key)
-    SONARR_KEY=$(tr -d '\n' < ${secretsDir}/sonarr/api-key)
-    COOKIE_FILE="$TMP/cookies"
+      echo "Restarting Jellyseerr..."
+      systemctl restart seerr
 
-    echo "Authenticating with Plex..."
-    $JQ -n --rawfile t ${secretsDir}/plex/token '{authToken: ($t | rtrimstr("\n"))}' |
-      $CURL -s -c "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' -d @- \
-        "$BASE/api/v1/auth/plex" >/dev/null
-
-    echo "Marking setup as complete..."
-    $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
-      "$BASE/api/v1/settings/initialize" >/dev/null
-
-    echo "Configuring Plex server..."
-    $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' \
-      -d "{\"ip\": \"127.0.0.1\", \"port\": ''${PLEX_PORT}, \"useSsl\": false, \"periodicScanning\": 21600}" \
-      "$BASE/api/v1/settings/plex" >/dev/null
-
-    echo "Syncing Plex libraries..."
-    $CURL -s -b "$COOKIE_FILE" "$BASE/api/v1/settings/plex/library?sync=true" >/dev/null
-
-    echo "Adding Radarr..."
-    $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' -d @- \
-      "$BASE/api/v1/settings/radarr" >/dev/null <<EOF
-    {"name": "Radarr", "hostname": "localhost", "port": ''${RADARR_PORT}, "apiKey": "$RADARR_KEY", "useSsl": false, "externalUrl": "''${RADARR_EXTERNAL_URL}", "activeProfileId": 1, "activeProfileName": "Any", "activeDirectory": "''${MOVIES_DIR}", "is4k": false, "minimumAvailability": "released", "tags": [], "isDefault": true, "syncEnabled": true, "preventSearch": false, "tagRequests": false}
-    EOF
-
-    echo "Adding Sonarr..."
-    $CURL -s -b "$COOKIE_FILE" -X POST -H 'Content-Type: application/json' -d @- \
-      "$BASE/api/v1/settings/sonarr" >/dev/null <<EOF
-    {"name": "Sonarr", "hostname": "localhost", "port": ''${SONARR_PORT}, "apiKey": "$SONARR_KEY", "useSsl": false, "externalUrl": "''${SONARR_EXTERNAL_URL}", "baseUrl": "", "activeProfileId": 1, "activeProfileName": "Any", "activeDirectory": "''${TV_DIR}", "tags": [], "animeTags": [], "is4k": false, "isDefault": true, "enableSeasonFolders": false, "syncEnabled": true, "preventSearch": false, "tagRequests": false}
-    EOF
-
-    write_key_header
-    export_api_key
-    configure_plex
-    configure_email
-    configure_pushover
-
-    echo "Restarting Jellyseerr..."
-    systemctl restart seerr
-
-    echo "Jellyseerr setup complete."
-  '';
+      echo "Jellyseerr setup complete."
+    '';
+  };
 in
 {
   users.groups.jellyseerr = { };
@@ -207,18 +261,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       User = "root";
-      ExecStart = "${configScript}/bin/jellyseerr-config";
-    };
-
-    environment = {
-      JELLYSEERR_PORT = toString jellyseerrPort;
-      PLEX_PORT = toString plexPort;
-      RADARR_PORT = toString radarrPort;
-      SONARR_PORT = toString sonarrPort;
-      MOVIES_DIR = "${storageDir}/data/media/movies";
-      TV_DIR = "${storageDir}/data/media/tv";
-      RADARR_EXTERNAL_URL = "https://radarr.${domain}";
-      SONARR_EXTERNAL_URL = "https://sonarr.${domain}";
+      ExecStart = lib.getExe configScript;
     };
   };
 }

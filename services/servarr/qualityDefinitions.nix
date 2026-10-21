@@ -1,426 +1,145 @@
-{
-  qualitySettings = {
-    "Unknown" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "WORKPRINT" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "CAM" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "TELESYNC" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "TELECINE" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "REGIONAL" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "DVDSCR" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "SDTV" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "DVD" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "DVD-R" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "WEBDL-480p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "WEBRip-480p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "Bluray-480p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "Bluray-576p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "HDTV-720p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "WEBDL-720p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "WEBRip-720p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "Bluray-720p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "HDTV-1080p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "WEBDL-1080p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "WEBRip-1080p" = {
-      minSize = 0;
-      preferredSize = 95;
-      maxSize = 100;
-    };
-    "Bluray-1080p" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
-    "Bluray-1080p Remux" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
-    "Remux-1080p" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
-    "HDTV-2160p" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
-    "WEBDL-2160p" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
-    "WEBRip-2160p" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
-    "Bluray-2160p" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
-    "Remux-2160p" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
-    "Bluray-2160p Remux" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
-    "BR-DISK" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
-    "Raw-HD" = {
-      minSize = 0;
-      preferredSize = 150;
-      maxSize = 200;
-    };
+let
+  sized =
+    sizes: names:
+    builtins.listToAttrs (
+      map (name: {
+        inherit name;
+        value = sizes;
+      }) names
+    );
+
+  # Quality profile entries. `quality` is the app's own quality record;
+  # a group bundles several qualities under one rank.
+  allowed = quality: {
+    inherit quality;
+    allowed = true;
+    items = [ ];
   };
+  blocked = quality: allowed quality // { allowed = false; };
+  group = id: name: qualities: {
+    inherit id name;
+    allowed = true;
+    items = map allowed qualities;
+  };
+
+  # Sonarr quality record.
+  tv = id: name: source: resolution: {
+    inherit
+      id
+      name
+      source
+      resolution
+      ;
+  };
+  # Radarr quality record (has a modifier too).
+  movie = id: name: source: resolution: modifier: {
+    inherit
+      id
+      name
+      source
+      resolution
+      modifier
+      ;
+  };
+in
+{
+  # Per-quality size limits (MB per minute), shared by Sonarr and Radarr.
+  qualitySettings =
+    sized
+      {
+        minSize = 0;
+        preferredSize = 95;
+        maxSize = 100;
+      }
+      [
+        "Unknown"
+        "WORKPRINT"
+        "CAM"
+        "TELESYNC"
+        "TELECINE"
+        "REGIONAL"
+        "DVDSCR"
+        "SDTV"
+        "DVD"
+        "DVD-R"
+        "WEBDL-480p"
+        "WEBRip-480p"
+        "Bluray-480p"
+        "Bluray-576p"
+        "HDTV-720p"
+        "WEBDL-720p"
+        "WEBRip-720p"
+        "Bluray-720p"
+        "HDTV-1080p"
+        "WEBDL-1080p"
+        "WEBRip-1080p"
+      ]
+    //
+      sized
+        {
+          minSize = 0;
+          preferredSize = 150;
+          maxSize = 200;
+        }
+        [
+          "Bluray-1080p"
+          "Bluray-1080p Remux"
+          "Remux-1080p"
+          "HDTV-2160p"
+          "WEBDL-2160p"
+          "WEBRip-2160p"
+          "Bluray-2160p"
+          "Remux-2160p"
+          "Bluray-2160p Remux"
+          "BR-DISK"
+          "Raw-HD"
+        ];
+
+  # Sonarr profile 1 ("Any").
   qualityProfile = {
-    cutoff = 1;
-    cutoffFormatScore = 0;
-    formatItems = [ ];
     id = 1;
-    items = [
-      {
-        allowed = false;
-        items = [ ];
-        quality = {
-          id = 0;
-          name = "Unknown";
-          resolution = 0;
-          source = "unknown";
-        };
-      }
-      {
-        allowed = true;
-        items = [ ];
-        quality = {
-          id = 1;
-          name = "SDTV";
-          resolution = 480;
-          source = "television";
-        };
-      }
-      {
-        allowed = true;
-        id = 1000;
-        items = [
-          {
-            allowed = true;
-            items = [ ];
-            quality = {
-              id = 12;
-              name = "WEBRip-480p";
-              resolution = 480;
-              source = "webRip";
-            };
-          }
-          {
-            allowed = true;
-            items = [ ];
-            quality = {
-              id = 8;
-              name = "WEBDL-480p";
-              resolution = 480;
-              source = "web";
-            };
-          }
-        ];
-        name = "WEB 480p";
-      }
-      {
-        allowed = true;
-        items = [ ];
-        quality = {
-          id = 2;
-          name = "DVD";
-          resolution = 480;
-          source = "dvd";
-        };
-      }
-      {
-        allowed = true;
-        items = [ ];
-        quality = {
-          id = 13;
-          name = "Bluray-480p";
-          resolution = 480;
-          source = "bluray";
-        };
-      }
-      {
-        allowed = true;
-        items = [ ];
-        quality = {
-          id = 22;
-          name = "Bluray-576p";
-          resolution = 576;
-          source = "bluray";
-        };
-      }
-      {
-        allowed = true;
-        items = [ ];
-        quality = {
-          id = 4;
-          name = "HDTV-720p";
-          resolution = 720;
-          source = "television";
-        };
-      }
-      {
-        allowed = true;
-        items = [ ];
-        quality = {
-          id = 9;
-          name = "HDTV-1080p";
-          resolution = 1080;
-          source = "television";
-        };
-      }
-      {
-        allowed = false;
-        items = [ ];
-        quality = {
-          id = 10;
-          name = "Raw-HD";
-          resolution = 1080;
-          source = "televisionRaw";
-        };
-      }
-      {
-        allowed = true;
-        id = 1001;
-        items = [
-          {
-            allowed = true;
-            items = [ ];
-            quality = {
-              id = 14;
-              name = "WEBRip-720p";
-              resolution = 720;
-              source = "webRip";
-            };
-          }
-          {
-            allowed = true;
-            items = [ ];
-            quality = {
-              id = 5;
-              name = "WEBDL-720p";
-              resolution = 720;
-              source = "web";
-            };
-          }
-        ];
-        name = "WEB 720p";
-      }
-      {
-        allowed = true;
-        items = [ ];
-        quality = {
-          id = 6;
-          name = "Bluray-720p";
-          resolution = 720;
-          source = "bluray";
-        };
-      }
-      {
-        allowed = true;
-        id = 1002;
-        items = [
-          {
-            allowed = true;
-            items = [ ];
-            quality = {
-              id = 15;
-              name = "WEBRip-1080p";
-              resolution = 1080;
-              source = "webRip";
-            };
-          }
-          {
-            allowed = true;
-            items = [ ];
-            quality = {
-              id = 3;
-              name = "WEBDL-1080p";
-              resolution = 1080;
-              source = "web";
-            };
-          }
-        ];
-        name = "WEB 1080p";
-      }
-      {
-        allowed = true;
-        items = [ ];
-        quality = {
-          id = 7;
-          name = "Bluray-1080p";
-          resolution = 1080;
-          source = "bluray";
-        };
-      }
-      {
-        allowed = false;
-        items = [ ];
-        quality = {
-          id = 20;
-          name = "Bluray-1080p Remux";
-          resolution = 1080;
-          source = "blurayRaw";
-        };
-      }
-      {
-        allowed = true;
-        items = [ ];
-        quality = {
-          id = 16;
-          name = "HDTV-2160p";
-          resolution = 2160;
-          source = "television";
-        };
-      }
-      {
-        allowed = true;
-        id = 1003;
-        items = [
-          {
-            allowed = true;
-            items = [ ];
-            quality = {
-              id = 17;
-              name = "WEBRip-2160p";
-              resolution = 2160;
-              source = "webRip";
-            };
-          }
-          {
-            allowed = true;
-            items = [ ];
-            quality = {
-              id = 18;
-              name = "WEBDL-2160p";
-              resolution = 2160;
-              source = "web";
-            };
-          }
-        ];
-        name = "WEB 2160p";
-      }
-      {
-        allowed = true;
-        items = [ ];
-        quality = {
-          id = 19;
-          name = "Bluray-2160p";
-          resolution = 2160;
-          source = "bluray";
-        };
-      }
-      {
-        allowed = false;
-        items = [ ];
-        quality = {
-          id = 21;
-          name = "Bluray-2160p Remux";
-          resolution = 2160;
-          source = "blurayRaw";
-        };
-      }
-    ];
-    minFormatScore = 0;
-    minUpgradeFormatScore = 1;
     name = "Any";
     upgradeAllowed = false;
+    cutoff = 1;
+    minFormatScore = 0;
+    cutoffFormatScore = 0;
+    minUpgradeFormatScore = 1;
+    formatItems = [ ];
+    items = [
+      (blocked (tv 0 "Unknown" "unknown" 0))
+      (allowed (tv 1 "SDTV" "television" 480))
+      (group 1000 "WEB 480p" [
+        (tv 12 "WEBRip-480p" "webRip" 480)
+        (tv 8 "WEBDL-480p" "web" 480)
+      ])
+      (allowed (tv 2 "DVD" "dvd" 480))
+      (allowed (tv 13 "Bluray-480p" "bluray" 480))
+      (allowed (tv 22 "Bluray-576p" "bluray" 576))
+      (allowed (tv 4 "HDTV-720p" "television" 720))
+      (allowed (tv 9 "HDTV-1080p" "television" 1080))
+      (blocked (tv 10 "Raw-HD" "televisionRaw" 1080))
+      (group 1001 "WEB 720p" [
+        (tv 14 "WEBRip-720p" "webRip" 720)
+        (tv 5 "WEBDL-720p" "web" 720)
+      ])
+      (allowed (tv 6 "Bluray-720p" "bluray" 720))
+      (group 1002 "WEB 1080p" [
+        (tv 15 "WEBRip-1080p" "webRip" 1080)
+        (tv 3 "WEBDL-1080p" "web" 1080)
+      ])
+      (allowed (tv 7 "Bluray-1080p" "bluray" 1080))
+      (blocked (tv 20 "Bluray-1080p Remux" "blurayRaw" 1080))
+      (allowed (tv 16 "HDTV-2160p" "television" 2160))
+      (group 1003 "WEB 2160p" [
+        (tv 17 "WEBRip-2160p" "webRip" 2160)
+        (tv 18 "WEBDL-2160p" "web" 2160)
+      ])
+      (allowed (tv 19 "Bluray-2160p" "bluray" 2160))
+      (blocked (tv 21 "Bluray-2160p Remux" "blurayRaw" 2160))
+    ];
   };
+
+  # Radarr profile 1 ("Any").
   radarrQualityProfile = {
     id = 1;
     name = "Any";
@@ -435,364 +154,44 @@
     minUpgradeFormatScore = 1;
     formatItems = [ ];
     items = [
-      {
-        quality = {
-          id = 0;
-          name = "Unknown";
-          source = "unknown";
-          resolution = 0;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = false;
-      }
-      {
-        quality = {
-          id = 24;
-          name = "WORKPRINT";
-          source = "workprint";
-          resolution = 0;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = false;
-      }
-      {
-        quality = {
-          id = 25;
-          name = "CAM";
-          source = "cam";
-          resolution = 0;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = false;
-      }
-      {
-        quality = {
-          id = 26;
-          name = "TELESYNC";
-          source = "telesync";
-          resolution = 0;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = false;
-      }
-      {
-        quality = {
-          id = 27;
-          name = "TELECINE";
-          source = "telecine";
-          resolution = 0;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = false;
-      }
-      {
-        quality = {
-          id = 29;
-          name = "REGIONAL";
-          source = "dvd";
-          resolution = 480;
-          modifier = "regional";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 28;
-          name = "DVDSCR";
-          source = "dvd";
-          resolution = 480;
-          modifier = "screener";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 1;
-          name = "SDTV";
-          source = "tv";
-          resolution = 480;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 2;
-          name = "DVD";
-          source = "dvd";
-          resolution = 0;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 23;
-          name = "DVD-R";
-          source = "dvd";
-          resolution = 480;
-          modifier = "remux";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        name = "WEB 480p";
-        items = [
-          {
-            quality = {
-              id = 8;
-              name = "WEBDL-480p";
-              source = "webdl";
-              resolution = 480;
-              modifier = "none";
-            };
-            items = [ ];
-            allowed = true;
-          }
-          {
-            quality = {
-              id = 12;
-              name = "WEBRip-480p";
-              source = "webrip";
-              resolution = 480;
-              modifier = "none";
-            };
-            items = [ ];
-            allowed = true;
-          }
-        ];
-        allowed = true;
-        id = 1000;
-      }
-      {
-        quality = {
-          id = 20;
-          name = "Bluray-480p";
-          source = "bluray";
-          resolution = 480;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 21;
-          name = "Bluray-576p";
-          source = "bluray";
-          resolution = 576;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 4;
-          name = "HDTV-720p";
-          source = "tv";
-          resolution = 720;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        name = "WEB 720p";
-        items = [
-          {
-            quality = {
-              id = 5;
-              name = "WEBDL-720p";
-              source = "webdl";
-              resolution = 720;
-              modifier = "none";
-            };
-            items = [ ];
-            allowed = true;
-          }
-          {
-            quality = {
-              id = 14;
-              name = "WEBRip-720p";
-              source = "webrip";
-              resolution = 720;
-              modifier = "none";
-            };
-            items = [ ];
-            allowed = true;
-          }
-        ];
-        allowed = true;
-        id = 1001;
-      }
-      {
-        quality = {
-          id = 6;
-          name = "Bluray-720p";
-          source = "bluray";
-          resolution = 720;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 9;
-          name = "HDTV-1080p";
-          source = "tv";
-          resolution = 1080;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        name = "WEB 1080p";
-        items = [
-          {
-            quality = {
-              id = 3;
-              name = "WEBDL-1080p";
-              source = "webdl";
-              resolution = 1080;
-              modifier = "none";
-            };
-            items = [ ];
-            allowed = true;
-          }
-          {
-            quality = {
-              id = 15;
-              name = "WEBRip-1080p";
-              source = "webrip";
-              resolution = 1080;
-              modifier = "none";
-            };
-            items = [ ];
-            allowed = true;
-          }
-        ];
-        allowed = true;
-        id = 1002;
-      }
-      {
-        quality = {
-          id = 7;
-          name = "Bluray-1080p";
-          source = "bluray";
-          resolution = 1080;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 30;
-          name = "Remux-1080p";
-          source = "bluray";
-          resolution = 1080;
-          modifier = "remux";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 16;
-          name = "HDTV-2160p";
-          source = "tv";
-          resolution = 2160;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        name = "WEB 2160p";
-        items = [
-          {
-            quality = {
-              id = 18;
-              name = "WEBDL-2160p";
-              source = "webdl";
-              resolution = 2160;
-              modifier = "none";
-            };
-            items = [ ];
-            allowed = true;
-          }
-          {
-            quality = {
-              id = 17;
-              name = "WEBRip-2160p";
-              source = "webrip";
-              resolution = 2160;
-              modifier = "none";
-            };
-            items = [ ];
-            allowed = true;
-          }
-        ];
-        allowed = true;
-        id = 1003;
-      }
-      {
-        quality = {
-          id = 19;
-          name = "Bluray-2160p";
-          source = "bluray";
-          resolution = 2160;
-          modifier = "none";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 31;
-          name = "Remux-2160p";
-          source = "bluray";
-          resolution = 2160;
-          modifier = "remux";
-        };
-        items = [ ];
-        allowed = true;
-      }
-      {
-        quality = {
-          id = 22;
-          name = "BR-DISK";
-          source = "bluray";
-          resolution = 1080;
-          modifier = "brdisk";
-        };
-        items = [ ];
-        allowed = false;
-      }
-      {
-        quality = {
-          id = 10;
-          name = "Raw-HD";
-          source = "tv";
-          resolution = 1080;
-          modifier = "rawhd";
-        };
-        items = [ ];
-        allowed = false;
-      }
+      (blocked (movie 0 "Unknown" "unknown" 0 "none"))
+      (blocked (movie 24 "WORKPRINT" "workprint" 0 "none"))
+      (blocked (movie 25 "CAM" "cam" 0 "none"))
+      (blocked (movie 26 "TELESYNC" "telesync" 0 "none"))
+      (blocked (movie 27 "TELECINE" "telecine" 0 "none"))
+      (allowed (movie 29 "REGIONAL" "dvd" 480 "regional"))
+      (allowed (movie 28 "DVDSCR" "dvd" 480 "screener"))
+      (allowed (movie 1 "SDTV" "tv" 480 "none"))
+      (allowed (movie 2 "DVD" "dvd" 0 "none"))
+      (allowed (movie 23 "DVD-R" "dvd" 480 "remux"))
+      (group 1000 "WEB 480p" [
+        (movie 8 "WEBDL-480p" "webdl" 480 "none")
+        (movie 12 "WEBRip-480p" "webrip" 480 "none")
+      ])
+      (allowed (movie 20 "Bluray-480p" "bluray" 480 "none"))
+      (allowed (movie 21 "Bluray-576p" "bluray" 576 "none"))
+      (allowed (movie 4 "HDTV-720p" "tv" 720 "none"))
+      (group 1001 "WEB 720p" [
+        (movie 5 "WEBDL-720p" "webdl" 720 "none")
+        (movie 14 "WEBRip-720p" "webrip" 720 "none")
+      ])
+      (allowed (movie 6 "Bluray-720p" "bluray" 720 "none"))
+      (allowed (movie 9 "HDTV-1080p" "tv" 1080 "none"))
+      (group 1002 "WEB 1080p" [
+        (movie 3 "WEBDL-1080p" "webdl" 1080 "none")
+        (movie 15 "WEBRip-1080p" "webrip" 1080 "none")
+      ])
+      (allowed (movie 7 "Bluray-1080p" "bluray" 1080 "none"))
+      (allowed (movie 30 "Remux-1080p" "bluray" 1080 "remux"))
+      (allowed (movie 16 "HDTV-2160p" "tv" 2160 "none"))
+      (group 1003 "WEB 2160p" [
+        (movie 18 "WEBDL-2160p" "webdl" 2160 "none")
+        (movie 17 "WEBRip-2160p" "webrip" 2160 "none")
+      ])
+      (allowed (movie 19 "Bluray-2160p" "bluray" 2160 "none"))
+      (allowed (movie 31 "Remux-2160p" "bluray" 2160 "remux"))
+      (blocked (movie 22 "BR-DISK" "bluray" 1080 "brdisk"))
+      (blocked (movie 10 "Raw-HD" "tv" 1080 "rawhd"))
     ];
   };
 }

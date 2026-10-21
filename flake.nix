@@ -4,43 +4,49 @@
   };
 
   outputs =
-    { nixpkgs, ... }@inputs:
+    { nixpkgs, ... }:
     let
+      # Plex is pinned by hand; see "Hand-pinned versions" in CLAUDE.md.
       plexOverlay = final: prev: {
         plexRaw = prev.plexRaw.overrideAttrs (_: rec {
           version = "1.43.4.10903-e5521bd8c";
-          src = prev.fetchurl {
-            url = "https://downloads.plex.tv/plex-media-server-new/${version}/debian/plexmediaserver_${version}_${
-              if final.stdenv.hostPlatform.system == "aarch64-linux" then "arm64" else "amd64"
-            }.deb";
-            sha256 = "sha256-b2ocgzbXeeHyAVGmk0NJiEutb2pmsYorGJuW5Vw7Pts=";
-          };
+          src =
+            let
+              debs = {
+                x86_64-linux = {
+                  arch = "amd64";
+                  hash = "sha256-b2ocgzbXeeHyAVGmk0NJiEutb2pmsYorGJuW5Vw7Pts=";
+                };
+                aarch64-linux = {
+                  arch = "arm64";
+                  hash = "sha256-lF6G0FFPYUkrUWm76sbpGJKzNvaJXXhjK+wBe1kI5as=";
+                };
+              };
+              deb = debs.${final.stdenv.hostPlatform.system};
+            in
+            prev.fetchurl {
+              url = "https://downloads.plex.tv/plex-media-server-new/${version}/debian/plexmediaserver_${version}_${deb.arch}.deb";
+              inherit (deb) hash;
+            };
         });
       };
+
+      mkHost =
+        system: environment:
+        nixpkgs.lib.nixosSystem {
+          inherit system;
+          modules = [
+            { nixpkgs.overlays = [ plexOverlay ]; }
+            /etc/nixos/hardware-configuration.nix
+            environment
+            ./configuration.nix
+          ];
+        };
     in
     {
       nixosConfigurations = {
-        "spudbox-dev" = nixpkgs.lib.nixosSystem {
-          system = "aarch64-linux";
-          specialArgs = { inherit inputs; };
-          modules = [
-            { nixpkgs.overlays = [ plexOverlay ]; }
-            /etc/nixos/hardware-configuration.nix
-            ./environments/dev.nix
-            ./configuration.nix
-          ];
-        };
-
-        "spudbox-prod" = nixpkgs.lib.nixosSystem {
-          system = "x86_64-linux";
-          specialArgs = { inherit inputs; };
-          modules = [
-            { nixpkgs.overlays = [ plexOverlay ]; }
-            /etc/nixos/hardware-configuration.nix
-            ./environments/prod.nix
-            ./configuration.nix
-          ];
-        };
+        spudbox-dev = mkHost "aarch64-linux" ./environments/dev.nix;
+        spudbox-prod = mkHost "x86_64-linux" ./environments/prod.nix;
       };
     };
 }
