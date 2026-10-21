@@ -51,13 +51,13 @@ in
     ExecStartPre = lib.mkBefore (
       let
         script = pkgs.writeShellScript "transmission-credentials" ''
+          umask 077
           mkdir -p ${credentialsDir}
-          ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
-          ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
+          # --rawfile reads the secrets itself, keeping them off jq's argv
           ${pkgs.jq}/bin/jq -n \
-            --arg user "$ADMIN_USERNAME" \
-            --arg pass "$ADMIN_PASSWORD" \
-            '{"rpc-username": $user, "rpc-password": $pass}' \
+            --rawfile user ${secretsDir}/admin/username \
+            --rawfile pass ${secretsDir}/admin/password \
+            '{"rpc-username": ($user | rtrimstr("\n")), "rpc-password": ($pass | rtrimstr("\n"))}' \
             > ${credentialsPath}
           chmod 600 ${credentialsPath}
         '';

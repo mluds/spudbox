@@ -18,6 +18,24 @@ section() { printf "\n\033[1m── %s ──\033[0m\n" "$1"; }
 
 read_secret() { sudo cat "$SECRETS_DIR/$1" 2>/dev/null | tr -d '\n'; }
 
+# Credentials reach curl through files in a private dir (-H @file, -d @file),
+# never as arguments, which any local user can read from /proc/<pid>/cmdline.
+AUTH_DIR=$(umask 077 && mktemp -d)
+trap 'rm -rf "$AUTH_DIR"' EXIT
+auth_header() { printf '%s: %s\n' "$2" "$(read_secret "$3")" > "$AUTH_DIR/$1"; }
+auth_header radarr X-Api-Key radarr/api-key
+auth_header sonarr X-Api-Key sonarr/api-key
+auth_header prowlarr X-Api-Key prowlarr/api-key
+auth_header bazarr X-API-KEY bazarr/api-key
+auth_header jellyseerr X-Api-Key jellyseerr/api-key
+auth_header plex X-Plex-Token plex/token
+printf 'Authorization: Bearer %s\n' "$(read_secret audiobookshelf/apikey)" > "$AUTH_DIR/abs"
+printf 'Authorization: Basic %s\n' \
+  "$(printf '%s:%s' "$(read_secret admin/username)" "$(read_secret admin/password)" | base64 -w0)" > "$AUTH_DIR/transmission"
+# SABnzbd and Tautulli take apikey as a parameter; sent as a POST body instead of in the URL
+printf 'apikey=%s' "$(read_secret sabnzbd/api-key)" > "$AUTH_DIR/sabnzbd"
+printf 'apikey=%s' "$(read_secret tautulli/api-key)" > "$AUTH_DIR/tautulli"
+
 http_code() {
   local url="$1"; shift
   local code
@@ -199,93 +217,74 @@ test_http() {
 test_api_auth() {
   section "API Authentication"
 
-  local RADARR_KEY SONARR_KEY PROWLARR_KEY SABNZBD_KEY TAUTULLI_KEY
-  local BAZARR_KEY JELLYSEERR_KEY ABS_KEY PLEX_TOKEN
-  local ADMIN_USER ADMIN_PASS
 
-  RADARR_KEY=$(read_secret "radarr/api-key")
-  SONARR_KEY=$(read_secret "sonarr/api-key")
-  PROWLARR_KEY=$(read_secret "prowlarr/api-key")
-  SABNZBD_KEY=$(read_secret "sabnzbd/api-key")
-  TAUTULLI_KEY=$(read_secret "tautulli/api-key")
-  BAZARR_KEY=$(read_secret "bazarr/api-key")
-  JELLYSEERR_KEY=$(read_secret "jellyseerr/api-key")
-  ABS_KEY=$(read_secret "audiobookshelf/apikey")
-  PLEX_TOKEN=$(read_secret "plex/token")
-  ADMIN_USER=$(read_secret "admin/username")
-  ADMIN_PASS=$(read_secret "admin/password")
 
   check_http "http://localhost:7878/api/v3/system/status" "200" "radarr" \
-    -H "X-Api-Key: $RADARR_KEY"
+    -H @"$AUTH_DIR/radarr"
 
   check_http "http://localhost:8989/api/v3/system/status" "200" "sonarr" \
-    -H "X-Api-Key: $SONARR_KEY"
+    -H @"$AUTH_DIR/sonarr"
 
   check_http "http://localhost:9696/api/v1/system/status" "200" "prowlarr" \
-    -H "X-Api-Key: $PROWLARR_KEY"
+    -H @"$AUTH_DIR/prowlarr"
 
-  check_http "http://localhost:8081/api?mode=version&apikey=$SABNZBD_KEY&output=json" "200" "sabnzbd"
+  check_http "http://localhost:8081/api?mode=version&output=json" -d @"$AUTH_DIR/sabnzbd" "200" "sabnzbd"
 
-  check_http "http://localhost:8181/api/v2?apikey=$TAUTULLI_KEY&cmd=arnold" "200" "tautulli"
+  check_http "http://localhost:8181/api/v2?cmd=arnold" -d @"$AUTH_DIR/tautulli" "200" "tautulli"
 
   check_http "http://localhost:6767/api/system/status" "200" "bazarr" \
-    -H "X-API-KEY: $BAZARR_KEY"
+    -H @"$AUTH_DIR/bazarr"
 
   check_http "http://localhost:5055/api/v1/settings/main" "200" "jellyseerr" \
-    -H "X-Api-Key: $JELLYSEERR_KEY"
+    -H @"$AUTH_DIR/jellyseerr"
 
   check_http "http://localhost:8000/api/libraries" "200" "audiobookshelf" \
-    -H "Authorization: Bearer $ABS_KEY"
+    -H @"$AUTH_DIR/abs"
 
-  check_http "http://localhost:32400/identity?X-Plex-Token=$PLEX_TOKEN" "200" "plex"
+  check_http "http://localhost:32400/identity" -H @"$AUTH_DIR/plex" "200" "plex"
 
   check_http "http://localhost:9091/transmission/rpc" "409" "transmission" \
-    -u "$ADMIN_USER:$ADMIN_PASS"
+    -H @"$AUTH_DIR/transmission"
 }
 
 test_integrations() {
   section "Integrations"
 
-  local RADARR_KEY SONARR_KEY JELLYSEERR_KEY TAUTULLI_KEY
 
-  RADARR_KEY=$(read_secret "radarr/api-key")
-  SONARR_KEY=$(read_secret "sonarr/api-key")
-  JELLYSEERR_KEY=$(read_secret "jellyseerr/api-key")
-  TAUTULLI_KEY=$(read_secret "tautulli/api-key")
 
   # Radarr integrations
-  if http_get "http://localhost:7878/api/v3/downloadclient" -H "X-Api-Key: $RADARR_KEY" | jq -e '.[].name' | grep -q "SABnzbd"; then
+  if http_get "http://localhost:7878/api/v3/downloadclient" -H @"$AUTH_DIR/radarr" | jq -e '.[].name' | grep -q "SABnzbd"; then
     pass "radarr -> sabnzbd"
   else
     fail "radarr -> sabnzbd"
   fi
 
-  if http_get "http://localhost:7878/api/v3/indexer" -H "X-Api-Key: $RADARR_KEY" | jq -e '.[].name' | grep -qi "NZBgeek"; then
+  if http_get "http://localhost:7878/api/v3/indexer" -H @"$AUTH_DIR/radarr" | jq -e '.[].name' | grep -qi "NZBgeek"; then
     pass "radarr -> nzbgeek"
   else
     fail "radarr -> nzbgeek"
   fi
 
-  if http_get "http://localhost:7878/api/v3/rootfolder" -H "X-Api-Key: $RADARR_KEY" | jq -e '.[0].path' | grep -q "movies"; then
+  if http_get "http://localhost:7878/api/v3/rootfolder" -H @"$AUTH_DIR/radarr" | jq -e '.[0].path' | grep -q "movies"; then
     pass "radarr root folder"
   else
     fail "radarr root folder"
   fi
 
   # Sonarr integrations
-  if http_get "http://localhost:8989/api/v3/downloadclient" -H "X-Api-Key: $SONARR_KEY" | jq -e '.[].name' | grep -q "SABnzbd"; then
+  if http_get "http://localhost:8989/api/v3/downloadclient" -H @"$AUTH_DIR/sonarr" | jq -e '.[].name' | grep -q "SABnzbd"; then
     pass "sonarr -> sabnzbd"
   else
     fail "sonarr -> sabnzbd"
   fi
 
-  if http_get "http://localhost:8989/api/v3/indexer" -H "X-Api-Key: $SONARR_KEY" | jq -e '.[].name' | grep -qi "NZBgeek"; then
+  if http_get "http://localhost:8989/api/v3/indexer" -H @"$AUTH_DIR/sonarr" | jq -e '.[].name' | grep -qi "NZBgeek"; then
     pass "sonarr -> nzbgeek"
   else
     fail "sonarr -> nzbgeek"
   fi
 
-  if http_get "http://localhost:8989/api/v3/rootfolder" -H "X-Api-Key: $SONARR_KEY" | jq -e '.[0].path' | grep -q "tv"; then
+  if http_get "http://localhost:8989/api/v3/rootfolder" -H @"$AUTH_DIR/sonarr" | jq -e '.[0].path' | grep -q "tv"; then
     pass "sonarr root folder"
   else
     fail "sonarr root folder"
@@ -298,25 +297,25 @@ test_integrations() {
     fail "jellyseerr initialized (plex connected)"
   fi
 
-  if http_get "http://localhost:5055/api/v1/settings/radarr" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.[0].hostname' | grep -q "localhost"; then
+  if http_get "http://localhost:5055/api/v1/settings/radarr" -H @"$AUTH_DIR/jellyseerr" | jq -e '.[0].hostname' | grep -q "localhost"; then
     pass "jellyseerr -> radarr"
   else
     fail "jellyseerr -> radarr"
   fi
 
-  if http_get "http://localhost:5055/api/v1/settings/sonarr" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.[0].hostname' | grep -q "localhost"; then
+  if http_get "http://localhost:5055/api/v1/settings/sonarr" -H @"$AUTH_DIR/jellyseerr" | jq -e '.[0].hostname' | grep -q "localhost"; then
     pass "jellyseerr -> sonarr"
   else
     fail "jellyseerr -> sonarr"
   fi
 
-  if http_get "http://localhost:5055/api/v1/settings/radarr" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.[0].externalUrl' | grep -q "radarr.$DOMAIN"; then
+  if http_get "http://localhost:5055/api/v1/settings/radarr" -H @"$AUTH_DIR/jellyseerr" | jq -e '.[0].externalUrl' | grep -q "radarr.$DOMAIN"; then
     pass "jellyseerr radarr external url"
   else
     fail "jellyseerr radarr external url"
   fi
 
-  if http_get "http://localhost:5055/api/v1/settings/sonarr" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.[0].externalUrl' | grep -q "sonarr.$DOMAIN"; then
+  if http_get "http://localhost:5055/api/v1/settings/sonarr" -H @"$AUTH_DIR/jellyseerr" | jq -e '.[0].externalUrl' | grep -q "sonarr.$DOMAIN"; then
     pass "jellyseerr sonarr external url"
   else
     fail "jellyseerr sonarr external url"
@@ -324,7 +323,7 @@ test_integrations() {
 
   # Radarr download cleanup flags
   local radarr_client
-  radarr_client=$(http_get "http://localhost:7878/api/v3/downloadclient" -H "X-Api-Key: $RADARR_KEY")
+  radarr_client=$(http_get "http://localhost:7878/api/v3/downloadclient" -H @"$AUTH_DIR/radarr")
   local radarr_rm_completed radarr_rm_failed radarr_category
   radarr_rm_completed=$(echo "$radarr_client" | jq '.[0].removeCompletedDownloads')
   radarr_rm_failed=$(echo "$radarr_client" | jq '.[0].removeFailedDownloads')
@@ -344,7 +343,7 @@ test_integrations() {
 
   # Sonarr download cleanup flags
   local sonarr_client
-  sonarr_client=$(http_get "http://localhost:8989/api/v3/downloadclient" -H "X-Api-Key: $SONARR_KEY")
+  sonarr_client=$(http_get "http://localhost:8989/api/v3/downloadclient" -H @"$AUTH_DIR/sonarr")
   local sonarr_rm_completed sonarr_rm_failed sonarr_category
   sonarr_rm_completed=$(echo "$sonarr_client" | jq '.[0].removeCompletedDownloads')
   sonarr_rm_failed=$(echo "$sonarr_client" | jq '.[0].removeFailedDownloads')
@@ -363,10 +362,8 @@ test_integrations() {
   fi
 
   # Bazarr subtitle providers
-  local BAZARR_KEY
-  BAZARR_KEY=$(read_secret "bazarr/api-key")
   local bazarr_providers
-  bazarr_providers=$(http_get "http://localhost:6767/api/system/settings" -H "X-API-KEY: $BAZARR_KEY" | jq -r '.general.enabled_providers // empty' 2>/dev/null)
+  bazarr_providers=$(http_get "http://localhost:6767/api/system/settings" -H @"$AUTH_DIR/bazarr" | jq -r '.general.enabled_providers // empty' 2>/dev/null)
   if echo "$bazarr_providers" | grep -q "opensubtitlescom"; then
     pass "bazarr opensubtitles provider"
   else
@@ -379,76 +376,70 @@ test_integrations() {
   fi
 
   # Tautulli -> Plex
-  if http_get "http://localhost:8181/api/v2?apikey=$TAUTULLI_KEY&cmd=get_server_info" | jq -e '.response.result' | grep -q "success"; then
+  if http_get "http://localhost:8181/api/v2?cmd=get_server_info" -d @"$AUTH_DIR/tautulli" | jq -e '.response.result' | grep -q "success"; then
     pass "tautulli -> plex"
   else
     fail "tautulli -> plex"
   fi
 
   # Bazarr integrations
-  local BAZARR_KEY
-  BAZARR_KEY=$(read_secret "bazarr/api-key")
 
-  if http_get "http://localhost:6767/api/system/health" -H "X-API-KEY: $BAZARR_KEY" | jq -e '.data' &>/dev/null; then
+  if http_get "http://localhost:6767/api/system/health" -H @"$AUTH_DIR/bazarr" | jq -e '.data' &>/dev/null; then
     pass "bazarr -> radarr/sonarr"
   else
     fail "bazarr -> radarr/sonarr"
   fi
 
   # Quality profiles
-  if http_get "http://localhost:7878/api/v3/qualityprofile" -H "X-Api-Key: $RADARR_KEY" | jq -e 'length > 0' | grep -q "true"; then
+  if http_get "http://localhost:7878/api/v3/qualityprofile" -H @"$AUTH_DIR/radarr" | jq -e 'length > 0' | grep -q "true"; then
     pass "radarr quality profiles"
   else
     fail "radarr quality profiles"
   fi
 
-  if http_get "http://localhost:8989/api/v3/qualityprofile" -H "X-Api-Key: $SONARR_KEY" | jq -e 'length > 0' | grep -q "true"; then
+  if http_get "http://localhost:8989/api/v3/qualityprofile" -H @"$AUTH_DIR/sonarr" | jq -e 'length > 0' | grep -q "true"; then
     pass "sonarr quality profiles"
   else
     fail "sonarr quality profiles"
   fi
 
   # Plex libraries
-  local PLEX_TOKEN
-  PLEX_TOKEN=$(read_secret "plex/token")
 
-  if http_get "http://localhost:32400/library/sections?X-Plex-Token=$PLEX_TOKEN" | grep -q 'title="Movies"'; then
+  if http_get "http://localhost:32400/library/sections" -H @"$AUTH_DIR/plex" | grep -q 'title="Movies"'; then
     pass "plex movies library"
   else
     fail "plex movies library"
   fi
 
-  if http_get "http://localhost:32400/library/sections?X-Plex-Token=$PLEX_TOKEN" | grep -q 'title="TV Shows"'; then
+  if http_get "http://localhost:32400/library/sections" -H @"$AUTH_DIR/plex" | grep -q 'title="TV Shows"'; then
     pass "plex tv library"
   else
     fail "plex tv library"
   fi
 
-  if http_get "http://localhost:32400/library/sections?X-Plex-Token=$PLEX_TOKEN" | grep -q 'title="Videos"'; then
+  if http_get "http://localhost:32400/library/sections" -H @"$AUTH_DIR/plex" | grep -q 'title="Videos"'; then
     pass "plex videos library"
   else
     fail "plex videos library"
   fi
 
   # Audiobookshelf library
-  local ABS_KEY
-  ABS_KEY=$(read_secret "audiobookshelf/apikey")
 
-  if http_get "http://localhost:8000/api/libraries" -H "Authorization: Bearer $ABS_KEY" | jq -e '.libraries[0].name' &>/dev/null; then
+  if http_get "http://localhost:8000/api/libraries" -H @"$AUTH_DIR/abs" | jq -e '.libraries[0].name' &>/dev/null; then
     pass "audiobookshelf library"
   else
     fail "audiobookshelf library"
   fi
 
   # Jellyseerr email notifications (disabled, replaced by pushover)
-  if http_get "http://localhost:5055/api/v1/settings/notifications/email" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.enabled == false' | grep -q "true"; then
+  if http_get "http://localhost:5055/api/v1/settings/notifications/email" -H @"$AUTH_DIR/jellyseerr" | jq -e '.enabled == false' | grep -q "true"; then
     pass "jellyseerr email notifications disabled"
   else
     fail "jellyseerr email notifications disabled"
   fi
 
   # Jellyseerr Pushover notifications
-  if http_get "http://localhost:5055/api/v1/settings/notifications/pushover" -H "X-Api-Key: $JELLYSEERR_KEY" | jq -e '.enabled' | grep -q "true"; then
+  if http_get "http://localhost:5055/api/v1/settings/notifications/pushover" -H @"$AUTH_DIR/jellyseerr" | jq -e '.enabled' | grep -q "true"; then
     pass "jellyseerr pushover notifications"
   else
     fail "jellyseerr pushover notifications"
@@ -456,7 +447,7 @@ test_integrations() {
 
   # Jellyseerr plex libraries enabled
   local plex_settings
-  plex_settings=$(http_get "http://localhost:5055/api/v1/settings/plex" -H "X-Api-Key: $JELLYSEERR_KEY")
+  plex_settings=$(http_get "http://localhost:5055/api/v1/settings/plex" -H @"$AUTH_DIR/jellyseerr")
   local plex_libs_enabled
   plex_libs_enabled=$(echo "$plex_settings" | jq '[.libraries[] | select(.enabled == true)] | length')
   if [ "$plex_libs_enabled" -gt 0 ] 2>/dev/null; then
@@ -473,14 +464,14 @@ test_integrations() {
   fi
 
   # Plex remote access (reachability also needs the router's TCP 32400 forward)
-  if http_get "http://localhost:32400/:/prefs?X-Plex-Token=$PLEX_TOKEN" | grep -q 'id="PublishServerOnPlexOnlineKey"[^>]*value="1"'; then
+  if http_get "http://localhost:32400/:/prefs" -H @"$AUTH_DIR/plex" | grep -q 'id="PublishServerOnPlexOnlineKey"[^>]*value="1"'; then
     pass "plex remote access enabled"
   else
     fail "plex remote access not enabled"
   fi
 
   # Plex custom connections URL
-  if http_get "http://localhost:32400/:/prefs?X-Plex-Token=$PLEX_TOKEN" | grep -q 'customConnections.*plex\.'$DOMAIN; then
+  if http_get "http://localhost:32400/:/prefs" -H @"$AUTH_DIR/plex" | grep -q 'customConnections.*plex\.'$DOMAIN; then
     pass "plex custom connections url"
   else
     fail "plex custom connections url not set"
@@ -488,7 +479,7 @@ test_integrations() {
 
   # Audiobookshelf library name and path
   local abs_lib
-  abs_lib=$(http_get "http://localhost:8000/api/libraries" -H "Authorization: Bearer $ABS_KEY" | jq -r '.libraries[0]')
+  abs_lib=$(http_get "http://localhost:8000/api/libraries" -H @"$AUTH_DIR/abs" | jq -r '.libraries[0]')
   local abs_name abs_path
   abs_name=$(echo "$abs_lib" | jq -r '.name')
   abs_path=$(echo "$abs_lib" | jq -r '.folders[0].fullPath')
@@ -576,12 +567,10 @@ test_storage() {
 test_downloads() {
   section "Downloads"
 
-  local SABNZBD_KEY
-  SABNZBD_KEY=$(read_secret "sabnzbd/api-key")
 
   # SABnzbd not paused
   local paused
-  paused=$(http_get "http://localhost:8081/api?mode=queue&apikey=$SABNZBD_KEY&output=json" | jq -r '.queue.paused')
+  paused=$(http_get "http://localhost:8081/api?mode=queue&output=json" -d @"$AUTH_DIR/sabnzbd" | jq -r '.queue.paused')
   if [ "$paused" = "false" ]; then
     pass "sabnzbd queue active"
   else
@@ -590,7 +579,7 @@ test_downloads() {
 
   # SABnzbd queue accessible
   local queue_status
-  queue_status=$(http_get "http://localhost:8081/api?mode=queue&apikey=$SABNZBD_KEY&output=json" | jq -r '.queue.status')
+  queue_status=$(http_get "http://localhost:8081/api?mode=queue&output=json" -d @"$AUTH_DIR/sabnzbd" | jq -r '.queue.status')
   if [ -n "$queue_status" ] && [ "$queue_status" != "null" ]; then
     pass "sabnzbd queue accessible"
   else
@@ -599,7 +588,7 @@ test_downloads() {
 
   # SABnzbd usenet server configured
   local server_count
-  server_count=$(http_get "http://localhost:8081/api?mode=get_config&section=servers&apikey=$SABNZBD_KEY&output=json" | jq '[.config.servers[] | select(.enable == 1)] | length')
+  server_count=$(http_get "http://localhost:8081/api?mode=get_config&section=servers&output=json" -d @"$AUTH_DIR/sabnzbd" | jq '[.config.servers[] | select(.enable == 1)] | length')
   if [ "$server_count" -gt 0 ]; then
     pass "sabnzbd usenet server configured ($server_count)"
   else
@@ -608,7 +597,7 @@ test_downloads() {
 
   # SABnzbd categories
   local sab_categories
-  sab_categories=$(http_get "http://localhost:8081/api?mode=get_config&section=categories&apikey=$SABNZBD_KEY&output=json" | jq -r '[.config.categories[].name] | join(",")')
+  sab_categories=$(http_get "http://localhost:8081/api?mode=get_config&section=categories&output=json" -d @"$AUTH_DIR/sabnzbd" | jq -r '[.config.categories[].name] | join(",")')
   local cat_ok=true
   for cat in movies tv; do
     if ! echo "$sab_categories" | grep -q "$cat"; then
@@ -622,14 +611,11 @@ test_downloads() {
   fi
 
   # Transmission download-dir
-  local ADMIN_USER ADMIN_PASS
-  ADMIN_USER=$(read_secret "admin/username")
-  ADMIN_PASS=$(read_secret "admin/password")
   local sid
-  sid=$(curl -s --max-time 5 -u "$ADMIN_USER:$ADMIN_PASS" "http://localhost:9091/transmission/rpc" 2>/dev/null | grep -oP 'X-Transmission-Session-Id: \K[^<]+' || true)
+  sid=$(curl -s --max-time 5 -H @"$AUTH_DIR/transmission" "http://localhost:9091/transmission/rpc" 2>/dev/null | grep -oP 'X-Transmission-Session-Id: \K[^<]+' || true)
   if [ -n "$sid" ]; then
     local download_dir
-    download_dir=$(curl -s --max-time 5 -u "$ADMIN_USER:$ADMIN_PASS" \
+    download_dir=$(curl -s --max-time 5 -H @"$AUTH_DIR/transmission" \
       -H "X-Transmission-Session-Id: $sid" \
       -d '{"method":"session-get","arguments":{"fields":["download-dir"]}}' \
       "http://localhost:9091/transmission/rpc" | jq -r '.arguments["download-dir"]')
@@ -786,14 +772,15 @@ test_security() {
 
   # Cloudflare token only in Caddy's environment: not in the Caddyfile or the
   # admin API's config, and the env file is root-only
-  local cf_token cf_leaks env_perms
-  cf_token=$(read_secret "cloudflare/api-token")
+  local cf_leaks env_perms
+  # grep -f reads the token from a file, keeping it off grep's argv
+  read_secret "cloudflare/api-token" > "$AUTH_DIR/cf-token"
   cf_leaks=0
-  if [ -z "$cf_token" ]; then
+  if [ ! -s "$AUTH_DIR/cf-token" ]; then
     cf_leaks=1
   else
-    sudo grep -qF -- "$cf_token" /etc/caddy/Caddyfile && cf_leaks=$((cf_leaks + 1))
-    curl -s --max-time 5 http://localhost:2019/config/ | grep -qF -- "$cf_token" && cf_leaks=$((cf_leaks + 1))
+    sudo grep -qFf "$AUTH_DIR/cf-token" /etc/caddy/Caddyfile && cf_leaks=$((cf_leaks + 1))
+    curl -s --max-time 5 http://localhost:2019/config/ | grep -qFf "$AUTH_DIR/cf-token" && cf_leaks=$((cf_leaks + 1))
   fi
   env_perms=$(sudo stat -c "%a %U:%G" /run/caddy-config/caddy.env 2>/dev/null)
   if [ "$cf_leaks" -eq 0 ] && [ "$env_perms" = "600 root:root" ]; then
@@ -803,9 +790,8 @@ test_security() {
   fi
 
   # SABnzbd verifies usenet server certificates (3 = Strict)
-  local SABNZBD_KEY unverified
-  SABNZBD_KEY=$(read_secret "sabnzbd/api-key")
-  unverified=$(http_get "http://localhost:8081/api?mode=get_config&section=servers&apikey=$SABNZBD_KEY&output=json" | jq '[.config.servers[] | select(.ssl_verify != 3)] | length')
+  local unverified
+  unverified=$(http_get "http://localhost:8081/api?mode=get_config&section=servers&output=json" -d @"$AUTH_DIR/sabnzbd" | jq '[.config.servers[] | select(.ssl_verify != 3)] | length')
   if [ "$unverified" = "0" ]; then
     pass "sabnzbd usenet servers ssl_verify strict"
   else

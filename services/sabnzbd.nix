@@ -459,14 +459,23 @@ in
         requires = [ "sabnzbd.service" ];
         serviceConfig = {
           Type = "oneshot";
+          # Unprivileged; the API key arrives via LoadCredential and is sent
+          # in a POST body from a file, never in the URL or on a command line.
+          DynamicUser = true;
+          RuntimeDirectory = "sabnzbd-resume";
+          LoadCredential = "sabnzbd-api-key:${secretsDir}/sabnzbd/api-key";
           ExecStart =
             let
               script = pkgs.writeShellScript "sabnzbd-resume" ''
-                SABNZBD_KEY=$(cat ${secretsDir}/sabnzbd/api-key)
-                PAUSED=$(${pkgs.curl}/bin/curl -s "http://localhost:${toString sabnzbdPort}/api?mode=queue&apikey=$SABNZBD_KEY&output=json" | ${pkgs.jq}/bin/jq -r '.queue.paused')
+                umask 077
+                API="http://localhost:${toString sabnzbdPort}/api"
+                KEY=$(tr -d '\n' < "$CREDENTIALS_DIRECTORY/sabnzbd-api-key")
+                printf 'mode=queue&output=json&apikey=%s' "$KEY" > "$RUNTIME_DIRECTORY/queue"
+                printf 'mode=resume&output=json&apikey=%s' "$KEY" > "$RUNTIME_DIRECTORY/resume"
+                PAUSED=$(${pkgs.curl}/bin/curl -s -d @"$RUNTIME_DIRECTORY/queue" "$API" | ${pkgs.jq}/bin/jq -r '.queue.paused')
                 if [ "$PAUSED" = "true" ]; then
                   echo "SABnzbd is paused, resuming..."
-                  ${pkgs.curl}/bin/curl -s "http://localhost:${toString sabnzbdPort}/api?mode=resume&apikey=$SABNZBD_KEY&output=json"
+                  ${pkgs.curl}/bin/curl -s -d @"$RUNTIME_DIRECTORY/resume" "$API"
                 fi
               '';
             in

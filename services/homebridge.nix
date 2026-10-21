@@ -36,36 +36,45 @@ let
       exit 0
     fi
 
-    ADMIN_USERNAME=$(cat ${secretsDir}/admin/username)
-    ADMIN_PASSWORD=$(cat ${secretsDir}/admin/password)
+    # Credentials and session tokens reach curl through files (-d @file,
+    # -H @file), never as arguments, which any local user could read from
+    # /proc/<pid>/cmdline.
+    umask 077
+    TMP=$(mktemp -d)
+    trap 'rm -rf "$TMP"' EXIT
+    $JQ -n --rawfile u ${secretsDir}/admin/username --rawfile p ${secretsDir}/admin/password \
+      '{username: ($u | rtrimstr("\n")), password: ($p | rtrimstr("\n"))}' > "$TMP/login.json"
+
+    # login: write a fresh "Authorization: Bearer ..." header to $TMP/auth
+    login() {
+      TOKEN=$($CURL -s -X POST -H "Content-Type: application/json" \
+        -d @"$TMP/login.json" "$BASE/api/auth/login" | $JQ -r '.access_token')
+      printf 'Authorization: Bearer %s\n' "$TOKEN" > "$TMP/auth"
+    }
 
     echo "Getting setup wizard token..."
-    SETUP_TOKEN=$($CURL -s "$BASE/api/setup-wizard/get-setup-wizard-token" | $JQ -r '.access_token')
+    TOKEN=$($CURL -s "$BASE/api/setup-wizard/get-setup-wizard-token" | $JQ -r '.access_token')
+    printf 'Authorization: Bearer %s\n' "$TOKEN" > "$TMP/auth"
 
     echo "Creating admin user..."
-    $CURL -s -X POST -H "Content-Type: application/json" \
-      -H "Authorization: Bearer $SETUP_TOKEN" \
-      -d "{\"name\": \"$ADMIN_USERNAME\", \"username\": \"$ADMIN_USERNAME\", \"password\": \"$ADMIN_PASSWORD\", \"admin\": true}" \
-      "$BASE/api/setup-wizard/create-first-user" >/dev/null
+    $JQ '. + {name: .username, admin: true}' "$TMP/login.json" |
+      $CURL -s -X POST -H "Content-Type: application/json" -H @"$TMP/auth" \
+        -d @- "$BASE/api/setup-wizard/create-first-user" >/dev/null
 
     echo "Logging in..."
-    AUTH_TOKEN=$($CURL -s -X POST -H "Content-Type: application/json" \
-      -d "{\"username\": \"$ADMIN_USERNAME\", \"password\": \"$ADMIN_PASSWORD\"}" \
-      "$BASE/api/auth/login" | $JQ -r '.access_token')
-
-    AUTH="Authorization: Bearer $AUTH_TOKEN"
+    login
 
     echo "Installing homebridge-dummy plugin..."
     ${pkgs.docker}/bin/docker exec homebridge npm install homebridge-dummy
 
     echo "Adding dummy switch to config..."
-    CONFIG=$($CURL -s -H "$AUTH" "$BASE/api/config-editor")
-    UPDATED=$(echo "$CONFIG" | $JQ '.platforms += [{"platform": "HomebridgeDummy", "name": "HomebridgeDummy", "accessories": [{"type": "Switch", "name": "Dummy Door Switch", "stateful": true}]}]')
-    echo "$UPDATED" | $CURL -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
-      -d @- "$BASE/api/config-editor" >/dev/null
+    $CURL -s -H @"$TMP/auth" "$BASE/api/config-editor" |
+      $JQ '.platforms += [{"platform": "HomebridgeDummy", "name": "HomebridgeDummy", "accessories": [{"type": "Switch", "name": "Dummy Door Switch", "stateful": true}]}]' |
+      $CURL -s -X POST -H @"$TMP/auth" -H "Content-Type: application/json" \
+        -d @- "$BASE/api/config-editor" >/dev/null
 
     echo "Restarting Homebridge..."
-    $CURL -s -X PUT -H "$AUTH" "$BASE/api/server/restart" >/dev/null
+    $CURL -s -X PUT -H @"$TMP/auth" "$BASE/api/server/restart" >/dev/null
 
     echo "Waiting for Homebridge to come back..."
     sleep 5
@@ -74,13 +83,10 @@ let
     done
 
     echo "Logging in again..."
-    AUTH_TOKEN=$($CURL -s -X POST -H "Content-Type: application/json" \
-      -d "{\"username\": \"$ADMIN_USERNAME\", \"password\": \"$ADMIN_PASSWORD\"}" \
-      "$BASE/api/auth/login" | $JQ -r '.access_token')
-    AUTH="Authorization: Bearer $AUTH_TOKEN"
+    login
 
     echo "Resetting cached accessories..."
-    $CURL -s -X PUT -H "$AUTH" "$BASE/api/server/reset-cached-accessories" >/dev/null
+    $CURL -s -X PUT -H @"$TMP/auth" "$BASE/api/server/reset-cached-accessories" >/dev/null
 
     echo "Homebridge setup complete."
   '';
