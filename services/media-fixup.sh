@@ -25,6 +25,16 @@ stream_tags() { probe -show_entries stream=codec_type:stream_tags=language,title
 dv_profile() { probe -select_streams v:0 -show_entries stream_side_data=dv_profile -of default=nw=1:nk=1 "$1" | grep -m1 . || true; }
 video_transfer() { probe -select_streams v:0 -show_entries stream=color_transfer -of csv=p=0 "$1"; }
 
+# secret NAME: a secret such as plex/token. The unit gets them as
+# credentials (plex-token); a manual `sudo media-fixup` reads secretsDir.
+secret() {
+  if [ -n "${CREDENTIALS_DIRECTORY:-}" ]; then
+    cat "$CREDENTIALS_DIRECTORY/${1//\//-}"
+  else
+    read-secret "$1"
+  fi
+}
+
 # same_duration A B: durations within a second of each other.
 same_duration() {
   local a b
@@ -55,8 +65,8 @@ replace() {
   dir=$(dirname "$orig")
   base=$(basename "${orig%.*}")
   newbase=$(hdr10_name "$base")
+  chmod --reference="$orig" "$new" # before chown: then it's no longer ours
   chown --reference="$orig" "$new"
-  chmod --reference="$orig" "$new"
   mv -f "$new" "$dir/$newbase.mkv"
   [ "$dir/$newbase.mkv" = "$orig" ] || rm -f "$orig"
   if [ "$newbase" != "$base" ]; then
@@ -153,8 +163,8 @@ fix_subs() {
     say "Verification failed, leaving subtitles unchanged"
     return 1
   fi
-  chown --reference="$FILE" "$TMP/subs.mkv"
   chmod --reference="$FILE" "$TMP/subs.mkv"
+  chown --reference="$FILE" "$TMP/subs.mkv"
   mv -f "$TMP/subs.mkv" "$FILE"
 }
 
@@ -164,19 +174,19 @@ rescan() {
   local dir id
   dir=$(dirname "$FILE")
   if [[ $FILE == "$TV_DIR"/* ]]; then
-    printf 'X-Api-Key: %s\n' "$(read-secret sonarr/api-key)" > "$TMP/arr-key"
+    printf 'X-Api-Key: %s\n' "$(secret sonarr/api-key)" > "$TMP/arr-key"
     id=$(curl -sf -H @"$TMP/arr-key" "http://localhost:$SONARR_PORT/api/v3/series" \
       | jq --arg f "$FILE" '[.[] | select(.path as $p | $f | startswith($p + "/"))][0].id // empty') || true
     [ -z "$id" ] || curl -sf -o /dev/null -H @"$TMP/arr-key" -H "Content-Type: application/json" \
       -d "{\"name\":\"RescanSeries\",\"seriesId\":$id}" "http://localhost:$SONARR_PORT/api/v3/command" || true
   else
-    printf 'X-Api-Key: %s\n' "$(read-secret radarr/api-key)" > "$TMP/arr-key"
+    printf 'X-Api-Key: %s\n' "$(secret radarr/api-key)" > "$TMP/arr-key"
     id=$(curl -sf -H @"$TMP/arr-key" "http://localhost:$RADARR_PORT/api/v3/movie" \
       | jq --arg d "$dir" '[.[] | select(.path == $d)][0].id // empty') || true
     [ -z "$id" ] || curl -sf -o /dev/null -H @"$TMP/arr-key" -H "Content-Type: application/json" \
       -d "{\"name\":\"RescanMovie\",\"movieId\":$id}" "http://localhost:$RADARR_PORT/api/v3/command" || true
   fi
-  printf 'X-Plex-Token: %s\n' "$(read-secret plex/token)" > "$TMP/plex-key"
+  printf 'X-Plex-Token: %s\n' "$(secret plex/token)" > "$TMP/plex-key"
   curl -sf -H @"$TMP/plex-key" "http://localhost:$PLEX_PORT/library/sections" \
     | xmlstarlet sel -t -v '//Directory/@key' -n \
     | while read -r s; do

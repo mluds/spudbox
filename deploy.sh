@@ -23,12 +23,28 @@ EOF
 }
 
 sync_files() {
+  # A locked git-crypt checkout holds ciphertext; deploying it would replace
+  # every live secret with it.
+  if [ "$(head -c 9 "$SCRIPT_DIR/secrets/admin/password" | tr -d '\0')" = "GITCRYPT" ]; then
+    echo "ERROR: secrets are git-crypt encrypted here; run 'git-crypt unlock <key>' first" >&2
+    exit 1
+  fi
+
   echo "Syncing files to server..."
-  # Plaintext login passwords are recovery copies; they never leave this machine.
-  # secrets/default.json is the old, untracked (so unencrypted) secrets file.
-  rsync -az --delete --exclude='.git' --exclude='secrets/users/*/plaintext' --exclude='secrets/default.json' \
+  # Secrets never land in ~/deploy: the flake there isn't a git checkout, so
+  # nixos-rebuild copies the whole directory into the world-readable store.
+  rsync -az --delete --delete-excluded --exclude='/.git' --exclude='/secrets/' \
     -e "ssh -i $SSH_KEY" "$SCRIPT_DIR/" "$HOST:~/deploy/"
-  $SSH "sudo cp -r ~/deploy/secrets/* /var/lib/secrets/ && find ~/deploy/secrets/ -type f -delete"
+
+  echo "Installing secrets..."
+  # Streamed straight into the root-only dir, new files 600 / dirs 700 (umask),
+  # owned by root. Plaintext login passwords are recovery copies and never
+  # leave this machine; secrets/default.json is the old unencrypted file.
+  # ustar: no macOS xattr/pax headers for GNU tar to warn about.
+  (cd "$SCRIPT_DIR/secrets" &&
+    find . -type f ! -path './users/*/plaintext' ! -path './default.json' -print |
+    COPYFILE_DISABLE=1 tar --format ustar -cf - -T -) |
+    $SSH "sudo sh -c 'umask 077 && tar -C /var/lib/secrets --no-same-owner --no-same-permissions -xf -'"
 }
 
 rebuild() {

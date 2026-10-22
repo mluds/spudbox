@@ -55,18 +55,19 @@ let
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
 
+    # The directories themselves only, not their contents: a recursive
+    # chmod made every media file executable and walked the whole library
+    # (spinning up the HDD) on each boot. The apps set their own file modes.
     ${lib.concatMapStringsSep "\n" (dir: ''
-      echo "Creating media directory: ${dir}"
       mkdir -p "${dir}"
-      chown -R media:media "${dir}"
-      chmod -R 0775 "${dir}"
+      chown media:media "${dir}"
+      chmod 0775 "${dir}"
     '') mediaDirs}
 
     ${lib.concatMapStringsSep "\n" (dir: ''
-      echo "Creating usenet directory: ${dir}"
       mkdir -p "${dir}"
-      chown -R sabnzbd:media "${dir}"
-      chmod -R 0775 "${dir}"
+      chown sabnzbd:media "${dir}"
+      chmod 0775 "${dir}"
     '') usenetDirs}
 
     # Per-service passwords: fall back to the shared one until generated
@@ -118,6 +119,7 @@ in
     ./services/homebridge.nix
     ./services/claude-code.nix
     ./services/media-fixup.nix
+    ./services/notify.nix
   ];
 
   environment.systemPackages = with pkgs; [

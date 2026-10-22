@@ -45,7 +45,8 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | `services/docker.nix` | Docker, used only by Homebridge. |
 | `services/backup.nix` | restic: nightly `/var/lib` backup to the HDD, then `restic copy` to Cloudflare R2. |
 | `services/drive-check.nix` | 5-minute timer that forces the HDD into standby when idle. `drive-status-http` serves JSON for homepage. |
-| `services/media-fixup.{nix,sh}` | 15-minute timer: DV5 to HDR10, hybrid DV8 strip, SRT `<font>` cleanup. x86_64 only. |
+| `services/media-fixup.{nix,sh}` | 15-minute timer: DV5 to HDR10, hybrid DV8 strip, SRT `<font>` cleanup. x86_64 only. Sandboxed as user `media-fixup` (CAP_CHOWN only, writes only `/mnt/storage/data`). |
+| `services/notify.nix` | `notify-failure@` template: a Pushover alert with the journal tail. Attached to the oneshots, timers and backups through `onFailure`. |
 | `services/claude-code.nix` | Claude Code Remote Control, running as `luds`. |
 | `services/servarr/mkArrConfig.nix` | Shared `sonarr-config`/`radarr-config` builder: login, indexer, SABnzbd, quality, custom formats, folder import. |
 | `services/servarr/{sonarr,radarr}.nix` | The apps plus their mkArrConfig args. Radarr also has the `radarr-auto-import` timer. |
@@ -54,7 +55,7 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | `services/servarr/prowlarr.nix` | Prowlarr. Login set through its API. |
 | `services/servarr/bazarr.nix` + `bazarr-config.py` | Merges a YAML template into the config. Rewrites language profiles. |
 | `services/servarr/jellyseerr.nix` | seerr under a fixed user. First-run setup, Plex/arr links, Pushover. |
-| `deploy.sh` | Runs on the Mac: rsync to prod `~/deploy`, copy secrets, `nixos-rebuild switch`, wait, `test.sh`. |
+| `deploy.sh` | Runs on the Mac: refuses a locked checkout, rsyncs the tree (no secrets) to prod `~/deploy`, streams secrets into `/var/lib/secrets` via tar, `nixos-rebuild switch`, wait, `test.sh`. |
 | `test.sh` / `lint.sh` | About 190 server checks / statix, deadnix, nixfmt. |
 | `scripts/generate-service-passwords.sh` | Creates and commits per-service passwords. Refuses if git-crypt is locked. |
 | `secrets/` | git-crypt encrypted. Deployed to `/var/lib/secrets`, root-only. Locked (ciphertext) in the checkout on prod. |
@@ -75,6 +76,7 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 **Config oneshots**
 
 - Most `*-config` units run on every boot and switch, so they must be idempotent.
+  So does `create-dirs`: an inactive oneshot is started again by every switch.
 - `sonarr-config` and `radarr-config` empty the app's `Users` table, rewrite
   `config.xml` and restart the app every time. POSTs for things that already
   exist fail, and the script skips them on purpose.
@@ -103,6 +105,10 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 
 - `deploy.sh` rsyncs the working tree, not git, so uncommitted edits ship. It is
   hardcoded to prod.
+- `~/deploy` is not a git checkout, so `nixos-rebuild` copies all of it into the
+  world-readable Nix store. That's why secrets must never land there.
+- Secrets are copied but never deleted on the server: runtime-generated keys
+  live next to them. Remove a retired secret from `/var/lib/secrets` by hand.
 - The service, password-service and state-dir lists in `test.sh` are maintained
   by hand. They partly duplicate lists in the Nix code.
 
@@ -113,10 +119,10 @@ These items come from a full review on 2026-10-22. Sandbox scores come from
 
 | # | Priority | Recommendation | Where | Why | Status |
 | --- | --- | --- | --- | --- | --- |
-| 1 | High | Run media-fixup as a dedicated user in the `media` group, with `hardening.nix` (keep `/dev/dri`) and API keys via `LoadCredential`. | `services/media-fixup.nix:76` | ffmpeg parses untrusted downloads as root. Exposure score 9.6 (UNSAFE). | Open |
-| 2 | High | Replace create-dirs' recursive `chown -R` / `chmod -R 0775` with non-recursive tmpfiles `d` rules, then reset media files to 664 once. | `configuration.nix:58-70` | Every media file on prod is mode 775 (executable), and each boot walks the whole HDD. | Open |
-| 3 | High | Add an `OnFailure=` Pushover notifier (credentials exist) for `restic-backups-*`, `media-fixup` and the `*-config` units. | `services/backup.nix`, oneshots | A failed nightly backup only shows up when someone runs `test.sh`. | Open |
-| 4 | High | Deploy secrets with `rsync --rsync-path='sudo rsync' --chmod=D700,F600 --chown=root:root --delete` straight into `/var/lib/secrets`. Refuse if `secrets/admin/password` starts with `GITCRYPT`. | `deploy.sh:31` | From a locked checkout, the deploy overwrites live secrets with ciphertext. `cp -r` never removes deleted secrets. Plaintext copies sit in `~/deploy` until deleted. | Open |
+| 1 | High | Run media-fixup as a dedicated user in the `media` group, with `hardening.nix` (keep `/dev/dri`) and API keys via `LoadCredential`. | `services/media-fixup.nix:76` | ffmpeg parses untrusted downloads as root. Exposure score 9.6 (UNSAFE). | Fixed on branch `fix/high-priority`; awaiting deploy |
+| 2 | High | Make create-dirs' `chown`/`chmod` of the media dirs non-recursive (it stays a unit, so it can run after the mergerfs mount), then reset media files to 664 once. | `configuration.nix:58-70` | Every media file on prod is mode 775 (executable), and each boot walks the whole HDD. | Fixed on branch `fix/high-priority`; awaiting deploy + one-time chmod |
+| 3 | High | Add an `OnFailure=` Pushover notifier (credentials exist) for `restic-backups-*`, `media-fixup` and the `*-config` units. | `services/backup.nix`, oneshots | A failed nightly backup only shows up when someone runs `test.sh`. | Fixed on branch `fix/high-priority`; awaiting deploy |
+| 4 | High | Stream secrets straight into `/var/lib/secrets` (tar over ssh, umask 077, root-owned), never via `~/deploy`. Refuse if `secrets/admin/password` starts with `GITCRYPT`. | `deploy.sh:31` | From a locked checkout, the deploy overwrote live secrets with ciphertext. Secrets sat in `~/deploy` until the `find -delete` ran. (Deleting retired secrets stays manual; see Notes.) | Fixed on branch `fix/high-priority`; awaiting deploy |
 | 5 | Medium | Extend `hardening.nix` to prowlarr (8.2), seerr (6.1) and plex (7.0, needs `/dev/dri`). Give caddy (7.8) a capability bounding set. | `prowlarr.nix`, `jellyseerr.nix`, `plex.nix`, `caddy.nix` | Network-facing services with no sandbox. sonarr, radarr and transmission score 1.4 to 1.5. | Open |
 | 6 | Medium | Retire the shared `admin/password`: drop the create-dirs seeding fallback and the old-password rotation paths, then delete the secret. Wait until the `test.sh` "per-service web passwords" check passes. | `configuration.nix:72-79`, `homebridge.nix:61-91`, `audiobookshelf-access.py:43-64` | All 9 per-service passwords exist. The fallback is dead code plus a spare credential. | Open |
 | 7 | Medium | Drop the disabled Jellyseerr email agent and the `gmail/*` secrets, then revoke the Gmail app password. | `jellyseerr.nix:25-39, 124-136` | Email is off (Pushover replaced it), but the app password is still written into `settings.json` each boot. | Open |

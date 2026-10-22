@@ -410,10 +410,13 @@ test_security() {
 
   # Sandboxing on services that handle untrusted input (services/hardening.nix)
   local unit
-  for unit in bazarr sabnzbd audiobookshelf tautulli drive-status-http; do
+  for unit in bazarr sabnzbd audiobookshelf tautulli drive-status-http media-fixup; do
     check_eq "$unit sandboxed (NoNewPrivileges, ProtectProc)" \
       "$(systemctl show -p NoNewPrivileges -p ProtectProc --value "$unit" | xargs)" "yes invisible"
   done
+  # ffmpeg on downloaded files: not root, and only CAP_CHOWN
+  check_eq "media-fixup user and capabilities" \
+    "$(systemctl show -p User -p CapabilityBoundingSet --value media-fixup | xargs)" "media-fixup cap_chown"
 
   # Jobs that don't need root run as dynamic users
   for unit in drive-status-http sabnzbd-resume radarr-auto-import; do
@@ -496,6 +499,12 @@ test_backups() {
 
   check_oneshot "restic-backups-local.service"
   check_oneshot "restic-backups-r2.service"
+
+  # A failed backup sends a Pushover alert (services/notify.nix)
+  for repo in local r2; do
+    check "restic $repo alerts on failure" grep -q notify-failure@ \
+      <<< "$(systemctl show -p OnFailure --value "restic-backups-$repo.service")"
+  done
 }
 
 # ─── Runner ────────────────────────────────────────────────────
