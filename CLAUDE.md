@@ -25,6 +25,13 @@ homebridge). Almost every package version flows from a single
 - `services/**` — one file per service, each typically defining the NixOS
   service plus a `*-config` oneshot that configures it via its HTTP API on boot.
   Sonarr and Radarr share theirs (`services/servarr/mkArrConfig.nix`).
+- `services/media-fixup.{nix,sh}` — a 15-minute timer that rewrites newly
+  imported videos some Plex clients can't play: Dolby Vision profile 5 →
+  HDR10 (re-encoded on the Intel iGPU), "Hybrid" DV profile 8 → DV layer
+  stripped (it stalls the Apple TV), SRT `<font>` tags removed (tiny
+  subtitles). Sonarr/Radarr also reject profile-5 releases via a
+  "DV without HDR fallback" custom format. Run `sudo media-fixup FILE…` to
+  fix specific files by hand; logs are in `journalctl -u media-fixup`.
 - `secrets/` — git-crypt encrypted (see README "Secrets"). Deployed to
   `/var/lib/secrets` as root-only (700/600). Only root-run units read it; a
   non-root service that needs a secret gets it via `LoadCredential=` (see

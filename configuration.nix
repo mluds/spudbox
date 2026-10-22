@@ -117,6 +117,7 @@ in
     ./services/docker.nix
     ./services/homebridge.nix
     ./services/claude-code.nix
+    ./services/media-fixup.nix
   ];
 
   environment.systemPackages = with pkgs; [

@@ -152,9 +152,10 @@ test_services() {
   done
   check_oneshot "audiobookshelf-access.service"
   check_oneshot "create-dirs.service"
+  check_oneshot "media-fixup.service"
 
   # Timers
-  for u in sabnzbd-resume radarr-auto-import restic-backups-local check-drive-status; do
+  for u in sabnzbd-resume radarr-auto-import restic-backups-local check-drive-status media-fixup; do
     check_service "$u.timer"
   done
 }

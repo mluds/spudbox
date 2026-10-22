@@ -80,6 +80,30 @@ let
     ++ indexerFields;
   };
 
+  # Dolby Vision releases without an HDR10 layer (profile 5, typical of
+  # streaming WEB-DLs) only play on DV-capable clients; anything else shows
+  # green/purple or fails. Blu-ray DV is profile 7 with an HDR10 base, so it's
+  # left alone. Scored -10000 in the profile so such releases are rejected;
+  # any that still slip through are converted by media-fixup.
+  dvWithoutFallback =
+    let
+      title = name: negate: value: {
+        inherit name negate;
+        implementation = "ReleaseTitleSpecification";
+        required = true;
+        fields = [ (field "value" value) ];
+      };
+    in
+    {
+      name = "DV without HDR fallback";
+      includeCustomFormatWhenRenaming = false;
+      specifications = [
+        (title "Dolby Vision" false "\\b(dv|dovi|dolby[ .]?vision)\\b")
+        (title "HDR10 fallback" true "\\b(hdr|pq\\b)")
+        (title "Blu-ray" true "\\b(blu-?ray|bdremux|bdrip|uhd)\\b")
+      ];
+    };
+
   downloadClient = withPriority {
     name = "SABnzbd";
     enable = true;
@@ -205,7 +229,21 @@ pkgs.writeShellApplication {
       echo "  No unmapped folders found"
     fi
 
+    echo "Configuring custom formats..."
+    CF_ID=$(api GET customformat \
+      | jq --arg name ${lib.escapeShellArg dvWithoutFallback.name} '[.[] | select(.name == $name)][0].id // empty')
+    if [ -n "$CF_ID" ]; then
+      jq --argjson id "$CF_ID" '. + {id: $id}' <<< ${json dvWithoutFallback} \
+        | api PUT "customformat/$CF_ID" -d @- >/dev/null
+    else
+      CF_ID=$(api POST customformat -d ${json dvWithoutFallback} | jq '.id')
+    fi
+
     echo "Applying quality profile..."
-    api PUT qualityprofile/1 -d ${json qualityProfile} >/dev/null
+    # The profile must list every custom format; all but ours score 0.
+    api GET customformat \
+      | jq --argjson profile ${json qualityProfile} --argjson id "$CF_ID" \
+        '$profile + {formatItems: map({format: .id, name, score: (if .id == $id then -10000 else 0 end)})}' \
+      | api PUT qualityprofile/1 -d @- >/dev/null
   '';
 }
