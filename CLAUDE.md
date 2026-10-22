@@ -3,6 +3,11 @@
 Operational guide for the `spudbox` NixOS media server. For first-time OS
 install and per-app manual setup steps, see `README.md`.
 
+Code map, notes, and the log of improvements done / open / declined — check it
+before any cleanup, hardening, or review, and keep it current:
+
+@docs/CODE-MAP.md
+
 ## What this is
 
 A NixOS flake config for a self-hosted media stack (Plex, the *arr apps,
