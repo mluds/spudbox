@@ -30,7 +30,9 @@ let
         > "$RUNTIME_DIRECTORY/auth"
       # Pushover caps messages at 1024 characters; the newest lines matter most.
       journalctl -u "$UNIT" -n 15 -o cat --no-pager 2>&1 | tail -c 900 > "$RUNTIME_DIRECTORY/log" || true
-      curl -sS --fail --max-time 30 -o /dev/null https://api.pushover.net/1/messages.json \
+      # Pushover rejects an empty message (HTTP 400)
+      [ -s "$RUNTIME_DIRECTORY/log" ] || echo "No log lines; see journalctl -u $UNIT" > "$RUNTIME_DIRECTORY/log"
+      curl -sS --fail-with-body --max-time 30 -o /dev/stderr https://api.pushover.net/1/messages.json \
         -d @"$RUNTIME_DIRECTORY/auth" \
         --data-urlencode "title=spudbox: $UNIT failed" \
         --data-urlencode "message@$RUNTIME_DIRECTORY/log"

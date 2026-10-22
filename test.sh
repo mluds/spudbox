@@ -415,8 +415,8 @@ test_security() {
       "$(systemctl show -p NoNewPrivileges -p ProtectProc --value "$unit" | xargs)" "yes invisible"
   done
   # ffmpeg on downloaded files: not root, and only CAP_CHOWN
-  check_eq "media-fixup user and capabilities" \
-    "$(systemctl show -p User -p CapabilityBoundingSet --value media-fixup | xargs)" "media-fixup cap_chown"
+  check_eq "media-fixup user" "$(systemctl show -p User --value media-fixup)" media-fixup
+  check_eq "media-fixup capabilities" "$(systemctl show -p CapabilityBoundingSet --value media-fixup)" cap_chown
 
   # Jobs that don't need root run as dynamic users
   for unit in drive-status-http sabnzbd-resume radarr-auto-import; do
