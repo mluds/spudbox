@@ -100,7 +100,6 @@ in
     ./services/tautulli.nix
     ./services/servarr/sonarr.nix
     ./services/servarr/radarr.nix
-    ./services/servarr/arr-rescan.nix
     ./services/servarr/bazarr.nix
     ./services/servarr/jellyseerr.nix
     ./services/servarr/prowlarr.nix

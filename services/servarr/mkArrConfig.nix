@@ -43,8 +43,8 @@ let
     createEmptyMovieFolders = false;
     deleteEmptyFolders = false;
     fileDate = "none";
-    # The disk rescan runs weekly instead (arr-rescan.nix), not after every
-    # 12-24 h metadata refresh.
+    # No disk rescan after the scheduled 12-24 h metadata refresh, to spare the
+    # HDD. Files changed outside the apps show up after a manual refresh.
     rescanAfterRefresh = "afterManual";
     autoRenameFolders = false;
     pathsDefaultStatic = false;
