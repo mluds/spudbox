@@ -111,6 +111,15 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
   live next to them. Remove a retired secret from `/var/lib/secrets` by hand.
 - The service, password-service and state-dir lists in `test.sh` are maintained
   by hand. They partly duplicate lists in the Nix code.
+- To switch from a git worktree on the server, use
+  `nixos-rebuild switch --sudo --impure --flake path:.#spudbox-prod`. A plain
+  `.#` git flake fails there with libgit2 "object not found".
+- A switch re-runs the `*-config` oneshots, which restart Bazarr, Sonarr and
+  Radarr. Let them settle before running `test.sh`, or you get spurious port
+  failures.
+- Auto mode can block `nixos-rebuild` and even `test.sh` on prod. The
+  `Bash(sudo systemd-run:*)` allow rule in `~/.claude/settings.json` skips the
+  check, but only use it when the user has approved that step.
 
 ## Open improvements
 
@@ -119,10 +128,6 @@ These items come from a full review on 2026-10-22. Sandbox scores come from
 
 | # | Priority | Recommendation | Where | Why | Status |
 | --- | --- | --- | --- | --- | --- |
-| 1 | High | Run media-fixup as a dedicated user in the `media` group, with `hardening.nix` (keep `/dev/dri`) and API keys via `LoadCredential`. | `services/media-fixup.nix:76` | ffmpeg parses untrusted downloads as root. Exposure score 9.6 (UNSAFE). | Fixed on branch `fix/high-priority`; awaiting deploy |
-| 2 | High | Make create-dirs' `chown`/`chmod` of the media dirs non-recursive (it stays a unit, so it can run after the mergerfs mount), then reset media files to 664 once. | `configuration.nix:58-70` | Every media file on prod is mode 775 (executable), and each boot walks the whole HDD. | Fixed on branch `fix/high-priority`; awaiting deploy + one-time chmod |
-| 3 | High | Add an `OnFailure=` Pushover notifier (credentials exist) for `restic-backups-*`, `media-fixup` and the `*-config` units. | `services/backup.nix`, oneshots | A failed nightly backup only shows up when someone runs `test.sh`. | Fixed on branch `fix/high-priority`; awaiting deploy |
-| 4 | High | Stream secrets straight into `/var/lib/secrets` (tar over ssh, umask 077, root-owned), never via `~/deploy`. Refuse if `secrets/admin/password` starts with `GITCRYPT`. | `deploy.sh:31` | From a locked checkout, the deploy overwrote live secrets with ciphertext. Secrets sat in `~/deploy` until the `find -delete` ran. (Deleting retired secrets stays manual; see Notes.) | Fixed on branch `fix/high-priority`; awaiting deploy |
 | 5 | Medium | Extend `hardening.nix` to prowlarr (8.2), seerr (6.1) and plex (7.0, needs `/dev/dri`). Give caddy (7.8) a capability bounding set. | `prowlarr.nix`, `jellyseerr.nix`, `plex.nix`, `caddy.nix` | Network-facing services with no sandbox. sonarr, radarr and transmission score 1.4 to 1.5. | Open |
 | 6 | Medium | Retire the shared `admin/password`: drop the create-dirs seeding fallback and the old-password rotation paths, then delete the secret. Wait until the `test.sh` "per-service web passwords" check passes. | `configuration.nix:72-79`, `homebridge.nix:61-91`, `audiobookshelf-access.py:43-64` | All 9 per-service passwords exist. The fallback is dead code plus a spare credential. | Open |
 | 7 | Medium | Drop the disabled Jellyseerr email agent and the `gmail/*` secrets, then revoke the Gmail app password. | `jellyseerr.nix:25-39, 124-136` | Email is off (Pushover replaced it), but the app password is still written into `settings.json` each boot. | Open |
@@ -147,6 +152,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-10-23 | `0d9d571`, `432f58f`, see git log | Review items 1-4: media-fixup sandboxed as its own user (exposure 9.6 to 3.4); create-dirs no longer `chmod -R`s the library (3,157 files un-exec'd once); `notify-failure@` Pushover alerts on backups, oneshots and timers; `deploy.sh` refuses a locked checkout and streams secrets straight into `/var/lib/secrets`. |
 | 2026-10-22 | `b0918aa` | media-fixup (DV5 to HDR10, hybrid DV8 strip, SRT font tags). Arrs reject DV-without-HDR releases. |
 | 2026-10-21 | `105e0bc` | Tidy-up: shared `helpers`, typed `my.*` options, generated `/etc/spudbox/env`, shared `mkArrConfig`. |
 | 2026-10-21 | `05d3b63` | Prowlarr login set through its API (salted PBKDF2). Three `test.sh` fixes. |
