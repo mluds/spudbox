@@ -146,6 +146,17 @@ Follow-ups left by the review:
   from the repo and server but stays valid until revoked.
 - When Prowlarr is re-enabled, sandbox it like seerr (it scored 8.2).
 - Dev's hardware config isn't in the repo, so `spudbox-dev` still needs `--impure`.
+- Apply the `claude-remote-control` log filter: `sudo systemctl restart
+  claude-remote-control` over SSH (ends running Claude sessions), or reboot.
+- After a few days, count HDD wakes (`journalctl -u check-drive-status | grep woke`)
+  and match them to what ran just before. Only then decide on further HDD work.
+
+Efficiency ideas considered and not done (2026-10-23):
+
+- Run Homebridge natively instead of in Docker: drops the Docker daemon
+  (~60 MB RAM, ~400 s CPU/week, 2.4 GB disk) but risks the HomeKit pairing.
+- Turn off Avahi's reflector (not needed with host networking): ~190 s
+  CPU/week, but HomeKit discovery is at stake.
 
 ## Done
 
@@ -153,6 +164,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-10-23 | `9ca27ce`, `dd3f8a9` | Efficiency: setup oneshots run once per boot or change (`RemainAfterExit`) instead of every deploy restarting Sonarr/Radarr/Bazarr/Tautulli; `deploy.sh` re-runs them when a secret changed. Journal noise cut: claude-remote-control status redraws (~400k lines/day, filtered) and Plex debug. `claude-remote-control` never restarted by a switch. restic skips ~1 GB of caches/posters/logs. HDD spin-downs/wakes logged; standby sent once. Sonarr/Radarr disk rescan weekly (Sun 02:45, after the backup) instead of after each 12-24 h refresh. |
 | 2026-10-23 | see git log | Review items 5-21. Sandboxing for caddy (7.8 to 3.0), plex (7.0 to 4.0) and seerr (6.1 to 2.9). Shared `admin/password` and Gmail secrets retired. Prowlarr switched off (code kept). `radarr-auto-import` skips rejected files and tries each once (one item had looped 5,137 times). Python setup scripts: umask, timeouts, Bazarr key bug, ABS guard. All shell in `writeShellApplication`. `PASSWORD_SERVICES`/`ALERT_UNITS` generated for `test.sh`. Deployed revision recorded. `homebridge-dummy` pinned. hdparm rule documented. Prod builds pure (`hosts/prod-hardware.nix`). `inherit (config.my)` instead of `with`. Caddy sites LAN-only. |
 | 2026-10-23 | `0d9d571`, `432f58f`, see git log | Review items 1-4: media-fixup sandboxed as its own user (exposure 9.6 to 3.4); create-dirs no longer `chmod -R`s the library (3,157 files un-exec'd once); `notify-failure@` Pushover alerts on backups, oneshots and timers; `deploy.sh` refuses a locked checkout and streams secrets straight into `/var/lib/secrets`. |
 | 2026-10-22 | `b0918aa` | media-fixup (DV5 to HDR10, hybrid DV8 strip, SRT font tags). Arrs reject DV-without-HDR releases. |
