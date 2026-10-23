@@ -41,26 +41,9 @@ def wait_for_abs(timeout=180):
 
 
 def root_token():
-    username = read_secret("admin/username")
-    new = read_secret("audiobookshelf/password")
-    token = login(username, new)
-    if token:
-        return token
-    old = read_secret("admin/password")
-    old_token = login(username, old)
-    if not old_token:
-        sys.exit("ERROR: neither audiobookshelf/password nor admin/password logs in as root")
-    print("Changing the root password to audiobookshelf/password...")
-    r = requests.patch(
-        f"{BASE}/api/me/password",
-        headers=bearer(old_token),
-        json={"password": old, "newPassword": new},
-        timeout=10,
-    )
-    r.raise_for_status()
-    token = login(username, new)
+    token = login(read_secret("admin/username"), read_secret("audiobookshelf/password"))
     if not token:
-        sys.exit("ERROR: new root password rejected after the change")
+        sys.exit("ERROR: audiobookshelf/password doesn't log in as root")
     return token
 
 

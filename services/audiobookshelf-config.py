@@ -1,82 +1,74 @@
-import os
-import sqlite3
-import requests
+# One-off setup for a fresh Audiobookshelf install (not started on boot):
+# replaces the users table with a root account whose password is
+# audiobookshelf/password, then creates the Audiobooks library and the login
+# users. It refuses to run on a database that already has users, because the
+# DELETE would wipe them and their listening progress; set ABS_FORCE=1 to
+# override (systemctl set-environment, or edit the unit).
 import json
-import bcrypt
-import time
+import os
 import socket
+import sqlite3
+import subprocess
+import sys
+import time
+
+import bcrypt
 import jwt
+import requests
 
 SECRETS_DIR = os.environ["SECRETS_DIR"]
+DB_PATH = os.environ["ABS_DB"]
+HOST = "localhost"
+PORT = os.environ["ABS_PORT"]
+BASE_URL = f"http://{HOST}:{PORT}"
+USER_ID = os.environ["ADMIN_USER_ID"]
 
-with open(f"{SECRETS_DIR}/audiobookshelf/password", "r") as f:
-    admin_password = f.read().strip()
-salt = bcrypt.gensalt(rounds=8, prefix=b"2a")
-hashed = bcrypt.hashpw(admin_password.encode("utf-8"), salt)
-pash = hashed.decode()
 
-db_path = os.environ["ABS_DB"]
-host = "localhost"
-port = os.environ["ABS_PORT"]
-base_url = f"http://{host}:{port}"
-user_id = os.environ["ADMIN_USER_ID"]
-with open(f"{SECRETS_DIR}/admin/username", "r") as f:
-    username = f.read().strip()
+def read_secret(name):
+    with open(f"{SECRETS_DIR}/{name}") as f:
+        return f.read().strip()
+
+
+def user_count():
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        return conn.execute("SELECT count(*) FROM users").fetchone()[0]
+    except sqlite3.OperationalError:  # no users table yet
+        return 0
+    finally:
+        conn.close()
 
 
 def get_token_secret():
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = 'server-settings'")
-    row = cursor.fetchone()
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute("SELECT value FROM settings WHERE key = 'server-settings'").fetchone()
     conn.close()
     if row:
-        settings = json.loads(row[0])
-        return settings.get("tokenSecret", "")
-    return ""
-
-
-token_secret = get_token_secret()
-if not token_secret:
-    # Fallback to file if DB doesn't have it yet
-    with open(f"{SECRETS_DIR}/audiobookshelf/token-secret", "r") as f:
-        token_secret = f.read().strip()
-
-token = jwt.encode(payload={"userId": user_id, "username": username}, key=token_secret)
-
-headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
-# The forged token is only used for this one-off setup's own API calls.
-# Homepage's key is a scoped API key managed by audiobookshelf-access.
-
-
-def main():
-    os.system("systemctl stop audiobookshelf")
-    run_sql_script()
-    os.system("systemctl start audiobookshelf")
-    wait_for_port(host, port)
-    create_library()
-    create_users()
+        secret = json.loads(row[0]).get("tokenSecret", "")
+        if secret:
+            return secret
+    # The DB doesn't have it yet
+    return read_secret("audiobookshelf/token-secret")
 
 
 def wait_for_port(host, port, timeout=30, retry_interval=1):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
         try:
             with socket.create_connection((host, port), timeout=1):
-                return True
-        except (ConnectionRefusedError, socket.timeout, OSError):
+                return
+        except OSError:
             time.sleep(retry_interval)
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-            break
-    return False
+    sys.exit(f"Audiobookshelf didn't open port {port}")
 
 
-def run_sql_script():
-    conn = sqlite3.connect(db_path)
+def reset_root_user(username, token):
+    pash = bcrypt.hashpw(
+        read_secret("audiobookshelf/password").encode("utf-8"),
+        bcrypt.gensalt(rounds=8, prefix=b"2a"),
+    ).decode()
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-
     cursor.execute("DELETE FROM users;")
     cursor.execute(
         """
@@ -89,7 +81,7 @@ def run_sql_script():
     )
     """,
         (
-            user_id,
+            USER_ID,
             username,
             pash,
             token,
@@ -112,38 +104,36 @@ def run_sql_script():
         ),
     )
     conn.commit()
-    print("Database initialization completed successfully.")
-    return True
+    conn.close()
+    print("Root user reset.")
 
 
-def create_library():
+def create_library(headers):
     lib_name = "Audiobooks"
-    libraries = requests.get(f"{base_url}/api/libraries", headers=headers).json()["libraries"]
-    audiobooks_exists = any(lib["name"] == lib_name for lib in libraries)
-    if audiobooks_exists:
+    libraries = requests.get(f"{BASE_URL}/api/libraries", headers=headers, timeout=30).json()["libraries"]
+    if any(lib["name"] == lib_name for lib in libraries):
         print("Audiobooks library already exists")
-    else:
-        print("Audiobooks library not found, creating...")
-        new_library = {
-            "name": lib_name,
-            "folders": [{"fullPath": os.environ["LIBRARY_DIR"]}],
-            "icon": "audiobookshelf",
-            "mediaType": "book",
-            "provider": "google",
-        }
-        response = requests.post(f"{base_url}/api/libraries", headers=headers, json=new_library)
-        response.raise_for_status()
-        id = response.json()["id"]
-        response = requests.post(f"{base_url}/api/libraries/{id}/scan", headers=headers)
-        response.raise_for_status()
-        print("Library created successfully!")
+        return
+    print("Audiobooks library not found, creating...")
+    new_library = {
+        "name": lib_name,
+        "folders": [{"fullPath": os.environ["LIBRARY_DIR"]}],
+        "icon": "audiobookshelf",
+        "mediaType": "book",
+        "provider": "google",
+    }
+    response = requests.post(f"{BASE_URL}/api/libraries", headers=headers, json=new_library, timeout=30)
+    response.raise_for_status()
+    library_id = response.json()["id"]
+    response = requests.post(f"{BASE_URL}/api/libraries/{library_id}/scan", headers=headers, timeout=30)
+    response.raise_for_status()
+    print("Library created successfully!")
 
 
-def create_users():
-    users_json = os.getenv("AUDIOBOOKSHELF_USERS", "[]")
-    users = json.loads(users_json)
-    existing_users = requests.get(f"{base_url}/api/users", headers=headers).json()["users"]
-    existing_usernames = [user["username"] for user in existing_users]
+def create_users(headers):
+    users = json.loads(os.getenv("AUDIOBOOKSHELF_USERS", "[]"))
+    existing = requests.get(f"{BASE_URL}/api/users", headers=headers, timeout=30).json()["users"]
+    existing_usernames = [user["username"] for user in existing]
     for user in users:
         username = user["username"]
         if username in existing_usernames:
@@ -151,11 +141,11 @@ def create_users():
             continue
         # Plaintext login passwords aren't deployed to the server (see
         # deploy.sh); copy one to this path by hand to create the user.
-        password_file = os.path.join(f"{SECRETS_DIR}", "users", username, "plaintext")
+        password_file = os.path.join(SECRETS_DIR, "users", username, "plaintext")
         if not os.path.exists(password_file):
             print(f"Skipping user {username}: no {password_file}")
             continue
-        with open(password_file, "r") as f:
+        with open(password_file) as f:
             password = f.read().strip()
         new_user = {
             "username": username,
@@ -163,9 +153,28 @@ def create_users():
             "type": "admin" if user["superuser"] else "user",
             "isActive": True,
         }
-        response = requests.post(f"{base_url}/api/users", headers=headers, json=new_user)
+        response = requests.post(f"{BASE_URL}/api/users", headers=headers, json=new_user, timeout=30)
         response.raise_for_status()
         print(f"Created user {username}")
+
+
+def main():
+    existing = user_count()
+    if existing and os.getenv("ABS_FORCE") != "1":
+        sys.exit(f"Refusing: the database has {existing} user(s), which this would delete. Set ABS_FORCE=1 to override.")
+
+    username = read_secret("admin/username")
+    # A forged root token, used only for this setup's own API calls.
+    # Homepage's key is a scoped API key managed by audiobookshelf-access.
+    token = jwt.encode(payload={"userId": USER_ID, "username": username}, key=get_token_secret())
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    subprocess.run(["systemctl", "stop", "audiobookshelf"], check=True)
+    reset_root_user(username, token)
+    subprocess.run(["systemctl", "start", "audiobookshelf"], check=True)
+    wait_for_port(HOST, PORT)
+    create_library(headers)
+    create_users(headers)
 
 
 if __name__ == "__main__":

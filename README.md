@@ -75,6 +75,13 @@ nixos-install --root /mnt
 reboot
 ```
 
+Prod's flake reads its hardware config from `hosts/prod-hardware.nix`, and a
+reinstall gets new disk UUIDs. So for prod, first replace that file with the
+new install's config, then commit it:
+```bash
+ssh root@${HOST_IP} nixos-generate-config --show-hardware-config > hosts/prod-hardware.nix
+```
+
 Now run these commands from the deployment host to install the full system:
 ```bash
 ssh-keygen -R ${HOST_IP} && \

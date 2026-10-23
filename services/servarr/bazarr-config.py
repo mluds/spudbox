@@ -55,7 +55,7 @@ for key, service in services:
 
     with open(key_path, "r") as f:
         api_key = f.read().strip()
-    if service in new_config:
+    if key in new_config:
         new_config[key]["apikey"] = api_key
     else:
         new_config[key] = {"apikey": api_key}
@@ -165,6 +165,7 @@ conn.commit()
 os.system("systemctl start bazarr")
 
 # Export the actual API key to secrets for homepage
+os.umask(0o077)  # a new secret file is 0600 from the start
 api_key_dir = f"{SECRETS_DIR}/bazarr"
 os.makedirs(api_key_dir, exist_ok=True)
 with open(config_path, "r") as f:

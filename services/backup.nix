@@ -1,6 +1,9 @@
-{ config, pkgs, ... }:
-
-with config.my;
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 # Nightly restic backup of /var/lib (app configs + databases; media is not
 # backed up, it's re-downloadable and the *arr DBs record what we had).
@@ -11,6 +14,7 @@ with config.my;
 # Both repos share secrets/restic/password — keep it in the password manager
 # too; without it the backups can't be decrypted. Restores: see CLAUDE.md.
 let
+  inherit (config.my) backupDir secretsDir;
   localRepo = "${backupDir}/restic";
   passwordFile = "${secretsDir}/restic/password";
   r2Repo = "s3:https://8b37a4bbd0f5e7e52c56476fd07bc4f8.r2.cloudflarestorage.com/spudbox-backups";
@@ -22,14 +26,15 @@ let
     "sonarr"
     "radarr"
     "bazarr"
-    "prowlarr"
     "seerr"
     "plex"
     "transmission"
     "sabnzbd"
     "tautulli"
     "audiobookshelf"
-  ];
+  ]
+  # A unit that doesn't exist would make `systemctl stop` fail the backup.
+  ++ lib.optional config.my.prowlarr.enable "prowlarr";
 
   pruneOpts = [
     "--keep-daily 7"

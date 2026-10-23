@@ -5,9 +5,13 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    radarrPort
+    secretsDir
+    sonarrPort
+    ;
+
   configScript = pkgs.writers.writePython3Bin "bazarr-config" {
     libraries = with pkgs.python3Packages; [
       deepmerge

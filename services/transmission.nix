@@ -5,9 +5,13 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    cacheDir
+    secretsDir
+    storageDir
+    ;
+
   credentialsDir = "/run/transmission";
   credentialsPath = "${credentialsDir}/credentials.json";
   floodConfig = pkgs.runCommand "flood-for-transmission-configured" { } ''
@@ -48,23 +52,27 @@ in
     # storageDir/cacheDir, so the media group doesn't need this dir (module: 0750)
     StateDirectoryMode = lib.mkForce "0700";
 
-    ExecStartPre = lib.mkBefore (
-      let
-        script = pkgs.writeShellScript "transmission-credentials" ''
-          umask 077
-          mkdir -p ${credentialsDir}
-          # --rawfile reads the secrets itself, keeping them off jq's argv
-          ${pkgs.jq}/bin/jq -n \
-            --rawfile user ${secretsDir}/admin/username \
-            --rawfile pass ${secretsDir}/transmission/password \
-            '{"rpc-username": ($user | rtrimstr("\n")), "rpc-password": ($pass | rtrimstr("\n"))}' \
-            > ${credentialsPath}
-          chmod 600 ${credentialsPath}
-        '';
-      in
-      [
-        "+${script}"
-      ]
-    );
+    ExecStartPre = lib.mkBefore [
+      # "+": as root, to read the secrets
+      "+${
+        lib.getExe (
+          pkgs.writeShellApplication {
+            name = "transmission-credentials";
+            runtimeInputs = [ pkgs.jq ];
+            text = ''
+              umask 077
+              mkdir -p ${credentialsDir}
+              # --rawfile reads the secrets itself, keeping them off jq's argv
+              jq -n \
+                --rawfile user ${secretsDir}/admin/username \
+                --rawfile pass ${secretsDir}/transmission/password \
+                '{"rpc-username": ($user | rtrimstr("\n")), "rpc-password": ($pass | rtrimstr("\n"))}' \
+                > ${credentialsPath}
+              chmod 600 ${credentialsPath}
+            '';
+          }
+        )
+      }"
+    ];
   };
 }

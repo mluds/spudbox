@@ -2,8 +2,9 @@
 set -euo pipefail
 
 # ─── Configuration ──────────────────────────────────────────────
-# Dirs, domain, every *_PORT and CADDY_HOSTS, generated from the Nix config
-# (common/env.nix, services/caddy.nix). SPUDBOX_ENV overrides the path.
+# Dirs, domain, every *_PORT, REVISION, and the CADDY_HOSTS, PASSWORD_SERVICES
+# and ALERT_UNITS lists, generated from the Nix config (common/env.nix and the
+# modules that append to it). SPUDBOX_ENV overrides the path.
 # shellcheck source=/dev/null
 source "${SPUDBOX_ENV:-/etc/spudbox/env}"
 
@@ -27,6 +28,9 @@ check_eq() {
   if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (got '$2', expected '$3')"; fi
 }
 
+# Prowlarr is off unless my.prowlarr.enable (services/servarr/prowlarr.nix)
+prowlarr_on() { [ "${PROWLARR_ENABLED:-0}" = 1 ]; }
+
 read_secret() { sudo cat "$SECRETS_DIR/$1" 2>/dev/null | tr -d '\n'; }
 
 # Secrets reach curl and grep through files in this private dir, never as
@@ -43,7 +47,7 @@ auth_file() {
 }
 auth_file radarr 'X-Api-Key: %s\n' radarr/api-key
 auth_file sonarr 'X-Api-Key: %s\n' sonarr/api-key
-auth_file prowlarr 'X-Api-Key: %s\n' prowlarr/api-key
+if prowlarr_on; then auth_file prowlarr 'X-Api-Key: %s\n' prowlarr/api-key; fi
 auth_file bazarr 'X-API-KEY: %s\n' bazarr/api-key
 auth_file jellyseerr 'X-Api-Key: %s\n' jellyseerr/api-key
 auth_file abs 'Authorization: Bearer %s\n' audiobookshelf/apikey
@@ -118,20 +122,29 @@ test_secrets() {
 
   local s
   # Deployed secrets
-  for s in admin/username admin/password plex/username plex/password \
+  for s in admin/username plex/username plex/password \
     cloudflare/api-token usenet/username usenet/password nzbgeek/api-key \
     opensubtitles/username opensubtitles/password assrt/api-token \
-    audiobookshelf/token-secret gmail/address gmail/app-password \
+    audiobookshelf/token-secret \
     pushover/app-token pushover/user-key users/luds/hashed users/root/hashed \
     restic/password r2/s3-credentials.env; do
     check_secret "$s"
   done
+  for s in "${PASSWORD_SERVICES[@]}"; do
+    check_secret "$s/password"
+  done
 
   # Runtime-generated secrets
   for s in plex/token radarr/api-key sonarr/api-key bazarr/api-key \
-    prowlarr/api-key sabnzbd/api-key sabnzbd/nzb-key tautulli/api-key \
+    sabnzbd/api-key sabnzbd/nzb-key tautulli/api-key \
     jellyseerr/api-key audiobookshelf/apikey; do
     check_secret "$s"
+  done
+  if prowlarr_on; then check_secret prowlarr/api-key; fi
+
+  # Retired: the shared admin password (finding #5), the Gmail SMTP login
+  for s in admin/password gmail; do
+    check "retired secret $s removed" not sudo test -e "$SECRETS_DIR/$s"
   done
 }
 
@@ -140,19 +153,16 @@ test_services() {
 
   local u
   # Long-running services
-  for u in plex tautulli sonarr radarr bazarr prowlarr sabnzbd transmission \
+  for u in plex tautulli sonarr radarr bazarr sabnzbd transmission \
     seerr audiobookshelf homepage-dashboard caddy homebridge drive-status-http; do
     check_service "$u.service"
   done
+  if prowlarr_on; then check_service prowlarr.service; fi
 
-  # Oneshot config services
-  for u in plex tautulli radarr sonarr bazarr prowlarr jellyseerr \
-    audiobookshelf homebridge caddy; do
-    check_oneshot "$u-config.service"
+  # Oneshots and timer jobs (services/notify.nix alerts on these)
+  for u in "${ALERT_UNITS[@]}" media-fixup; do
+    check_oneshot "$u.service"
   done
-  check_oneshot "audiobookshelf-access.service"
-  check_oneshot "create-dirs.service"
-  check_oneshot "media-fixup.service"
 
   # Timers
   for u in sabnzbd-resume radarr-auto-import restic-backups-local check-drive-status media-fixup; do
@@ -168,7 +178,7 @@ test_ports() {
   check_port "$SONARR_PORT" t "sonarr"
   check_port "$RADARR_PORT" t "radarr"
   check_port "$BAZARR_PORT" t "bazarr"
-  check_port "$PROWLARR_PORT" t "prowlarr"
+  if prowlarr_on; then check_port "$PROWLARR_PORT" t "prowlarr"; fi
   check_port "$SABNZBD_PORT" t "sabnzbd"
   check_port "$TRANSMISSION_PORT" t "transmission"
   check_port "$JELLYSEERR_PORT" t "jellyseerr"
@@ -188,7 +198,7 @@ test_http() {
   check_http "http://localhost:$SONARR_PORT" "200 302" "sonarr"
   check_http "http://localhost:$RADARR_PORT" "200 302" "radarr"
   check_http "http://localhost:$BAZARR_PORT" "200 302" "bazarr"
-  check_http "http://localhost:$PROWLARR_PORT" "200 302" "prowlarr"
+  if prowlarr_on; then check_http "http://localhost:$PROWLARR_PORT" "200 302" "prowlarr"; fi
   check_http "http://localhost:$SABNZBD_PORT" "200 302 303" "sabnzbd"
   check_http "http://localhost:$TRANSMISSION_PORT" "401" "transmission"
   check_http "http://localhost:$JELLYSEERR_PORT/api/v1/settings/public" "200" "jellyseerr"
@@ -203,7 +213,9 @@ test_api_auth() {
 
   check_http "http://localhost:$RADARR_PORT/api/v3/system/status" "200" "radarr" -H @"$AUTH/radarr"
   check_http "http://localhost:$SONARR_PORT/api/v3/system/status" "200" "sonarr" -H @"$AUTH/sonarr"
-  check_http "http://localhost:$PROWLARR_PORT/api/v1/system/status" "200" "prowlarr" -H @"$AUTH/prowlarr"
+  if prowlarr_on; then
+    check_http "http://localhost:$PROWLARR_PORT/api/v1/system/status" "200" "prowlarr" -H @"$AUTH/prowlarr"
+    fi
   check_http "http://localhost:$SABNZBD_PORT/api" "200" "sabnzbd" -d @"$AUTH/sabnzbd" -d "mode=version&output=json"
   check_http "http://localhost:$TAUTULLI_PORT/api/v2" "200" "tautulli" -d @"$AUTH/tautulli" -d "cmd=arnold"
   check_http "http://localhost:$BAZARR_PORT/api/system/status" "200" "bazarr" -H @"$AUTH/bazarr"
@@ -216,7 +228,6 @@ test_api_auth() {
   # Codes are each app's own: SABnzbd 403, Tautulli 400 "apikey is required".
   check_http "http://localhost:$RADARR_PORT/api/v3/system/status" "401" "radarr rejects anonymous"
   check_http "http://localhost:$SONARR_PORT/api/v3/system/status" "401" "sonarr rejects anonymous"
-  check_http "http://localhost:$PROWLARR_PORT/api/v1/system/status" "401" "prowlarr rejects anonymous"
   check_http "http://localhost:$BAZARR_PORT/api/system/status" "401" "bazarr rejects anonymous"
   check_http "http://localhost:$SABNZBD_PORT/api?mode=queue&output=json" "403" "sabnzbd rejects anonymous"
   check_http "http://localhost:$TAUTULLI_PORT/api/v2?cmd=arnold" "400 401" "tautulli rejects anonymous"
@@ -228,10 +239,12 @@ test_api_auth() {
 
   # Same through Caddy, which is what LAN clients reach
   local svc path
-  for svc in radarr:/api/v3/system/status sonarr:/api/v3/system/status prowlarr:/api/v1/system/status \
-    bazarr:/api/system/status "sabnzbd:/api?mode=queue&output=json" jellyseerr:/api/v1/settings/main \
-    audiobookshelf:/api/libraries plex:/library/sections transmission:/transmission/rpc \
-    homebridge:/api/config-editor; do
+  local routes=(radarr:/api/v3/system/status sonarr:/api/v3/system/status
+    bazarr:/api/system/status "sabnzbd:/api?mode=queue&output=json" jellyseerr:/api/v1/settings/main
+    audiobookshelf:/api/libraries plex:/library/sections transmission:/transmission/rpc
+    homebridge:/api/config-editor)
+  if prowlarr_on; then routes+=(prowlarr:/api/v1/system/status); fi
+  for svc in "${routes[@]}"; do
     path=${svc#*:}
     svc=${svc%%:*}
     check_http "https://${svc}.${DOMAIN}${path}" "401 403" "${svc} via caddy rejects anonymous" \
@@ -389,28 +402,29 @@ test_security() {
     check_eq "$u can't read other services' state (readable files)" "$readable" 0
   done
 
-  # Each web login has its own password (finding #5). create-dirs seeds a
-  # missing one from admin/password, so this fails until
-  # scripts/generate-service-passwords.sh has been run and deployed.
-  local password_services="sonarr radarr prowlarr bazarr sabnzbd transmission tautulli homebridge audiobookshelf"
-  local shared=0 dupes
-  for u in $password_services; do
-    sudo cmp -s "$SECRETS_DIR/$u/password" "$SECRETS_DIR/admin/password" && shared=$((shared + 1))
-  done
-  dupes=$(for u in $password_services; do sudo sha256sum "$SECRETS_DIR/$u/password"; done | awk '{print $1}' | sort | uniq -d | wc -l)
-  check_eq "per-service web passwords (shared with admin, reused)" "$shared $dupes" "0 0"
+  # Each web login has its own password (finding #5): none reused
+  local dupes
+  dupes=$(for u in "${PASSWORD_SERVICES[@]}"; do sudo sha256sum "$SECRETS_DIR/$u/password"; done \
+    | awk '{print $1}' | sort | uniq -d | wc -l)
+  check_eq "per-service web passwords (reused)" "$dupes" 0
 
   # Prowlarr stores a salted PBKDF2 hash (prowlarr-config sets it via the API)
-  check_eq "prowlarr password hash salted (salted users)" \
-    "$(sudo sqlite3 -readonly /var/lib/private/prowlarr/prowlarr.db \
-      "select count(*) from Users where Salt is not null and Salt != '' and Iterations > 0;" 2>/dev/null || echo 0)" 1
+  if prowlarr_on; then
+    check_eq "prowlarr password hash salted (salted users)" \
+      "$(sudo sqlite3 -readonly /var/lib/private/prowlarr/prowlarr.db \
+        "select count(*) from Users where Salt is not null and Salt != '' and Iterations > 0;" 2>/dev/null || echo 0)" 1
+  fi
+
+  # Jellyseerr no longer keeps the old Gmail app password
+  check_eq "jellyseerr stores no email password" \
+    "$(sudo jq -r '.notifications.agents.email.options.authPass // ""' /var/lib/jellyseerr/config/settings.json 2>/dev/null)" ""
 
   # Homepage's Audiobookshelf key belongs to the read-only homepage user, not root
   check_eq "homepage audiobookshelf key user" "$(abs me | jq -r '.username + ":" + .type')" homepage:user
 
   # Sandboxing on services that handle untrusted input (services/hardening.nix)
   local unit
-  for unit in bazarr sabnzbd audiobookshelf tautulli drive-status-http media-fixup; do
+  for unit in bazarr sabnzbd audiobookshelf tautulli drive-status-http media-fixup plex seerr caddy; do
     check_eq "$unit sandboxed (NoNewPrivileges, ProtectProc)" \
       "$(systemctl show -p NoNewPrivileges -p ProtectProc --value "$unit" | xargs)" "yes invisible"
   done
@@ -422,6 +436,18 @@ test_security() {
   for unit in drive-status-http sabnzbd-resume radarr-auto-import; do
     check_eq "$unit runs as a dynamic user" "$(systemctl show -p DynamicUser --value "$unit")" yes
   done
+
+  # Caddy can bind 80/443 and nothing else; Plex and seerr have no capabilities
+  check_eq "caddy capabilities" "$(systemctl show -p CapabilityBoundingSet --value caddy)" cap_net_bind_service
+  for unit in plex seerr; do
+    check_eq "$unit has no capabilities" "$(systemctl show -p CapabilityBoundingSet --value "$unit")" ""
+  done
+  # Every Caddy site answers the LAN only
+  check_eq "caddy sites LAN-only" \
+    "$(grep -c 'not remote_ip private_ranges' /etc/caddy/caddy_config)" "${#CADDY_HOSTS[@]}"
+
+  # The deployed commit is recorded (deploy.sh writes ~/deploy/.revision)
+  check "deployed revision recorded ($REVISION)" test -n "$REVISION"
 
   # Legacy secrets file (admin password, WireGuard keys) is gone
   check "no legacy secrets/default.json on server" not sudo test -e "$SECRETS_DIR/default.json"

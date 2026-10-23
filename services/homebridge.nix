@@ -6,9 +6,13 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    domain
+    homebridgePort
+    secretsDir
+    ;
+
   dummySwitch = {
     platform = "HomebridgeDummy";
     name = "HomebridgeDummy";
@@ -58,9 +62,6 @@ let
           '{username: ($u | rtrimstr("\n")), password: ($p | rtrimstr("\n"))}'
       }
       creds ${secretsDir}/admin/username ${secretsDir}/homebridge/password > "$TMP/login.json"
-      # The shared admin password, for rotating an install set up before
-      # Homebridge had its own (finding #5)
-      creds ${secretsDir}/admin/username ${secretsDir}/admin/password > "$TMP/old-login.json"
 
       # login CREDS_FILE: on success write "Authorization: Bearer ..." to $TMP/auth
       login() {
@@ -79,15 +80,8 @@ let
 
       if [ "$(curl -s "$BASE/auth/settings" | jq -r '.env.setupWizardComplete')" = true ]; then
         if ! login "$TMP/login.json"; then
-          if login "$TMP/old-login.json"; then
-            echo "Changing the Homebridge admin password to homebridge/password..."
-            jq -n --rawfile c ${secretsDir}/admin/password --rawfile n ${secretsDir}/homebridge/password \
-              '{currentPassword: ($c | rtrimstr("\n")), newPassword: ($n | rtrimstr("\n"))}' \
-              | api POST users/change-password --fail -d @- >/dev/null
-            login "$TMP/login.json" || { echo "ERROR: new password rejected after the change"; exit 1; }
-          else
-            echo "WARNING: neither homebridge/password nor admin/password logs in; password left unchanged"
-          fi
+          echo "ERROR: homebridge/password doesn't log in to Homebridge"
+          exit 1
         fi
         echo "Homebridge already set up."
         exit 0
@@ -105,7 +99,7 @@ let
       login "$TMP/login.json"
 
       echo "Installing homebridge-dummy plugin..."
-      docker exec homebridge npm install homebridge-dummy
+      docker exec homebridge npm install homebridge-dummy@1.6.1
 
       echo "Adding dummy switch to config..."
       api GET config-editor | jq --argjson dummy ${lib.escapeShellArg (builtins.toJSON dummySwitch)} \

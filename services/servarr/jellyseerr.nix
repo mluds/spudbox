@@ -6,9 +6,17 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    secretsDir
+    storageDir
+    domain
+    plexPort
+    radarrPort
+    sonarrPort
+    jellyseerrPort
+    ;
+
   settingsFile = "/var/lib/jellyseerr/config/settings.json";
 
   json = value: lib.escapeShellArg (builtins.toJSON value);
@@ -20,22 +28,6 @@ let
     # Periodic full scan catches movies that were unmatched when first added
     # to Plex (race between add and metadata match).
     periodicScanning = 21600;
-  };
-
-  # Disabled (Pushover is used instead) but kept configured. The Gmail
-  # address and app password are filled in from secrets at runtime.
-  emailAgent = {
-    enabled = false;
-    types = 4;
-    options = {
-      smtpHost = "smtp.gmail.com";
-      smtpPort = 587;
-      secure = false;
-      ignoreTls = false;
-      requireTls = true;
-      allowSelfSigned = false;
-      senderName = "Jellyseerr";
-    };
   };
 
   # apiKey filled in from radarr/sonarr secrets at runtime.
@@ -121,18 +113,16 @@ let
         jq -r '.main.apiKey' ${settingsFile} > ${secretsDir}/jellyseerr/api-key
       }
 
-      configure_email() {
-        echo "Configuring email notifications..."
-        # shellcheck disable=SC2016 # jq program, not shell
-        edit_settings --argjson agent ${json emailAgent} \
-          --rawfile address ${secretsDir}/gmail/address \
-          --rawfile pass ${secretsDir}/gmail/app-password \
-          '($address | rtrimstr("\n")) as $address
-          | .notifications.agents.email = ($agent | .options += {
-              emailFrom: $address,
-              authUser: $address,
-              authPass: ($pass | rtrimstr("\n"))
-            })'
+      # Email notifications were replaced by Pushover; an earlier version
+      # stored a Gmail app password here. Blank it, then restart so seerr
+      # doesn't write its in-memory copy back.
+      clear_email() {
+        if [ -n "$(jq -r '.notifications.agents.email.options.authPass // empty' ${settingsFile})" ]; then
+          echo "Removing the old email credentials..."
+          edit_settings '.notifications.agents.email.enabled = false
+            | .notifications.agents.email.options |= (.authUser = "" | .authPass = "" | .emailFrom = "")'
+          systemctl restart seerr
+        fi
       }
 
       configure_pushover() {
@@ -181,9 +171,9 @@ let
         use_api_key
         export_api_key
         configure_plex
-        configure_email
         configure_pushover
         set_external_urls
+        clear_email
         exit 0
       fi
 
@@ -209,7 +199,6 @@ let
       use_api_key
       export_api_key
       configure_plex
-      configure_email
       configure_pushover
 
       echo "Restarting Jellyseerr..."
@@ -242,8 +231,21 @@ in
       User = "jellyseerr";
       Group = "jellyseerr";
       StateDirectory = "jellyseerr";
-      # settings.json holds the Gmail app password and Plex token
+      # settings.json holds the Plex token and API keys
       StateDirectoryMode = "0700";
+      # On top of the module's ProtectSystem=strict etc. Node's JIT rules
+      # out MemoryDenyWriteExecute.
+      CapabilityBoundingSet = "";
+      ProtectProc = "invisible";
+      RestrictNamespaces = true;
+      LockPersonality = true;
+      SystemCallArchitectures = "native";
+      RestrictAddressFamilies = [
+        "AF_UNIX"
+        "AF_INET"
+        "AF_INET6"
+        "AF_NETLINK" # getifaddrs (Node's os.networkInterfaces)
+      ];
     };
   };
 

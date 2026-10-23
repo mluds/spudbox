@@ -1,3 +1,4 @@
+import os
 from os import getenv
 from urllib.parse import urlencode
 import requests
@@ -28,6 +29,7 @@ def get_token(plex_url, token_path, username_file, password_file):
     password = read_file(password_file)
     account = MyPlexAccount(username, password)
     token = account.authToken
+    os.umask(0o077)  # a new secret file is 0600 from the start
     with open(token_path, "w") as f:
         f.write(token)
     return token
@@ -88,7 +90,7 @@ def main():
             }
         )
         url = f"{plex_url}/library/sections?{params}"
-        resp = requests.post(url, headers={"X-Plex-Token": token})
+        resp = requests.post(url, headers={"X-Plex-Token": token}, timeout=60)
         resp.raise_for_status()
 
     for section in library_sections:

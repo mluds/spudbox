@@ -4,7 +4,7 @@
   };
 
   outputs =
-    { nixpkgs, ... }:
+    { self, nixpkgs, ... }:
     let
       # Plex is pinned by hand; see "Hand-pinned versions" in CLAUDE.md.
       plexOverlay = final: prev: {
@@ -31,13 +31,26 @@
         });
       };
 
+      # Which commit is deployed: the flake's own rev in a git checkout, else
+      # the .revision file deploy.sh writes into ~/deploy (not a git checkout).
+      revision =
+        self.rev or self.dirtyRev or (
+          if builtins.pathExists ./.revision then
+            nixpkgs.lib.removeSuffix "\n" (builtins.readFile ./.revision)
+          else
+            null
+        );
+
       mkHost =
-        system: environment:
+        system: hardware: environment:
         nixpkgs.lib.nixosSystem {
           inherit system;
           modules = [
-            { nixpkgs.overlays = [ plexOverlay ]; }
-            /etc/nixos/hardware-configuration.nix
+            {
+              nixpkgs.overlays = [ plexOverlay ];
+              system.configurationRevision = revision;
+            }
+            hardware
             environment
             ./configuration.nix
           ];
@@ -45,8 +58,11 @@
     in
     {
       nixosConfigurations = {
-        spudbox-dev = mkHost "aarch64-linux" ./environments/dev.nix;
-        spudbox-prod = mkHost "x86_64-linux" ./environments/prod.nix;
+        # Dev's hardware config isn't in the repo, so dev still needs --impure.
+        spudbox-dev = mkHost "aarch64-linux" /etc/nixos/hardware-configuration.nix ./environments/dev.nix;
+        # From nixos-generate-config on prod; regenerate it there after
+        # hardware changes (see CLAUDE.md).
+        spudbox-prod = mkHost "x86_64-linux" ./hosts/prod-hardware.nix ./environments/prod.nix;
       };
     };
 }

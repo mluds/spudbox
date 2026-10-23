@@ -1,8 +1,45 @@
 { config, lib, ... }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    storageDrives
+    storageDir
+    domain
+    driveStatusPort
+    homepagePort
+    plexPort
+    tautulliPort
+    jellyseerrPort
+    audiobookshelfPort
+    radarrPort
+    sonarrPort
+    bazarrPort
+    prowlarrPort
+    sabnzbdPort
+    transmissionPort
+    caddyAdminPort
+    secretsDir
+    ;
+  prowlarr = config.my.prowlarr.enable;
+  prowlarrTile = {
+    "Prowlarr" = {
+      icon = "prowlarr";
+      href = "https://prowlarr.${domain}";
+      description = "Torrent Index Management";
+      widget = {
+        type = "prowlarr";
+        fields = [
+          "numberOfGrabs"
+          "numberOfQueries"
+          "numberOfFailGrabs"
+          "numberOfFailQueries"
+        ];
+        url = "http://localhost:${toString prowlarrPort}";
+        key = "{{HOMEPAGE_FILE_PROWLARR_API_KEY}}";
+      };
+    };
+  };
+
   uniqueDevices = lib.unique (map (drive: drive.device) storageDrives);
   driveWidgets = lib.imap1 (
     i: dev:
@@ -57,13 +94,13 @@ in
         RADARR_API_KEY = "radarr/api-key";
         SONARR_API_KEY = "sonarr/api-key";
         BAZARR_API_KEY = "bazarr/api-key";
-        PROWLARR_API_KEY = "prowlarr/api-key";
         TAUTULLI_API_KEY = "tautulli/api-key";
         JELLYSEERR_API_KEY = "jellyseerr/api-key";
         SABNZBD_API_KEY = "sabnzbd/api-key";
         ADMIN_USERNAME = "admin/username";
         TRANSMISSION_PASSWORD = "transmission/password";
-      };
+      }
+      // lib.optionalAttrs prowlarr { PROWLARR_API_KEY = "prowlarr/api-key"; };
     in
     {
       # Several keys are exported by these oneshots on first boot; a missing
@@ -71,11 +108,11 @@ in
       after = [
         "plex-config.service"
         "bazarr-config.service"
-        "prowlarr-config.service"
         "tautulli-config.service"
         "jellyseerr-config.service"
         "audiobookshelf-access.service"
-      ];
+      ]
+      ++ lib.optional prowlarr "prowlarr-config.service";
       serviceConfig = {
         LoadCredential = lib.mapAttrsToList (name: path: "${name}:${secretsDir}/${path}") credentials;
         Environment = [
@@ -254,24 +291,9 @@ in
               };
             };
           }
-          {
-            "Prowlarr" = {
-              icon = "prowlarr";
-              href = "https://prowlarr.${domain}";
-              description = "Torrent Index Management";
-              widget = {
-                type = "prowlarr";
-                fields = [
-                  "numberOfGrabs"
-                  "numberOfQueries"
-                  "numberOfFailGrabs"
-                  "numberOfFailQueries"
-                ];
-                url = "http://localhost:${toString prowlarrPort}";
-                key = "{{HOMEPAGE_FILE_PROWLARR_API_KEY}}";
-              };
-            };
-          }
+        ]
+        ++ lib.optional prowlarr prowlarrTile
+        ++ [
           {
             "SABnzbd" = {
               icon = "sabnzbd";

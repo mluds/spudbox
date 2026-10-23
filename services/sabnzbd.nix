@@ -5,9 +5,15 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    cacheDir
+    sabnzbdPort
+    secretsDir
+    usenetServerHosts
+    usenetServerPort
+    ;
+
   # Placeholder in settings -> secret file. systemd copies each file into the
   # unit's credentials dir (readable by the sabnzbd user only), and the
   # module's preStart substitutes them into sabnzbd.ini (mode 600).
@@ -120,22 +126,27 @@ in
           DynamicUser = true;
           RuntimeDirectory = "sabnzbd-resume";
           LoadCredential = "sabnzbd-api-key:${secretsDir}/sabnzbd/api-key";
-          ExecStart =
-            let
-              script = pkgs.writeShellScript "sabnzbd-resume" ''
+          ExecStart = lib.getExe (
+            pkgs.writeShellApplication {
+              name = "sabnzbd-resume";
+              runtimeInputs = with pkgs; [
+                curl
+                jq
+              ];
+              text = ''
                 umask 077
                 API="http://localhost:${toString sabnzbdPort}/api"
                 KEY=$(tr -d '\n' < "$CREDENTIALS_DIRECTORY/sabnzbd-api-key")
                 printf 'mode=queue&output=json&apikey=%s' "$KEY" > "$RUNTIME_DIRECTORY/queue"
                 printf 'mode=resume&output=json&apikey=%s' "$KEY" > "$RUNTIME_DIRECTORY/resume"
-                PAUSED=$(${pkgs.curl}/bin/curl -s -d @"$RUNTIME_DIRECTORY/queue" "$API" | ${pkgs.jq}/bin/jq -r '.queue.paused')
+                PAUSED=$(curl -sS --fail -d @"$RUNTIME_DIRECTORY/queue" "$API" | jq -r '.queue.paused')
                 if [ "$PAUSED" = "true" ]; then
                   echo "SABnzbd is paused, resuming..."
-                  ${pkgs.curl}/bin/curl -s -d @"$RUNTIME_DIRECTORY/resume" "$API"
+                  curl -sS --fail -o /dev/null -d @"$RUNTIME_DIRECTORY/resume" "$API"
                 fi
               '';
-            in
-            "${script}";
+            }
+          );
         };
       };
     };

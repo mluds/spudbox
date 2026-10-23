@@ -65,6 +65,8 @@ in
     homebridgePort = port "Homebridge UI";
     driveStatusPort = port "drive-status JSON server";
 
+    prowlarr.enable = lib.mkEnableOption "Prowlarr (off: Sonarr and Radarr query NZBGeek directly; the module is kept for later)";
+
     usenetServerHosts = mkOption {
       type = types.listOf types.str;
       description = "Usenet servers, in priority order.";

@@ -6,7 +6,7 @@
   _module.args.helpers = pkgs.symlinkJoin {
     name = "spudbox-helpers";
     paths = [
-      # read-secret NAME: print a secret from secretsDir, e.g. admin/password.
+      # read-secret NAME: print a secret from secretsDir, e.g. plex/token.
       (pkgs.writeShellApplication {
         name = "read-secret";
         text = ''exec cat "${config.my.secretsDir}/$1"'';

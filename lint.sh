@@ -11,8 +11,11 @@ fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); printf "  \033[31mFAIL\033[0m  %s\n" "$
 
 printf "\n\033[1m── Lint ──\033[0m\n"
 
+# hosts/*-hardware.nix come from nixos-generate-config; keep them as generated.
+mapfile -t generated < <(find hosts -name '*-hardware.nix' 2>/dev/null)
+
 # statix — nix anti-pattern linter
-if output=$(statix check . 2>&1) && [ -z "$output" ]; then
+if output=$(statix check . --ignore "${generated[@]}" 2>&1) && [ -z "$output" ]; then
   pass "statix"
 else
   fail "statix"
@@ -20,7 +23,7 @@ else
 fi
 
 # deadnix — unused code detector
-if output=$(deadnix -f . 2>&1) && [ -z "$output" ]; then
+if output=$(deadnix -f --exclude "${generated[@]}" -- . 2>&1) && [ -z "$output" ]; then
   pass "deadnix"
 else
   fail "deadnix"

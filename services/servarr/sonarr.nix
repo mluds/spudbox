@@ -6,9 +6,12 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    sonarrPort
+    storageDir
+    ;
+
   mkArrConfig = import ./mkArrConfig.nix {
     inherit
       config

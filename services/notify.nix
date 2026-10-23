@@ -5,14 +5,14 @@
   ...
 }:
 
-with config.my;
-
 # Pushover alert when a unit fails, so a broken nightly backup or *-config
 # run doesn't go unnoticed until someone runs test.sh. Units opt in with
 #   onFailure = [ "notify-failure@%n.service" ];
 # (media-fixup.nix does); the ones below are attached here. The message is
 # the unit name plus the tail of its journal.
 let
+  inherit (config.my) secretsDir;
+
   notifyScript = pkgs.writeShellApplication {
     name = "notify-failure";
     runtimeInputs = with pkgs; [
@@ -52,12 +52,12 @@ let
     "tautulli-config"
     "sonarr-config"
     "radarr-config"
-    "prowlarr-config"
     "bazarr-config"
     "jellyseerr-config"
     "audiobookshelf-access"
     "homebridge-config"
-  ];
+  ]
+  ++ lib.optional config.my.prowlarr.enable "prowlarr-config";
 in
 {
   systemd.services = {
@@ -79,4 +79,7 @@ in
   // lib.genAttrs watched (_: {
     onFailure = [ "notify-failure@%n.service" ];
   });
+
+  # For test.sh: these must never be in a failed state.
+  environment.etc."spudbox/env".text = lib.toShellVar "ALERT_UNITS" watched;
 }

@@ -5,15 +5,19 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    adminUserId
+    audiobookshelfPort
+    secretsDir
+    storageDir
+    users
+    ;
+
   # Runs on every boot/switch (unlike the one-off audiobookshelf-config):
-  #  1. The root account uses its own password (audiobookshelf/password). An
-  #     install still on the shared admin/password is rotated through
-  #     PATCH /api/me/password (finding #5).
-  #  2. Homepage gets a revocable API key for a read-only "homepage" user,
-  #     rather than a forged, never-expiring root token.
+  # checks that audiobookshelf/password logs in as root, and gives homepage a
+  # revocable API key for a read-only "homepage" user rather than a forged,
+  # never-expiring root token.
   accessScript = pkgs.writers.writePython3Bin "audiobookshelf-access" {
     libraries = with pkgs.python3Packages; [ requests ];
     flakeIgnore = [ "E501" ];

@@ -16,15 +16,20 @@ homebridge). Almost every package version flows from a single
 `nixpkgs` flake input; a few things are pinned by hand (see Upgrades).
 
 - `flake.nix` — inputs + `nixosConfigurations.spudbox-{dev,prod}`; also the Plex
-  version overlay.
+  version overlay and `system.configurationRevision` (the deployed commit).
+- `hosts/prod-hardware.nix` — prod's `nixos-generate-config` output, committed
+  so prod builds without `--impure`. After hardware changes, regenerate it on
+  prod (`nixos-generate-config --show-hardware-config`) and commit. Dev still
+  reads `/etc/nixos/hardware-configuration.nix`, so dev needs `--impure`.
 - `configuration.nix` — shared config, `environment.systemPackages`, imports of
   every `services/*.nix`.
 - `common/vars.nix` — typed declarations of the `my.*` options (a typo is an
   eval error). `environments/default.nix` — all ports, dirs, and the `my.*`
   values; `environments/{prod,dev}.nix` — per-host domain and drives.
-- `common/env.nix` — writes `/etc/spudbox/env` (dirs, domain, every
-  `my.*Port` as `FOO_PORT`, Caddy's `CADDY_HOSTS`); `test.sh` and the
-  `deploy.sh` wait loop source it instead of hard-coding ports.
+- `common/env.nix` — writes `/etc/spudbox/env` (dirs, domain, `REVISION`, every
+  `my.*Port` as `FOO_PORT`; modules append `CADDY_HOSTS`, `PASSWORD_SERVICES`,
+  `ALERT_UNITS`, `PROWLARR_ENABLED`); `test.sh` and the `deploy.sh` wait loop
+  source it instead of hard-coding ports and service lists.
 - `common/helpers.nix` — the `helpers` module argument: `read-secret NAME`
   and `wait-for-http URL [INTERVAL]`, for scripts' `runtimeInputs`.
 - `services/**` — one file per service, each typically defining the NixOS
@@ -104,11 +109,11 @@ ethernet profile still has IPv6 enabled.
 ```
 
 Notes:
-- Deploy rsyncs the **working tree** (not git) to `~/deploy` on the server, then
-  runs `nixos-rebuild switch --impure --flake .#spudbox-prod`. Uncommitted
-  changes deploy fine; committing is separate.
-- The rebuild runs `--impure` because it reads `/etc/nixos/hardware-configuration.nix`
-  on the host.
+- Deploy rsyncs the **working tree** (not git, no secrets) to `~/deploy` on the
+  server, writes `git describe --always --dirty` to `~/deploy/.revision`, streams
+  the secrets into `/var/lib/secrets`, then runs
+  `nixos-rebuild switch --flake .#spudbox-prod`. Uncommitted changes deploy fine
+  (the revision ends in `-dirty`); committing is separate.
 
 ### Before committing
 

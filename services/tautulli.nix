@@ -5,9 +5,13 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    plexPort
+    secretsDir
+    tautulliPort
+    ;
+
   configScript = pkgs.writers.writePython3Bin "tautulli-config" {
     flakeIgnore = [ "E501" ];
   } (builtins.readFile ./tautulli-config.py);

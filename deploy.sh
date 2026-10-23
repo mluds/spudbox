@@ -25,7 +25,7 @@ EOF
 sync_files() {
   # A locked git-crypt checkout holds ciphertext; deploying it would replace
   # every live secret with it.
-  if [ "$(head -c 9 "$SCRIPT_DIR/secrets/admin/password" | tr -d '\0')" = "GITCRYPT" ]; then
+  if [ "$(head -c 9 "$SCRIPT_DIR/secrets/admin/username" | tr -d '\0')" = "GITCRYPT" ]; then
     echo "ERROR: secrets are git-crypt encrypted here; run 'git-crypt unlock <key>' first" >&2
     exit 1
   fi
@@ -35,6 +35,9 @@ sync_files() {
   # nixos-rebuild copies the whole directory into the world-readable store.
   rsync -az --delete --delete-excluded --exclude='/.git' --exclude='/secrets/' \
     -e "ssh -i $SSH_KEY" "$SCRIPT_DIR/" "$HOST:~/deploy/"
+  # Which commit this is (-dirty: with uncommitted changes); the flake puts
+  # it in system.configurationRevision and /etc/spudbox/env (REVISION).
+  git -C "$SCRIPT_DIR" describe --always --dirty | $SSH "cat > ~/deploy/.revision"
 
   echo "Installing secrets..."
   # Streamed straight into the root-only dir, new files 600 / dirs 700 (umask),
@@ -49,7 +52,7 @@ sync_files() {
 
 rebuild() {
   echo "Rebuilding NixOS configuration..."
-  $SSH "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --impure --flake .#$FLAKE"
+  $SSH "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --flake .#$FLAKE"
   echo "Waiting for services to start..."
   # shellcheck disable=SC2016 # expanded on the server, from its /etc/spudbox/env
   $SSH 'source /etc/spudbox/env

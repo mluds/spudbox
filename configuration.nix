@@ -5,9 +5,9 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my) storageDir cacheDir secretsDir;
+
   mediaDirs = [
     "${storageDir}/data/media/movies"
     "${storageDir}/data/media/tv"
@@ -35,64 +35,55 @@ let
     "${cacheDir}/data/usenet/incomplete/tv"
   ];
 
-  # Each of these has its own web login password in secrets/<name>/password
-  # (finding #5: one shared admin password meant one leak unlocked them all).
-  # Until a service's file is deployed, create-dirs seeds it from
-  # admin/password, so consumers can always read <name>/password.
+  # Each has its own web login password in secrets/<name>/password (finding
+  # #5). Exported for test.sh; scripts/generate-service-passwords.sh keeps its
+  # own copy because it runs on the Mac.
   passwordServices = [
     "sonarr"
     "radarr"
-    "prowlarr"
     "bazarr"
     "sabnzbd"
     "transmission"
     "tautulli"
     "homebridge"
     "audiobookshelf"
-  ];
+  ]
+  ++ lib.optional config.my.prowlarr.enable "prowlarr";
 
-  createDirsScript = pkgs.writeScript "create-dirs.sh" ''
-    #!${pkgs.bash}/bin/bash
-    set -euo pipefail
+  createDirsScript = pkgs.writeShellApplication {
+    name = "create-dirs";
+    text = ''
+      # The directories themselves only, not their contents: a recursive
+      # chmod made every media file executable and walked the whole library
+      # (spinning up the HDD) on each boot. The apps set their own file modes.
+      ${lib.concatMapStringsSep "\n" (dir: ''
+        mkdir -p "${dir}"
+        chown media:media "${dir}"
+        chmod 0775 "${dir}"
+      '') mediaDirs}
 
-    # The directories themselves only, not their contents: a recursive
-    # chmod made every media file executable and walked the whole library
-    # (spinning up the HDD) on each boot. The apps set their own file modes.
-    ${lib.concatMapStringsSep "\n" (dir: ''
-      mkdir -p "${dir}"
-      chown media:media "${dir}"
-      chmod 0775 "${dir}"
-    '') mediaDirs}
+      ${lib.concatMapStringsSep "\n" (dir: ''
+        mkdir -p "${dir}"
+        chown sabnzbd:media "${dir}"
+        chmod 0775 "${dir}"
+      '') usenetDirs}
 
-    ${lib.concatMapStringsSep "\n" (dir: ''
-      mkdir -p "${dir}"
-      chown sabnzbd:media "${dir}"
-      chmod 0775 "${dir}"
-    '') usenetDirs}
+      # Secrets are root-only. Everything that reads them runs as root (the
+      # *-config oneshots, restic, transmission's ExecStartPre); other units
+      # get theirs via LoadCredential.
+      chown -R root:root ${secretsDir}
+      find ${secretsDir} -type d -exec chmod 700 {} \;
+      find ${secretsDir} -type f -exec chmod 600 {} \;
 
-    # Per-service passwords: fall back to the shared one until generated
-    # (see scripts/generate-service-passwords.sh)
-    for svc in ${lib.concatStringsSep " " passwordServices}; do
-      if [ ! -s "${secretsDir}/$svc/password" ]; then
-        mkdir -p "${secretsDir}/$svc"
-        cp "${secretsDir}/admin/password" "${secretsDir}/$svc/password"
-      fi
-    done
+      # Login passwords in plaintext are for recovery only; they stay in the
+      # repo and the password manager, never on the server (deploy.sh skips them).
+      rm -f ${secretsDir}/users/*/plaintext
 
-    # Secrets are root-only. Everything that reads them runs as root (the
-    # *-config oneshots, restic, transmission's ExecStartPre); homepage gets
-    # its keys via LoadCredential.
-    chown -R root:root ${secretsDir}
-    find ${secretsDir} -type d -exec chmod 700 {} \;
-    find ${secretsDir} -type f -exec chmod 600 {} \;
-
-    # Login passwords in plaintext are for recovery only; they stay in the
-    # repo and the password manager, never on the server (deploy.sh skips them).
-    rm -f ${secretsDir}/users/*/plaintext
-
-    # Legacy secrets file (pre-git-crypt layout); nothing reads it anymore.
-    rm -f ${secretsDir}/default.json
-  '';
+      # Retired secrets (deploy.sh never deletes): the pre-git-crypt file, the
+      # shared admin password (finding #5), the unused Gmail SMTP login.
+      rm -rf ${secretsDir}/default.json ${secretsDir}/admin/password ${secretsDir}/gmail
+    '';
+  };
 in
 {
   imports = [
@@ -206,7 +197,7 @@ in
     groups.media = { };
     users = lib.mkMerge [
       (lib.listToAttrs (
-        lib.forEach users (user: {
+        lib.forEach config.my.users (user: {
           name = user.username;
           value = {
             isNormalUser = true;
@@ -234,24 +225,13 @@ in
   systemd.services.create-dirs = {
     description = "Create directories";
     after = [ "local-fs.target" ];
-    # Seeds the per-service password files the units below read
-    before = [
-      "sonarr-config.service"
-      "radarr-config.service"
-      "prowlarr-config.service"
-      "bazarr-config.service"
-      "sabnzbd.service" # loads sabnzbd/password via LoadCredential
-      "transmission.service"
-      "tautulli-config.service"
-      "homebridge-config.service"
-      "audiobookshelf-access.service"
-      "homepage-dashboard.service"
-    ];
     requires = [ "local-fs.target" ];
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = "${createDirsScript}";
+      ExecStart = lib.getExe createDirsScript;
     };
     wantedBy = [ "multi-user.target" ];
   };
+
+  environment.etc."spudbox/env".text = lib.toShellVar "PASSWORD_SERVICES" passwordServices;
 }

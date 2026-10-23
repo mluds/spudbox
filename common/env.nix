@@ -20,6 +20,7 @@ in
       (lib.toShellVar "STORAGE_DIR" cfg.storageDir)
       (lib.toShellVar "CACHE_DIR" cfg.cacheDir)
       (lib.toShellVar "BACKUP_DIR" cfg.backupDir)
+      (lib.toShellVar "REVISION" (toString config.system.configurationRevision))
     ]
     ++ lib.mapAttrsToList (name: value: lib.toShellVar (toEnvName name) value) ports
   );

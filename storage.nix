@@ -5,9 +5,16 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    backupDir
+    backupDrives
+    cacheDir
+    cacheDrives
+    storageDir
+    storageDrives
+    ;
+
   # ensure-partition DEVICE PARTITION: give a blank disk one GPT partition
   # with an XFS filesystem. Leaves existing partitions and filesystems alone.
   ensurePartitionScript = pkgs.writeShellApplication {
@@ -143,6 +150,9 @@ in
     // mergerfsMount storageDir storageDrives
     // mergerfsMount backupDir backupDrives;
 
+  # Spindown after 5 min (-S 60) and moderate APM (-B 127) for rotating SATA
+  # disks. The current WD Ultrastar ignores -S, so drive-check.nix also spins
+  # it down itself; the rule stays for drives that do honour it.
   services.udev.extraRules = ''
     ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", RUN+="${pkgs.hdparm}/bin/hdparm -S 60 -B 127 /dev/%k"
   '';

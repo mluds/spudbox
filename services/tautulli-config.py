@@ -1,4 +1,4 @@
-from os import getenv, path, urandom, makedirs, walk, lstat, chmod
+from os import getenv, path, urandom, makedirs, walk, lstat, chmod, umask
 from stat import S_IMODE, S_ISLNK
 import configparser
 from base64 import b64encode
@@ -10,7 +10,10 @@ import time
 
 
 def main():
+    deadline = time.time() + 300
     while not path.exists(getenv("TAUTULLI_CONFIG")):
+        if time.time() > deadline:
+            raise SystemExit(f"Tautulli never wrote {getenv('TAUTULLI_CONFIG')}")
         print("Waiting for initial Tautulli config:", getenv("TAUTULLI_CONFIG"))
         time.sleep(5)
 
@@ -82,7 +85,7 @@ def read_plex_token():
 def get_plex_identity():
     plex_port = getenv("PLEX_PORT")
     url = f"http://127.0.0.1:{plex_port}/identity"
-    response = urlopen(url)
+    response = urlopen(url, timeout=30)
     tree = ElementTree.parse(response)
     root = tree.getroot()
     return {
@@ -136,6 +139,7 @@ def export_api_key():
     secret_dir = f"{getenv('SECRETS_DIR')}/tautulli"
     makedirs(secret_dir, exist_ok=True)
     secret_path = path.join(secret_dir, "api-key")
+    umask(0o077)  # a new secret file is 0600 from the start
     with open(secret_path, "w") as f:
         f.write(api_key)
     print(f"API key written to {secret_path}")

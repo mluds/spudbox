@@ -6,8 +6,6 @@
   ...
 }:
 
-with config.my;
-
 # Every 15 minutes, checks video files added to the library since the last run
 # and rewrites the ones some Plex clients can't play (see media-fixup.sh).
 # Dolby Vision profile 5 is re-encoded on the Intel iGPU, so this is
@@ -18,6 +16,14 @@ with config.my;
 # arrive via LoadCredential, and CAP_CHOWN alone lets it give a rewritten
 # file its original owner. `sudo media-fixup FILE` still runs as root.
 let
+  inherit (config.my)
+    plexPort
+    radarrPort
+    secretsDir
+    sonarrPort
+    storageDir
+    ;
+
   # Vulkan (libplacebo) and VA-API (hevc_vaapi) drivers for the Intel iGPU,
   # pointed at directly so the rest of the system is unaffected.
   gpuEnv = {

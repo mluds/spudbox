@@ -5,9 +5,12 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my)
+    driveStatusPort
+    storageDrives
+    ;
+
   statusDir = "/var/lib/drive-status";
   uniqueDevices = lib.unique (map (drive: drive.device) storageDrives);
   # Idle time before forcing the drive to standby via hdparm -y.

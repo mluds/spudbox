@@ -6,9 +6,8 @@
   ...
 }:
 
-with config.my;
-
 let
+  inherit (config.my) secretsDir prowlarrPort;
   cfgFile = "/var/lib/prowlarr/config.xml";
   # The web login is set through the host-config API, as the UI does, and
   # Prowlarr stores a salted PBKDF2 hash. Unlike Sonarr/Radarr, Prowlarr
@@ -52,7 +51,13 @@ let
     '';
   };
 in
-{
+# Off by default (my.prowlarr.enable): Sonarr and Radarr query NZBGeek
+# directly and nothing was configured in Prowlarr. Its state in
+# /var/lib/private/prowlarr is kept; enabling it brings back the service, its
+# Caddy site, homepage tile, backup stop and test.sh checks.
+lib.mkIf config.my.prowlarr.enable {
+  environment.etc."spudbox/env".text = "PROWLARR_ENABLED=1";
+
   services.prowlarr = {
     enable = true;
     openFirewall = false;

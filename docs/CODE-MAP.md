@@ -25,23 +25,24 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 
 | Path | What it does |
 | --- | --- |
-| `flake.nix` | One `nixpkgs` input. Hosts `spudbox-prod` (x86_64) and `spudbox-dev` (aarch64). Hand-pinned Plex overlay. |
-| `configuration.nix` | Shared config: imports, packages, nix GC, SSH, sudo, firewall, users, IPv6 off. `create-dirs` oneshot: media dirs, per-service password seeding, secrets perms. |
+| `flake.nix` | One `nixpkgs` input. Hosts `spudbox-prod` (x86_64) and `spudbox-dev` (aarch64). Hand-pinned Plex overlay. Sets `system.configurationRevision`. |
+| `hosts/prod-hardware.nix` | Prod's generated hardware config, so prod builds pure. Lint skips it; regenerate rather than edit. |
+| `configuration.nix` | Shared config: imports, packages, nix GC, SSH, sudo, firewall, users, IPv6 off. `create-dirs` oneshot: media dirs (non-recursive), secrets perms, deletes retired secrets. |
 | `storage.nix` | Formats blank XFS disks (`ensure-partition-*`), mounts them, pools them with mergerfs. hdparm udev rule. |
-| `common/vars.nix` | Typed `my.*` options (ports, dirs, drives, users). |
-| `common/env.nix` | Writes `/etc/spudbox/env` (dirs, domain, every `*_PORT`) for `test.sh` and `deploy.sh`. |
+| `common/vars.nix` | Typed `my.*` options (ports, dirs, drives, users, `prowlarr.enable`). |
+| `common/env.nix` | Writes `/etc/spudbox/env` (dirs, domain, `REVISION`, every `*_PORT`) for `test.sh` and `deploy.sh`. Modules append `CADDY_HOSTS`, `PASSWORD_SERVICES`, `ALERT_UNITS`, `PROWLARR_ENABLED`. |
 | `common/helpers.nix` | The `helpers` module arg: `read-secret`, `wait-for-http`. |
 | `environments/default.nix` | Ports, dirs, usenet hosts, users. `{prod,dev}.nix`: domain and drives per host. |
-| `services/caddy.nix` | Reverse proxy per subdomain. Cloudflare DNS-challenge wildcard cert. `caddy-config` writes the token env file. |
+| `services/caddy.nix` | Reverse proxy per subdomain, LAN-only (`remote_ip private_ranges`). Cloudflare DNS-challenge wildcard cert. `caddy-config` writes the token env file. Sandboxed: only `CAP_NET_BIND_SERVICE`. |
 | `services/hardening.nix` | Shared systemd sandbox settings, merged into units that handle untrusted input. |
-| `services/plex.nix` + `plex-config.py` | Plex, plus libraries, token sign-in and remote-access settings. |
+| `services/plex.nix` + `plex-config.py` | Plex (GPU-only device access, no capabilities), plus libraries, token sign-in and remote-access settings. |
 | `services/tautulli.nix` + `tautulli-config.py` | Rewrites `config.ini` (login hash, Plex link). Exports the API key. |
 | `services/sabnzbd.nix` | SABnzbd via NixOS `settings` + `secretValues`. Hourly `sabnzbd-resume`. |
 | `services/transmission.nix` | Transmission 4 + Flood UI. RPC credentials built in `ExecStartPre`. |
-| `services/audiobookshelf.nix` + `audiobookshelf-access.py` | Every boot: root password rotation, read-only API key for homepage. |
-| `services/audiobookshelf-config.py` | One-off, started by hand: seeds the root user in SQLite, library, users. |
+| `services/audiobookshelf.nix` + `audiobookshelf-access.py` | Every boot: checks the root password, issues homepage's read-only API key. |
+| `services/audiobookshelf-config.py` | One-off, started by hand: seeds the root user in SQLite, library, users. Refuses if users exist, unless `ABS_FORCE=1`. |
 | `services/homepage.nix` | Dashboard. Keys come through `LoadCredential`. |
-| `services/homebridge.nix` | Homebridge in Docker (pinned digest). `homebridge-config` does first setup and password rotation. Avahi. |
+| `services/homebridge.nix` | Homebridge in Docker (pinned digest). `homebridge-config` does first setup (pinned `homebridge-dummy`) and checks the password. Avahi. |
 | `services/docker.nix` | Docker, used only by Homebridge. |
 | `services/backup.nix` | restic: nightly `/var/lib` backup to the HDD, then `restic copy` to Cloudflare R2. |
 | `services/drive-check.nix` | 5-minute timer that forces the HDD into standby when idle. `drive-status-http` serves JSON for homepage. |
@@ -49,14 +50,14 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | `services/notify.nix` | `notify-failure@` template: a Pushover alert with the journal tail. Attached to the oneshots, timers and backups through `onFailure`. |
 | `services/claude-code.nix` | Claude Code Remote Control, running as `luds`. |
 | `services/servarr/mkArrConfig.nix` | Shared `sonarr-config`/`radarr-config` builder: login, indexer, SABnzbd, quality, custom formats, folder import. |
-| `services/servarr/{sonarr,radarr}.nix` | The apps plus their mkArrConfig args. Radarr also has the `radarr-auto-import` timer. |
+| `services/servarr/{sonarr,radarr}.nix` | The apps plus their mkArrConfig args. Radarr also has the `radarr-auto-import` timer: skips permanently rejected files, tries each download once. |
 | `services/servarr/qualityDefinitions.nix` | Size limits and quality profiles. |
 | `services/servarr/set-config-xml.nix` | Writes secret files into `config.xml` without putting them on argv. |
-| `services/servarr/prowlarr.nix` | Prowlarr. Login set through its API. |
+| `services/servarr/prowlarr.nix` | Prowlarr, **off** (`my.prowlarr.enable = false`; code kept). Enabling it restores its Caddy site, homepage tile, backup stop, alerts and tests. Add sandboxing when re-enabling (it scored 8.2). |
 | `services/servarr/bazarr.nix` + `bazarr-config.py` | Merges a YAML template into the config. Rewrites language profiles. |
-| `services/servarr/jellyseerr.nix` | seerr under a fixed user. First-run setup, Plex/arr links, Pushover. |
-| `deploy.sh` | Runs on the Mac: refuses a locked checkout, rsyncs the tree (no secrets) to prod `~/deploy`, streams secrets into `/var/lib/secrets` via tar, `nixos-rebuild switch`, wait, `test.sh`. |
-| `test.sh` / `lint.sh` | About 190 server checks / statix, deadnix, nixfmt. |
+| `services/servarr/jellyseerr.nix` | seerr under a fixed user, sandboxed. First-run setup, Plex/arr links, Pushover. Email is gone. |
+| `deploy.sh` | Runs on the Mac: refuses a locked checkout, rsyncs the tree (no secrets) to prod `~/deploy`, writes `.revision`, streams secrets into `/var/lib/secrets` via tar, pure `nixos-rebuild switch`, wait, `test.sh`. |
+| `test.sh` / `lint.sh` | About 240 server checks / statix, deadnix, nixfmt. |
 | `scripts/generate-service-passwords.sh` | Creates and commits per-service passwords. Refuses if git-crypt is locked. |
 | `secrets/` | git-crypt encrypted. Deployed to `/var/lib/secrets`, root-only. Locked (ciphertext) in the checkout on prod. |
 
@@ -109,10 +110,12 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
   world-readable Nix store. That's why secrets must never land there.
 - Secrets are copied but never deleted on the server: runtime-generated keys
   live next to them. Remove a retired secret from `/var/lib/secrets` by hand.
-- The service, password-service and state-dir lists in `test.sh` are maintained
-  by hand. They partly duplicate lists in the Nix code.
-- To switch from a git worktree on the server, use
-  `nixos-rebuild switch --sudo --impure --flake path:.#spudbox-prod`. A plain
+- `test.sh` reads its password-service and oneshot lists from
+  `/etc/spudbox/env`. The state-dir and sandboxed-unit lists stay hand-kept on
+  purpose: they are what the tests assert.
+- To switch from a git worktree on the server, run
+  `git describe --always --dirty > .revision`, then
+  `nixos-rebuild switch --sudo --flake path:.#spudbox-prod`. A plain
   `.#` git flake fails there with libgit2 "object not found".
 - A switch re-runs the `*-config` oneshots, which restart Bazarr, Sonarr and
   Radarr. Let them settle before running `test.sh`, or you get spurious port
@@ -123,28 +126,15 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 
 ## Open improvements
 
-These items come from a full review on 2026-10-22. Sandbox scores come from
-`systemd-analyze security <unit>` on prod (0 = locked down, 10 = unsafe).
+All 21 items from the 2026-10-22 review are done (see *Done*). Add new
+findings here as rows: `| # | Priority | Recommendation | Where | Why | Status |`.
 
-| # | Priority | Recommendation | Where | Why | Status |
-| --- | --- | --- | --- | --- | --- |
-| 5 | Medium | Extend `hardening.nix` to prowlarr (8.2), seerr (6.1) and plex (7.0, needs `/dev/dri`). Give caddy (7.8) a capability bounding set. | `prowlarr.nix`, `jellyseerr.nix`, `plex.nix`, `caddy.nix` | Network-facing services with no sandbox. sonarr, radarr and transmission score 1.4 to 1.5. | Open |
-| 6 | Medium | Retire the shared `admin/password`: drop the create-dirs seeding fallback and the old-password rotation paths, then delete the secret. Wait until the `test.sh` "per-service web passwords" check passes. | `configuration.nix:72-79`, `homebridge.nix:61-91`, `audiobookshelf-access.py:43-64` | All 9 per-service passwords exist. The fallback is dead code plus a spare credential. | Open |
-| 7 | Medium | Drop the disabled Jellyseerr email agent and the `gmail/*` secrets, then revoke the Gmail app password. | `jellyseerr.nix:25-39, 124-136` | Email is off (Pushover replaced it), but the app password is still written into `settings.json` each boot. | Open |
-| 8 | Medium | Make `radarr-auto-import` skip manual-import candidates that have `rejections`. | `radarr.nix:76-83` | It moves every candidate into the library, so samples or wrong files can be imported. | Open |
-| 9 | Medium | Decide whether Prowlarr is used. Sonarr and Radarr use NZBGeek directly, and `prowlarr-config` adds no indexers or apps. If unused, remove it. | `prowlarr.nix` | One less exposed service (8.2) and one less password. | Open (question for owner) |
-| 10 | Medium | Set `os.umask(0o077)` at the top of the Python config scripts. | `tautulli-config.py:136-140`, `bazarr-config.py:168-174`, `plex-config.py:31` | Exported keys are created 0644 on first write. The 0700 dir protects them, but `test.sh` flags them until the next boot. | Open |
-| 11 | Low | Add `timeout=` to every `requests` call. Bound the wait loop in `tautulli-config.py`. | `plex-config.py`, `audiobookshelf-config.py`, `tautulli-config.py:13` | One hung app blocks its oneshot, and everything ordered after it, forever. | Open |
-| 12 | Low | Fix `if service in new_config` so it checks `key`. | `bazarr-config.py:58` | For `auth`, the bug replaces the whole block. It works today only because `auth.type` is set again below. | Open |
-| 13 | Low | Delete `audiobookshelf-config.py`, or make it refuse when `users` is non-empty. Move its import-time work into `main()`. | `audiobookshelf-config.py` | A manual start on the live install wipes every user. | Open |
-| 14 | Low | Move the remaining inline scripts to `writeShellApplication`: create-dirs, `sabnzbd-resume`, `transmission-credentials`, `radarr-auto-import`. | `configuration.nix:54`, `sabnzbd.nix:125`, `transmission.nix:53`, `radarr.nix:54` | The repo's own convention: strict mode plus shellcheck. | Open |
-| 15 | Low | Generate the hand-kept lists (password services, state dirs, sandboxed units, oneshots) into `/etc/spudbox/env`, as `CADDY_HOSTS` already is. | `test.sh`, `configuration.nix:42, 236`, `scripts/generate-service-passwords.sh` | The password-service list is copied in 4 places. | Open |
-| 16 | Low | Record the deployed revision (`git describe --always --dirty`) in `/etc/spudbox/revision` or `system.configurationRevision`. | `deploy.sh`, `common/env.nix` | Nothing on the server says which commit is live, and several sessions deploy. | Open |
-| 17 | Low | Pin the version of `homebridge-dummy` in the setup `npm install`. | `homebridge.nix:108` | An unpinned npm package goes into a root container. | Open |
-| 18 | Low | Remove the `hdparm -S 60` udev rule, or note why it stays. | `storage.nix:146-148` | `drive-check.nix` says this drive ignores `-S`. | Open |
-| 19 | Low | Commit each host's `hardware-configuration.nix` and drop `--impure`. | `flake.nix:40`, `deploy.sh:36` | Builds become reproducible from the repo, and `nix flake check` works off-box. | Open |
-| 20 | Low | Replace module-wide `with config.my;` with `inherit (config.my) …`. | most modules | Makes clear where each name comes from. | Open |
-| 21 | Low | Optional: limit each Caddy site to `remote_ip private_ranges`. | `caddy.nix:48-64` | Keeps the UIs LAN-only even if 80 or 443 is ever port-forwarded by mistake. | Open |
+Follow-ups left by the review:
+
+- Revoke the old Gmail app password in the Google account (owner). It is gone
+  from the repo and server but stays valid until revoked.
+- When Prowlarr is re-enabled, sandbox it like seerr (it scored 8.2).
+- Dev's hardware config isn't in the repo, so `spudbox-dev` still needs `--impure`.
 
 ## Done
 
@@ -152,6 +142,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-10-23 | see git log | Review items 5-21. Sandboxing for caddy (7.8 to 3.0), plex (7.0 to 4.0) and seerr (6.1 to 2.9). Shared `admin/password` and Gmail secrets retired. Prowlarr switched off (code kept). `radarr-auto-import` skips rejected files and tries each once (one item had looped 5,137 times). Python setup scripts: umask, timeouts, Bazarr key bug, ABS guard. All shell in `writeShellApplication`. `PASSWORD_SERVICES`/`ALERT_UNITS` generated for `test.sh`. Deployed revision recorded. `homebridge-dummy` pinned. hdparm rule documented. Prod builds pure (`hosts/prod-hardware.nix`). `inherit (config.my)` instead of `with`. Caddy sites LAN-only. |
 | 2026-10-23 | `0d9d571`, `432f58f`, see git log | Review items 1-4: media-fixup sandboxed as its own user (exposure 9.6 to 3.4); create-dirs no longer `chmod -R`s the library (3,157 files un-exec'd once); `notify-failure@` Pushover alerts on backups, oneshots and timers; `deploy.sh` refuses a locked checkout and streams secrets straight into `/var/lib/secrets`. |
 | 2026-10-22 | `b0918aa` | media-fixup (DV5 to HDR10, hybrid DV8 strip, SRT font tags). Arrs reject DV-without-HDR releases. |
 | 2026-10-21 | `105e0bc` | Tidy-up: shared `helpers`, typed `my.*` options, generated `/etc/spudbox/env`, shared `mkArrConfig`. |
