@@ -28,6 +28,10 @@ in
       "/run/current-system/sw"
     ];
     environment.HOME = home;
+    # Never restart it on a switch: Claude's own sessions run in this unit,
+    # so a deploy started from one would kill itself (and the switch) midway.
+    # Changes here apply on the next boot or a manual restart over SSH.
+    restartIfChanged = false;
     # Skip until `claude auth login` has been done interactively.
     unitConfig.ConditionPathExists = "${home}/.claude/.credentials.json";
     serviceConfig = {
@@ -36,6 +40,17 @@ in
       ExecStart = "${home}/.local/bin/claude remote-control --name spudbox";
       Restart = "always";
       RestartSec = 30;
+      # It redraws its status screen (QR hint, connection, capacity) about
+      # once a second: ~400k journal lines a day. Drop just those lines;
+      # anything else it prints, errors included, still reaches the journal.
+      # (Regexes; "." stands in for spaces, which can't appear here.)
+      LogFilterPatterns = [
+        "~QR.code"
+        "~ask.Claude.to.work.in.this.folder"
+        "~claude.ai/code"
+        "~·.Connected.·"
+        "~Capacity:.[0-9]"
+      ];
     };
   };
 }

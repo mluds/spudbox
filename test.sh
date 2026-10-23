@@ -163,6 +163,10 @@ test_services() {
   for u in "${ALERT_UNITS[@]}" media-fixup; do
     check_oneshot "$u.service"
   done
+  # Setup oneshots stay active, so a switch doesn't re-run unchanged ones
+  for u in "${SETUP_UNITS[@]}"; do
+    check "$u stays active" systemctl is-active --quiet "$u.service"
+  done
 
   # Timers
   for u in sabnzbd-resume radarr-auto-import restic-backups-local check-drive-status media-fixup; do

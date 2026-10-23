@@ -44,15 +44,30 @@ sync_files() {
   # owned by root. Plaintext login passwords are recovery copies and never
   # leave this machine; secrets/default.json is the old unencrypted file.
   # ustar: no macOS xattr/pax headers for GNU tar to warn about.
+  # If any secret changed, a marker in /run tells rebuild() to re-run the
+  # setup units: they stay active between switches and wouldn't notice.
+  # shellcheck disable=SC2016 # runs on the server
+  local install='umask 077 && cd /var/lib/secrets
+    digest() { find . -type f -exec sha256sum {} + | sort | sha256sum; }
+    before=$(digest)
+    tar --no-same-owner --no-same-permissions -xf -
+    [ "$(digest)" = "$before" ] || touch /run/spudbox-secrets-changed'
   (cd "$SCRIPT_DIR/secrets" &&
     find . -type f ! -path './users/*/plaintext' ! -path './default.json' -print |
     COPYFILE_DISABLE=1 tar --format ustar -cf - -T -) |
-    $SSH "sudo sh -c 'umask 077 && tar -C /var/lib/secrets --no-same-owner --no-same-permissions -xf -'"
+    $SSH "sudo sh -c '$install'"
 }
 
 rebuild() {
   echo "Rebuilding NixOS configuration..."
   $SSH "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --flake .#$FLAKE"
+  # shellcheck disable=SC2016 # expanded on the server, from its /etc/spudbox/env
+  $SSH 'if [ -e /run/spudbox-secrets-changed ]; then
+      source /etc/spudbox/env
+      echo "Secrets changed; re-running the setup units..."
+      sudo systemctl restart "${SETUP_UNITS[@]/%/.service}"
+      sudo rm -f /run/spudbox-secrets-changed
+    fi'
   echo "Waiting for services to start..."
   # shellcheck disable=SC2016 # expanded on the server, from its /etc/spudbox/env
   $SSH 'source /etc/spudbox/env

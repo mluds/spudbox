@@ -5,11 +5,17 @@
   ...
 }:
 
-# Pushover alert when a unit fails, so a broken nightly backup or *-config
-# run doesn't go unnoticed until someone runs test.sh. Units opt in with
-#   onFailure = [ "notify-failure@%n.service" ];
-# (media-fixup.nix does); the ones below are attached here. The message is
-# the unit name plus the tail of its journal.
+# The oneshots and timer jobs nobody watches:
+#  - a Pushover alert when one fails, so a broken nightly backup or *-config
+#    run doesn't go unnoticed until someone runs test.sh. Units opt in with
+#      onFailure = [ "notify-failure@%n.service" ];
+#    (media-fixup.nix does); the ones below are attached here. The message is
+#    the unit name plus the tail of its journal.
+#  - the setup oneshots stay active after they succeed (RemainAfterExit), so a
+#    switch only re-runs those whose unit changed, instead of every one of
+#    them restarting Sonarr, Radarr, Bazarr and Tautulli and rescanning the
+#    libraries on each deploy. They still run on every boot; deploy.sh
+#    restarts them all when a secret changed.
 let
   inherit (config.my) secretsDir;
 
@@ -39,14 +45,9 @@ let
     '';
   };
 
-  # Oneshots and timers whose failure nobody would otherwise see.
-  watched = [
+  # Configure an app from Nix and secrets, once per boot or change.
+  setupUnits = [
     "create-dirs"
-    "restic-backups-local"
-    "restic-backups-r2"
-    "check-drive-status"
-    "sabnzbd-resume"
-    "radarr-auto-import"
     "caddy-config"
     "plex-config"
     "tautulli-config"
@@ -58,6 +59,15 @@ let
     "homebridge-config"
   ]
   ++ lib.optional config.my.prowlarr.enable "prowlarr-config";
+
+  # Run by timers.
+  jobUnits = [
+    "restic-backups-local"
+    "restic-backups-r2"
+    "check-drive-status"
+    "sabnzbd-resume"
+    "radarr-auto-import"
+  ];
 in
 {
   systemd.services = {
@@ -76,10 +86,18 @@ in
       };
     };
   }
-  // lib.genAttrs watched (_: {
+  // lib.genAttrs jobUnits (_: {
     onFailure = [ "notify-failure@%n.service" ];
+  })
+  // lib.genAttrs setupUnits (_: {
+    onFailure = [ "notify-failure@%n.service" ];
+    serviceConfig.RemainAfterExit = true;
   });
 
-  # For test.sh: these must never be in a failed state.
-  environment.etc."spudbox/env".text = lib.toShellVar "ALERT_UNITS" watched;
+  # For test.sh (none may be failed) and deploy.sh (restarts SETUP_UNITS
+  # after a secret changed).
+  environment.etc."spudbox/env".text = lib.concatLines [
+    (lib.toShellVar "ALERT_UNITS" (setupUnits ++ jobUnits))
+    (lib.toShellVar "SETUP_UNITS" setupUnits)
+  ];
 }

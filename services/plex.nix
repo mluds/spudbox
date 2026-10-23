@@ -50,6 +50,9 @@ in
       # ProtectSystem, ...). RestrictNamespaces stays off, as upstream notes.
       plex.serviceConfig = {
         CapabilityBoundingSet = "";
+        # Plex sends its debug output to stdout too (~1,900 lines an hour) and
+        # keeps full logs in its own Logs dir; the journal gets info and up.
+        LogLevelMax = "info";
         ProtectProc = "invisible";
         ProtectKernelLogs = true;
         ProtectClock = true;

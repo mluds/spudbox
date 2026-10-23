@@ -114,6 +114,9 @@ Notes:
   the secrets into `/var/lib/secrets`, then runs
   `nixos-rebuild switch --flake .#spudbox-prod`. Uncommitted changes deploy fine
   (the revision ends in `-dirty`); committing is separate.
+- Setup oneshots run once per boot or unit change, not on every switch. If the
+  secrets copy changed anything, `deploy.sh` restarts all of them after the
+  switch (`SETUP_UNITS` in `/etc/spudbox/env`).
 
 ### Before committing
 

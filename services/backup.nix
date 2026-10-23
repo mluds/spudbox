@@ -52,10 +52,26 @@ in
       initialize = true;
       createWrapper = true;
       paths = [ "/var/lib" ];
+      # Things each app rebuilds or re-downloads by itself: caches, poster
+      # art, logs, and the apps' own backup copies (~1 GB, mostly Radarr's
+      # MediaCover). Plex's Metadata and Media stay: slow to regenerate.
       exclude = [
         "/var/lib/docker"
-        "/var/lib/plex/Plex Media Server/Cache"
         "/var/lib/systemd/coredump"
+        "/var/lib/plex/Plex Media Server/Cache"
+        "/var/lib/plex/Plex Media Server/Logs"
+        "/var/lib/plex/Plex Media Server/Crash Reports"
+        "/var/lib/plex/Plex Media Server/Plug-in Support/Caches"
+        "/var/lib/radarr/.config/Radarr/MediaCover"
+        "/var/lib/radarr/.config/Radarr/logs"
+        "/var/lib/radarr/.config/Radarr/Backups"
+        "/var/lib/sonarr/.config/NzbDrone/MediaCover"
+        "/var/lib/sonarr/.config/NzbDrone/logs"
+        "/var/lib/sonarr/.config/NzbDrone/Backups"
+        "/var/lib/plexpy/logs"
+        "/var/lib/plexpy/backups"
+        "/var/lib/bazarr/log"
+        "/var/lib/bazarr/backup"
       ];
       backupPrepareCommand = ''
         ${pkgs.coreutils}/bin/mkdir -p ${backupDir}

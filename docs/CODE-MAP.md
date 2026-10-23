@@ -44,11 +44,11 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | `services/homepage.nix` | Dashboard. Keys come through `LoadCredential`. |
 | `services/homebridge.nix` | Homebridge in Docker (pinned digest). `homebridge-config` does first setup (pinned `homebridge-dummy`) and checks the password. Avahi. |
 | `services/docker.nix` | Docker, used only by Homebridge. |
-| `services/backup.nix` | restic: nightly `/var/lib` backup to the HDD, then `restic copy` to Cloudflare R2. |
-| `services/drive-check.nix` | 5-minute timer that forces the HDD into standby when idle. `drive-status-http` serves JSON for homepage. |
+| `services/backup.nix` | restic: nightly `/var/lib` backup to the HDD, then `restic copy` to Cloudflare R2. Skips caches, poster art, logs and app-internal backups. |
+| `services/drive-check.nix` | 5-minute timer that forces the HDD into standby when idle, logging each spin-down and wake. `drive-status-http` serves JSON for homepage. |
 | `services/media-fixup.{nix,sh}` | 15-minute timer: DV5 to HDR10, hybrid DV8 strip, SRT `<font>` cleanup. x86_64 only. Sandboxed as user `media-fixup` (CAP_CHOWN only, writes only `/mnt/storage/data`). |
-| `services/notify.nix` | `notify-failure@` template: a Pushover alert with the journal tail. Attached to the oneshots, timers and backups through `onFailure`. |
-| `services/claude-code.nix` | Claude Code Remote Control, running as `luds`. |
+| `services/notify.nix` | Lists the setup oneshots and timer jobs. `notify-failure@` sends a Pushover alert with the journal tail when one fails. Setup oneshots get `RemainAfterExit` (run once per boot or change). Exports `ALERT_UNITS` and `SETUP_UNITS`. |
+| `services/claude-code.nix` | Claude Code Remote Control, running as `luds`. Never restarted by a switch (`restartIfChanged = false`). Its status-screen redraws are filtered from the journal. |
 | `services/servarr/mkArrConfig.nix` | Shared `sonarr-config`/`radarr-config` builder: login, indexer, SABnzbd, quality, custom formats, folder import. |
 | `services/servarr/{sonarr,radarr}.nix` | The apps plus their mkArrConfig args. Radarr also has the `radarr-auto-import` timer: skips permanently rejected files, tries each download once. |
 | `services/servarr/qualityDefinitions.nix` | Size limits and quality profiles. |
@@ -76,8 +76,11 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 
 **Config oneshots**
 
-- Most `*-config` units run on every boot and switch, so they must be idempotent.
-  So does `create-dirs`: an inactive oneshot is started again by every switch.
+- The setup oneshots (`SETUP_UNITS`: the `*-config` units, `create-dirs`,
+  `audiobookshelf-access`) run on every boot, so they must be idempotent. They
+  stay active afterwards (`RemainAfterExit`), so a switch re-runs only those
+  whose unit changed. `deploy.sh` re-runs all of them when a secret changed.
+  To re-apply one by hand: `sudo systemctl restart sonarr-config`.
 - `sonarr-config` and `radarr-config` empty the app's `Users` table, rewrite
   `config.xml` and restart the app every time. POSTs for things that already
   exist fail, and the script skips them on purpose.
@@ -95,6 +98,9 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 
 **Storage**
 
+- `journalctl -u check-drive-status` logs every HDD spin-down and wake. Use it
+  before blaming a timer for waking the disk. media-fixup's 15-minute scan was
+  measured at 0 disk reads (the directory tree stays cached).
 - `ensure-partition` only touches disks with no signature, because `/dev/sdX`
   names can move between boots.
 - Mounts are `nofail`. The local backup has `RequiresMountsFor`, so it never
@@ -117,9 +123,13 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
   `git describe --always --dirty > .revision`, then
   `nixos-rebuild switch --sudo --flake path:.#spudbox-prod`. A plain
   `.#` git flake fails there with libgit2 "object not found".
-- A switch re-runs the `*-config` oneshots, which restart Bazarr, Sonarr and
-  Radarr. Let them settle before running `test.sh`, or you get spurious port
-  failures.
+- A switch that changes a `*-config` unit re-runs it, and that restarts its
+  app (Sonarr, Radarr, Bazarr, Tautulli). Let them settle before running
+  `test.sh`, or you get spurious port failures.
+- `claude-remote-control` is never restarted by a switch, because the deploying
+  session lives in it. Changes to it apply at the next boot or after
+  `sudo systemctl restart claude-remote-control` over SSH, which ends running
+  Claude sessions.
 - Auto mode can block `nixos-rebuild` and even `test.sh` on prod. The
   `Bash(sudo systemd-run:*)` allow rule in `~/.claude/settings.json` skips the
   check, but only use it when the user has approved that step.

@@ -50,15 +50,24 @@ let
 
         LAST_ACCESS=$(cat "$TIMESTAMP_FILE" 2>/dev/null || echo "unknown")
 
-        # Determine spin state and force spindown when idle long enough
+        PREV_STATE=$(jq -r '.state // empty' "${statusDir}/status_$BLOCK_NAME.json" 2>/dev/null || true)
+
+        # Determine spin state and force spindown when idle long enough.
+        # The standby command goes out once, on the transition, and both
+        # transitions are logged: `journalctl -u check-drive-status` counts
+        # how often the drive wakes.
         if [ "$LAST_ACCESS" != "unknown" ]; then
           LAST_EPOCH=$(date -d "$LAST_ACCESS" +%s 2>/dev/null || echo 0)
           NOW_EPOCH=$(date -u +%s)
           IDLE_SECS=$(( NOW_EPOCH - LAST_EPOCH ))
           if [ "$IDLE_SECS" -ge ${toString spindownSeconds} ]; then
-            hdparm -y "$DEVICE" > /dev/null 2>&1 || true
+            if [ "$PREV_STATE" != standby ]; then
+              echo "$DEVICE: spinning down after ''${IDLE_SECS}s idle"
+              hdparm -y "$DEVICE" > /dev/null 2>&1 || true
+            fi
             STATE="standby"
           else
+            [ "$PREV_STATE" != standby ] || echo "$DEVICE: woke (I/O at $LAST_ACCESS)"
             STATE="active/idle"
           fi
         else
