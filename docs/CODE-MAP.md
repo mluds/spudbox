@@ -51,6 +51,7 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | `services/claude-code.nix` | Claude Code Remote Control, running as `luds`. Never restarted by a switch (`restartIfChanged = false`). Its status-screen redraws are filtered from the journal. |
 | `services/servarr/mkArrConfig.nix` | Shared `sonarr-config`/`radarr-config` builder: login, indexer, SABnzbd, quality, custom formats, folder import. |
 | `services/servarr/{sonarr,radarr}.nix` | The apps plus their mkArrConfig args. Radarr also has the `radarr-auto-import` timer: skips permanently rejected files, tries each download once. |
+| `services/servarr/arr-rescan.nix` | Weekly (Sun 02:45, after the backup) whole-library rescan in Sonarr and Radarr. Their scheduled metadata refresh no longer rescans the disk (`rescanAfterRefresh = "afterManual"`). |
 | `services/servarr/qualityDefinitions.nix` | Size limits and quality profiles. |
 | `services/servarr/set-config-xml.nix` | Writes secret files into `config.xml` without putting them on argv. |
 | `services/servarr/prowlarr.nix` | Prowlarr, **off** (`my.prowlarr.enable = false`; code kept). Enabling it restores its Caddy site, homepage tile, backup stop, alerts and tests. Add sandboxing when re-enabling (it scored 8.2). |

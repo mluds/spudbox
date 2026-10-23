@@ -43,7 +43,9 @@ let
     createEmptyMovieFolders = false;
     deleteEmptyFolders = false;
     fileDate = "none";
-    rescanAfterRefresh = "always";
+    # The disk rescan runs weekly instead (arr-rescan.nix), not after every
+    # 12-24 h metadata refresh.
+    rescanAfterRefresh = "afterManual";
     autoRenameFolders = false;
     pathsDefaultStatic = false;
     setPermissionsLinux = true;

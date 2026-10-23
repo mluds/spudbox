@@ -160,7 +160,7 @@ test_services() {
   if prowlarr_on; then check_service prowlarr.service; fi
 
   # Oneshots and timer jobs (services/notify.nix alerts on these)
-  for u in "${ALERT_UNITS[@]}" media-fixup; do
+  for u in "${ALERT_UNITS[@]}" media-fixup arr-rescan; do
     check_oneshot "$u.service"
   done
   # Setup oneshots stay active, so a switch doesn't re-run unchanged ones
@@ -169,7 +169,7 @@ test_services() {
   done
 
   # Timers
-  for u in sabnzbd-resume radarr-auto-import restic-backups-local check-drive-status media-fixup; do
+  for u in sabnzbd-resume radarr-auto-import restic-backups-local check-drive-status media-fixup arr-rescan; do
     check_service "$u.timer"
   done
 }
@@ -267,6 +267,9 @@ test_integrations() {
     check_json "$app download cleanup enabled" \
       '.[0].removeCompletedDownloads and .[0].removeFailedDownloads' "$app" downloadclient
   done
+  # The disk rescan is weekly (arr-rescan.timer), not after each metadata refresh
+  check_json "radarr rescans only on demand" '.rescanAfterRefresh == "afterManual"' radarr config/mediamanagement
+  check_json "sonarr rescans only on demand" '.rescanAfterRefresh == "afterManual"' sonarr config/mediamanagement
   check_json "radarr root folder" '.[0].path | test("movies")' radarr rootfolder
   check_json "sonarr root folder" '.[0].path | test("tv")' sonarr rootfolder
 
