@@ -82,14 +82,30 @@ new install's config, then commit it:
 ssh root@${HOST_IP} nixos-generate-config --show-hardware-config > hosts/prod-hardware.nix
 ```
 
-Now run these commands from the deployment host to install the full system:
+Now run these commands from the deployment host to install the full system. They
+do what `deploy.sh` does, as root (`luds` doesn't exist yet). The checkout must be
+git-crypt unlocked (see "Secrets"). The secrets go straight into the root-only
+`/var/lib/secrets`, never into `~/deploy`: that directory isn't a git checkout, so
+`nixos-rebuild` copies all of it into the world-readable Nix store. The users'
+password hashes are read from `/var/lib/secrets` too.
 ```bash
-ssh-keygen -R ${HOST_IP} && \
-scp -o StrictHostKeyChecking=accept-new -r ./* root@${HOST_IP}:~/deploy/ && \
-ssh root@${HOST_IP} "cd ~/deploy && nixos-rebuild switch --impure --flake .#${FLAKE}"
+ssh-keygen -R ${HOST_IP}
+ssh -o StrictHostKeyChecking=accept-new root@${HOST_IP} 'mkdir -p ~/deploy && install -d -m 700 /var/lib/secrets'
+COPYFILE_DISABLE=1 tar --exclude=./.git --exclude=./secrets -cf - . | ssh root@${HOST_IP} 'tar -xf - -C ~/deploy'
+git describe --always --dirty | ssh root@${HOST_IP} 'cat > ~/deploy/.revision'
+(cd secrets && find . -type f ! -path './users/*/plaintext' -print | COPYFILE_DISABLE=1 tar --format ustar -cf - -T -) |
+  ssh root@${HOST_IP} 'cd /var/lib/secrets && umask 077 && tar --no-same-owner --no-same-permissions -xf -'
+ssh root@${HOST_IP} "cd ~/deploy && nixos-rebuild switch --flake .#${FLAKE}"  # dev: add --impure
 ```
 
-After this, root login will be disabled and you must log in as one of the users in `my.users` (`environments/default.nix`), with its SSH key.
+After this, root login will be disabled and you must log in as one of the users in `my.users` (`environments/default.nix`), with its SSH key. From then on, use `./deploy.sh`.
+
+The backup secrets aren't in `secrets/`. Copy them from the password manager into
+`/var/lib/secrets` (root-only, 600) before the first nightly backup at 02:30:
+`restic/password`, `r2/s3-credentials.env`, `r2/account-id` and `r2/api-token`
+(see "Backups" in `CLAUDE.md`).
+
+Turn IPv6 off on the wired NetworkManager profile once (see "IPv6" in `CLAUDE.md`).
 
 ### Manual Steps
 
@@ -102,17 +118,31 @@ ssh -i ~/.ssh/spudbox -L 32400:localhost:32400 luds@192.168.1.42
 
 Then visit http://localhost:32400/web in a browser and follow the setup. (Plex _requires_ claiming from localhost)
 
-#### Sonarr
+Then re-run the setup units that use Plex:
+`sudo systemctl restart plex-config tautulli-config jellyseerr-config`.
 
-Open Sonarr. Go to Library Import, click the path, then click Import.
+#### Sonarr and Radarr
 
-#### Radarr
-
-Open Radarr. Go to Library Import, click the path, then click Import.
+Nothing to do: `sonarr-config` and `radarr-config` add the existing folders on
+disk. Any they couldn't match show up as `Not found:` in
+`journalctl -u sonarr-config` (or `radarr-config`). Import those by hand under
+Library Import.
 
 #### Jellyseerr
 
-Open Jellyseerr. Follow the setup steps. Plex, Sonarr, and Radarr settings should be pre-filled.
+Nothing to do: `jellyseerr-config` signs in with the Plex token, finishes the setup
+wizard, and adds Plex, Sonarr and Radarr.
+
+#### Audiobookshelf
+
+On a fresh install only, run the one-off setup (root account, Audiobooks library,
+login users). It refuses to run once the database has users:
+```
+sudo systemctl start audiobookshelf-config
+```
+It creates a login user only if a copy of its plaintext password is at
+`/var/lib/secrets/users/<name>/plaintext` (the deploy never copies these, and
+`create-dirs` deletes them the next time it runs).
 
 #### Claude Code
 

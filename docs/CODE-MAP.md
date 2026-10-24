@@ -14,23 +14,25 @@ Keeping it current:
 - **Finding something new:** add a row to *Open improvements*.
 - **Changing the layout** (new service, file or convention): update *Code outline* and *Notes*.
 
-Last full review: 2026-10-22, at commit `b0918aa`.
+Last full review: 2026-10-22, at commit `b0918aa`. Docs checked against the code
+and the server: 2026-10-24, at `c5bd3df`.
 
 ## Code outline
 
-One NixOS flake, about 5,400 lines. `configuration.nix` imports one module per
+One NixOS flake, about 5,600 lines. `configuration.nix` imports one module per
 service. Most services also have a `*-config` oneshot that sets up the app
-through its HTTP API, config file or SQLite DB on every boot and switch. Caddy is
+through its HTTP API, config file or SQLite DB on every boot, and on a switch
+that changes the unit. Caddy is
 the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 
 | Path | What it does |
 | --- | --- |
 | `flake.nix` | One `nixpkgs` input. Hosts `spudbox-prod` (x86_64) and `spudbox-dev` (aarch64). Hand-pinned Plex overlay. Sets `system.configurationRevision`. |
-| `hosts/prod-hardware.nix` | Prod's generated hardware config, so prod builds pure. Lint skips it; regenerate rather than edit. |
-| `configuration.nix` | Shared config: imports, packages, nix GC, SSH, sudo, firewall, users, IPv6 off. `create-dirs` oneshot: media dirs (non-recursive), secrets perms, deletes retired secrets. |
-| `storage.nix` | Formats blank XFS disks (`ensure-partition-*`), mounts them, pools them with mergerfs. hdparm udev rule. |
+| `hosts/prod-hardware.nix` | Prod's generated hardware config, so prod builds pure. statix and deadnix skip it; regenerate rather than edit. |
+| `configuration.nix` | Shared config: imports, packages, nix GC, SSH, sudo, firewall, users, IPv6 off. `create-dirs` oneshot: media dirs (non-recursive), secrets perms, deletes retired secrets. Exports `PASSWORD_SERVICES`. |
+| `storage.nix` | Mounts the XFS disks (`nofail`) and pools them with mergerfs. `ensure-partition-*` units format a blank disk, but nothing starts them: run one by hand for a new disk. hdparm udev rule. |
 | `common/vars.nix` | Typed `my.*` options (ports, dirs, drives, users, `prowlarr.enable`). |
-| `common/env.nix` | Writes `/etc/spudbox/env` (dirs, domain, `REVISION`, every `*_PORT`) for `test.sh` and `deploy.sh`. Modules append `CADDY_HOSTS`, `PASSWORD_SERVICES`, `ALERT_UNITS`, `PROWLARR_ENABLED`. |
+| `common/env.nix` | Writes `/etc/spudbox/env` (dirs, domain, `REVISION`, every `*_PORT`) for `test.sh` and `deploy.sh`. Modules append `CADDY_HOSTS`, `PASSWORD_SERVICES`, `ALERT_UNITS`, `SETUP_UNITS`, `PROWLARR_ENABLED`. |
 | `common/helpers.nix` | The `helpers` module arg: `read-secret`, `wait-for-http`. |
 | `environments/default.nix` | Ports, dirs, usenet hosts, users. `{prod,dev}.nix`: domain and drives per host. |
 | `services/caddy.nix` | Reverse proxy per subdomain, LAN-only (`remote_ip private_ranges`). Cloudflare DNS-challenge wildcard cert. `caddy-config` writes the token env file. Sandboxed: only `CAP_NET_BIND_SERVICE`. |
@@ -56,9 +58,9 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | `services/servarr/prowlarr.nix` | Prowlarr, **off** (`my.prowlarr.enable = false`; code kept). Enabling it restores its Caddy site, homepage tile, backup stop, alerts and tests. Add sandboxing when re-enabling (it scored 8.2). |
 | `services/servarr/bazarr.nix` + `bazarr-config.py` | Merges a YAML template into the config. Rewrites language profiles. |
 | `services/servarr/jellyseerr.nix` | seerr under a fixed user, sandboxed. First-run setup, Plex/arr links, Pushover. Email is gone. |
-| `deploy.sh` | Runs on the Mac: refuses a locked checkout, rsyncs the tree (no secrets) to prod `~/deploy`, writes `.revision`, streams secrets into `/var/lib/secrets` via tar, pure `nixos-rebuild switch`, wait, `test.sh`. |
+| `deploy.sh` | Runs on the Mac: refuses a locked checkout, rsyncs the tree (no secrets) to prod `~/deploy`, writes `.revision`, streams secrets into `/var/lib/secrets` via tar, pure `nixos-rebuild switch`, re-runs `SETUP_UNITS` if a secret changed, wait, `test.sh`. |
 | `test.sh` | About 260 server checks. |
-| `lint.sh` + `ruff.toml`, `_typos.toml`, `.gitleaks.toml` | statix, deadnix, nixfmt, shellcheck, ruff check/format, gitleaks, typos. The tools are in `environment.systemPackages`. Generated `hosts/*-hardware.nix` are skipped. |
+| `lint.sh` + `ruff.toml`, `_typos.toml`, `.gitleaks.toml` | statix, deadnix, nixfmt, shellcheck, ruff check/format, gitleaks, typos. The tools are in `environment.systemPackages`. statix and deadnix skip the generated `hosts/*-hardware.nix`. |
 | `scripts/generate-service-passwords.sh` | Creates and commits per-service passwords. Refuses if git-crypt is locked. |
 | `secrets/` | git-crypt encrypted. Deployed to `/var/lib/secrets`, root-only. Locked (ciphertext) in the checkout on prod. |
 
@@ -69,9 +71,12 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 - Never put a secret on argv. See `CLAUDE.md` "Script conventions".
 - Non-root units get secrets via `LoadCredential=`, never through group access.
 - Some secrets are generated at runtime and exported into `/var/lib/secrets` by
-  the `*-config` units: the Plex token and the arr, Tautulli, Jellyseerr,
-  SABnzbd and Audiobookshelf keys. Homepage starts after those units for this
-  reason.
+  the setup units: the Plex token and the Bazarr, Tautulli, Jellyseerr and
+  Audiobookshelf API keys (and Prowlarr's, when it's on). Homepage starts after
+  those units for this reason. The Sonarr, Radarr and SABnzbd keys come from
+  `secrets/`.
+- The backup secrets (`restic/password`, `r2/*`) aren't in `secrets/` at all;
+  they exist only on the server (see `CLAUDE.md` "Backups").
 - `users/*/plaintext` are recovery copies and are never deployed. `create-dirs`
   deletes them if they appear.
 
@@ -107,7 +112,8 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
   outside the apps show up only after a manual Refresh in the app.
   media-fixup asks for a rescan of each file it rewrites.
 - `ensure-partition` only touches disks with no signature, because `/dev/sdX`
-  names can move between boots.
+  names can move between boots. Nothing starts it (no `wantedBy`); see the open
+  item below.
 - Mounts are `nofail`. The local backup has `RequiresMountsFor`, so it never
   writes to the NVMe by mistake.
 - The WD Ultrastar ignores `hdparm -S`, so `check-drive-status` spins it down
@@ -142,7 +148,11 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 ## Open improvements
 
 All 21 items from the 2026-10-22 review are done (see *Done*). Add new
-findings here as rows: `| # | Priority | Recommendation | Where | Why | Status |`.
+findings here as rows.
+
+| # | Priority | Recommendation | Where | Why | Status |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Low | Either start `ensure-partition-*` before its mount (`wantedBy`/`before` the `.mount` unit) or drop it and document formatting a new disk by hand. | `storage.nix` | The units are defined but never run (found 2026-10-24), so a new blank disk isn't formatted; its `nofail` mount just fails. | Open |
 
 Follow-ups left by the review:
 
@@ -168,10 +178,10 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
-| 2026-10-24 | see git log | `lint.sh` also runs shellcheck, ruff (check + format), gitleaks and typos. First run fixed: `os.system` → `subprocess.run` in bazarr-config, an unclosed file in audiobookshelf-access, a silent `except: pass` in plex-config, import order and formatting. Allowlisted with reasons: Bazarr's MD5, localhost Plex URL/XML, `pash`/`serie` spellings. Git history scanned clean of secrets (39 commits). |
+| 2026-10-24 | `c5bd3df` | `lint.sh` also runs shellcheck, ruff (check + format), gitleaks and typos. First run fixed: `os.system` → `subprocess.run` in bazarr-config, an unclosed file in audiobookshelf-access, a silent `except: pass` in plex-config, import order and formatting. Allowlisted with reasons: Bazarr's MD5, localhost Plex URL/XML, `pash`/`serie` spellings. Git history scanned clean of secrets (39 commits). |
 | 2026-10-23 | `9ca27ce`, `73446fc` | Efficiency: setup oneshots run once per boot or change (`RemainAfterExit`) instead of every deploy restarting Sonarr/Radarr/Bazarr/Tautulli; `deploy.sh` re-runs them when a secret changed. Journal noise cut: claude-remote-control status redraws (~400k lines/day, filtered) and Plex debug. `claude-remote-control` never restarted by a switch. restic skips ~1 GB of caches/posters/logs. HDD spin-downs/wakes logged; standby sent once. Sonarr/Radarr no longer rescan the disk after each 12-24 h refresh (manual refresh only; a weekly rescan timer was tried and dropped). |
-| 2026-10-23 | see git log | Review items 5-21. Sandboxing for caddy (7.8 to 3.0), plex (7.0 to 4.0) and seerr (6.1 to 2.9). Shared `admin/password` and Gmail secrets retired. Prowlarr switched off (code kept). `radarr-auto-import` skips rejected files and tries each once (one item had looped 5,137 times). Python setup scripts: umask, timeouts, Bazarr key bug, ABS guard. All shell in `writeShellApplication`. `PASSWORD_SERVICES`/`ALERT_UNITS` generated for `test.sh`. Deployed revision recorded. `homebridge-dummy` pinned. hdparm rule documented. Prod builds pure (`hosts/prod-hardware.nix`). `inherit (config.my)` instead of `with`. Caddy sites LAN-only. |
-| 2026-10-23 | `0d9d571`, `432f58f`, see git log | Review items 1-4: media-fixup sandboxed as its own user (exposure 9.6 to 3.4); create-dirs no longer `chmod -R`s the library (3,157 files un-exec'd once); `notify-failure@` Pushover alerts on backups, oneshots and timers; `deploy.sh` refuses a locked checkout and streams secrets straight into `/var/lib/secrets`. |
+| 2026-10-23 | `a9ea58e` | Review items 5-21. Sandboxing for caddy (7.8 to 3.0), plex (7.0 to 4.0) and seerr (6.1 to 2.9). Shared `admin/password` and Gmail secrets retired. Prowlarr switched off (code kept). `radarr-auto-import` skips rejected files and tries each once (one item had looped 5,137 times). Python setup scripts: umask, timeouts, Bazarr key bug, ABS guard. All shell in `writeShellApplication`. `PASSWORD_SERVICES`/`ALERT_UNITS` generated for `test.sh`. Deployed revision recorded. `homebridge-dummy` pinned. hdparm rule documented. Prod builds pure (`hosts/prod-hardware.nix`). `inherit (config.my)` instead of `with`. Caddy sites LAN-only. |
+| 2026-10-22 | `0d9d571`, `432f58f`, `1140889` | Review items 1-4: media-fixup sandboxed as its own user (exposure 9.6 to 3.4); create-dirs no longer `chmod -R`s the library (3,157 files un-exec'd once); `notify-failure@` Pushover alerts on backups, oneshots and timers; `deploy.sh` refuses a locked checkout and streams secrets straight into `/var/lib/secrets`. |
 | 2026-10-22 | `b0918aa` | media-fixup (DV5 to HDR10, hybrid DV8 strip, SRT font tags). Arrs reject DV-without-HDR releases. |
 | 2026-10-21 | `105e0bc` | Tidy-up: shared `helpers`, typed `my.*` options, generated `/etc/spudbox/env`, shared `mkArrConfig`. |
 | 2026-10-21 | `05d3b63` | Prowlarr login set through its API (salted PBKDF2). Three `test.sh` fixes. |

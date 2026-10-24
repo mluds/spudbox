@@ -28,12 +28,14 @@ homebridge). Almost every package version flows from a single
   values; `environments/{prod,dev}.nix` — per-host domain and drives.
 - `common/env.nix` — writes `/etc/spudbox/env` (dirs, domain, `REVISION`, every
   `my.*Port` as `FOO_PORT`; modules append `CADDY_HOSTS`, `PASSWORD_SERVICES`,
-  `ALERT_UNITS`, `PROWLARR_ENABLED`); `test.sh` and the `deploy.sh` wait loop
-  source it instead of hard-coding ports and service lists.
+  `ALERT_UNITS`, `SETUP_UNITS`, `PROWLARR_ENABLED`); `test.sh` and `deploy.sh`
+  (wait loop, setup re-runs) source it instead of hard-coding ports and service
+  lists.
 - `common/helpers.nix` — the `helpers` module argument: `read-secret NAME`
   and `wait-for-http URL [INTERVAL]`, for scripts' `runtimeInputs`.
 - `services/**` — one file per service, each typically defining the NixOS
-  service plus a `*-config` oneshot that configures it via its HTTP API on boot.
+  service plus a `*-config` oneshot that configures it via its HTTP API, config
+  file or DB on boot (and on a switch that changes it).
   Sonarr and Radarr share theirs (`services/servarr/mkArrConfig.nix`).
 - `services/media-fixup.{nix,sh}` — a 15-minute timer that rewrites newly
   imported videos some Plex clients can't play: Dolby Vision profile 5 →
@@ -101,11 +103,12 @@ ethernet profile still has IPv6 enabled.
 ## Deploying
 
 ```bash
-./deploy.sh          # sync → rebuild switch → wait for services → test.sh  (default)
+./deploy.sh          # sync → rebuild switch → wait for services → test.sh  (default; same as `all`)
 ./deploy.sh switch   # sync → rebuild switch (no tests)
 ./deploy.sh sync     # rsync working tree to ~/deploy on the server, no rebuild
 ./deploy.sh test     # run test.sh on the server
 ./deploy.sh lint     # sync + lint.sh (Nix, shell, Python, secrets, spelling)
+./deploy.sh ssh      # shell on prod
 ```
 
 Notes:
@@ -149,7 +152,7 @@ Everything from `nixpkgs` upgrades together by moving the flake input. **Nix is
 not installed on the Mac** — `flake.lock` must be regenerated on a machine that
 has Nix (the server does, at `192.168.1.42`).
 
-1. Bump the channel in `flake.nix`, e.g. `nixos-25.11` → `nixos-26.05`.
+1. Bump the channel in `flake.nix`, e.g. `nixos-26.05` → `nixos-26.11`.
 2. Regenerate the lock **on the server** (no local nix), then pull it back:
    ```bash
    KEY=~/.ssh/spudbox HOST=luds@192.168.1.42 TMP=/tmp/spudbox-lock
@@ -201,7 +204,7 @@ A big jump won't be a clean one-shot. Expected failure classes, all seen on the
   upgrade (step 5 above). Procedure:
   1. Get the latest version string from the Plex downloads API:
      `curl -s https://plex.tv/api/downloads/5.json | jq -r '.computer.Linux.version'`
-     (e.g. `1.43.3.10828-00f62d37d`).
+     (e.g. `1.43.4.10903-e5521bd8c`, the current pin).
   2. Get the SRI hashes of the `.deb`s by prefetching on the server — `amd64`
      for prod (x86_64) and `arm64` for dev (aarch64):
      ```bash
@@ -228,8 +231,9 @@ A big jump won't be a clean one-shot. Expected failure classes, all seen on the
 ## Backups
 
 `services/backup.nix` — restic, nightly at 02:30, backs up `/var/lib` (app
-configs + DBs, ~5 GB; excludes Docker images and the Plex cache). Media is not
-backed up.
+configs + DBs, ~4 GB; excludes Docker images, coredumps, and what the apps
+rebuild themselves: the Plex cache, logs, poster art, the apps' own backups).
+Media is not backed up.
 
 - **local** — `/mnt/storage/backups/restic` on the HDD. Services are stopped for
   the backup and restarted afterwards (even on failure).
@@ -240,7 +244,10 @@ backed up.
 Secrets (root-only, in `/var/lib/secrets`): `restic/password` (shared by both
 repos — **without it nothing can be restored; keep it in the password
 manager**), `r2/s3-credentials.env` (R2 S3 keys), `r2/account-id`,
-`r2/api-token` (the Cloudflare token the S3 keys are derived from).
+`r2/api-token` (the Cloudflare token the S3 keys are derived from). These four
+are **not in `secrets/`**: they exist only on the server, so `deploy.sh` never
+touches them, and a reinstalled server needs them copied back by hand (see
+README "Installation").
 
 Restoring — `restic-local` / `restic-r2` are wrappers with the repo and
 credentials preset:
@@ -253,11 +260,12 @@ sudo restic-local restore latest --target /tmp/restore --include /var/lib/sonarr
 
 If the server is gone, restore from R2 on any machine with restic: repo
 `s3:https://8b37a4bbd0f5e7e52c56476fd07bc4f8.r2.cloudflarestorage.com/spudbox-backups`,
-the `AWS_*` values from `r2/s3-credentials.env`, and the restic password.
+the `AWS_*` values from `r2/s3-credentials.env`, and the restic password. Both
+live only on the server, so this works only if the password manager has copies.
 
 ## Verifying
 
-`./deploy.sh test` runs `test.sh` on the server — ~190 checks across services,
+`./deploy.sh test` runs `test.sh` on the server — ~260 checks across services,
 ports, HTTP health, config integration, storage, and security. A
 green run (`N passed, 0 failed`) is the bar for a good deploy. The deploy's
 built-in wait loop polls the main service ports before tests run.
