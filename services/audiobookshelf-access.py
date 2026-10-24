@@ -81,7 +81,8 @@ def homepage_user(token):
 
 def key_is_valid():
     try:
-        key = open(KEY_FILE).read().strip()
+        with open(KEY_FILE) as f:
+            key = f.read().strip()
     except FileNotFoundError:
         return False
     r = requests.get(f"{BASE}/api/me", headers=bearer(key), timeout=10)

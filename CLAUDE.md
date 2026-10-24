@@ -105,7 +105,7 @@ ethernet profile still has IPv6 enabled.
 ./deploy.sh switch   # sync → rebuild switch (no tests)
 ./deploy.sh sync     # rsync working tree to ~/deploy on the server, no rebuild
 ./deploy.sh test     # run test.sh on the server
-./deploy.sh lint     # sync + lint.sh (statix, deadnix, nixfmt)
+./deploy.sh lint     # sync + lint.sh (Nix, shell, Python, secrets, spelling)
 ```
 
 Notes:
@@ -122,8 +122,12 @@ Notes:
 
 There are no git hooks — run these manually before every commit:
 
-- **Lint**: `./deploy.sh lint` — syncs and runs `lint.sh` (statix, deadnix,
-  nixfmt).
+- **Lint**: `./deploy.sh lint` — syncs and runs `lint.sh`: statix, deadnix,
+  nixfmt (Nix); shellcheck (the `*.sh` files); `ruff check` and `ruff format`
+  (Python, `ruff.toml`); gitleaks (plaintext secrets, `.gitleaks.toml`); typos
+  (spelling, `_typos.toml`). Fix formatting with `nixfmt $(find . -name '*.nix')`
+  and `ruff format .`. Allowlist a deliberate finding in that tool's config, or
+  `# noqa: <code>` with a reason, rather than switching a rule off.
 - **Test**: `./deploy.sh all` — deploys and runs `test.sh`; or `./deploy.sh test`
   if the current code is already deployed.
 

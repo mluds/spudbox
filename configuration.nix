@@ -124,9 +124,14 @@ in
     curl
     hdparm
     lsof
+    # lint.sh
     statix
     deadnix
     nixfmt
+    shellcheck
+    ruff
+    gitleaks
+    typos
     git
     gh
     tmux

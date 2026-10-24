@@ -9,35 +9,47 @@ FAIL_COUNT=0
 pass() { PASS_COUNT=$((PASS_COUNT + 1)); printf "  \033[32mPASS\033[0m  %s\n" "$1"; }
 fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); printf "  \033[31mFAIL\033[0m  %s\n" "$1"; }
 
-printf "\n\033[1m── Lint ──\033[0m\n"
+# check LABEL CMD...: pass if CMD succeeds and prints nothing, else show its output.
+# The tools are in environment.systemPackages (configuration.nix).
+check() {
+  local label=$1 output
+  shift
+  if ! command -v "$1" >/dev/null; then
+    fail "$label ($1 not installed)"
+  elif output=$("$@" 2>&1) && [ -z "$output" ]; then
+    pass "$label"
+  else
+    fail "$label"
+    echo "$output" | head -30
+  fi
+}
 
 # hosts/*-hardware.nix come from nixos-generate-config; keep them as generated.
 mapfile -t generated < <(find hosts -name '*-hardware.nix' 2>/dev/null)
-
-# statix — nix anti-pattern linter
-if output=$(statix check . --ignore "${generated[@]}" 2>&1) && [ -z "$output" ]; then
-  pass "statix"
-else
-  fail "statix"
-  echo "$output" | head -20
-fi
-
-# deadnix — unused code detector
-if output=$(deadnix -f --exclude "${generated[@]}" -- . 2>&1) && [ -z "$output" ]; then
-  pass "deadnix"
-else
-  fail "deadnix"
-  echo "$output" | head -20
-fi
-
-# nixfmt — formatting check (find, not ./**/*.nix: bash has globstar off, so ** only matched one level deep)
+# find, not ./**: bash has globstar off, so ** only matches one level deep
 mapfile -t nix_files < <(find . -name '*.nix' -not -path './.git/*' | sort)
-if output=$(nixfmt --check "${nix_files[@]}" 2>&1); then
-  pass "nixfmt (${#nix_files[@]} files)"
-else
-  fail "nixfmt (run 'nixfmt \$(find . -name \"*.nix\")' to fix)"
-  echo "$output" | head -20
-fi
+mapfile -t sh_files < <(find . -name '*.sh' -not -path './.git/*' | sort)
+
+printf "\n\033[1m── Nix ──\033[0m\n"
+check "statix (anti-patterns)" statix check . --ignore "${generated[@]}"
+check "deadnix (unused code)" deadnix -f --exclude "${generated[@]}" -- .
+# --quiet: nixfmt --check prints nothing when all is well
+check "nixfmt (${#nix_files[@]} files; fix: nixfmt \$(find . -name '*.nix'))" \
+  nixfmt --check --quiet "${nix_files[@]}"
+
+printf "\n\033[1m── Shell ──\033[0m\n"
+# Scripts built with writeShellApplication are also checked at build time;
+# these run as-is (deploy.sh, test.sh, ...). media-fixup.sh has no shebang.
+check "shellcheck (${#sh_files[@]} files)" shellcheck --shell=bash "${sh_files[@]}"
+
+printf "\n\033[1m── Python ──\033[0m\n"
+check "ruff check (config: ruff.toml)" ruff check --quiet --output-format concise .
+check "ruff format (fix: ruff format .)" ruff format --check --quiet .
+
+printf "\n\033[1m── Repo ──\033[0m\n"
+check "gitleaks (no plaintext secrets; config: .gitleaks.toml)" \
+  gitleaks dir --no-banner --redact --log-level error .
+check "typos (spelling; config: _typos.toml)" typos --format brief .
 
 printf "\n\033[1m── Summary ──\033[0m\n"
 if [ "$FAIL_COUNT" -eq 0 ]; then

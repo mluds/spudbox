@@ -1,8 +1,10 @@
 import hashlib
-import sqlite3
-import yaml
 import os
+import sqlite3
+import subprocess
 import time
+
+import yaml
 from deepmerge import always_merger
 
 SECRETS_DIR = os.environ["SECRETS_DIR"]
@@ -53,7 +55,7 @@ for key, service in services:
     key_path = f"{SECRETS_DIR}/{service}/api-key"
     wait_for_file(key_path)
 
-    with open(key_path, "r") as f:
+    with open(key_path) as f:
         api_key = f.read().strip()
     if key in new_config:
         new_config[key]["apikey"] = api_key
@@ -67,9 +69,9 @@ opensubtitles_password_path = f"{SECRETS_DIR}/opensubtitles/password"
 wait_for_file(opensubtitles_username_path)
 wait_for_file(opensubtitles_password_path)
 
-with open(opensubtitles_username_path, "r") as f:
+with open(opensubtitles_username_path) as f:
     opensubtitles_username = f.read().strip()
-with open(opensubtitles_password_path, "r") as f:
+with open(opensubtitles_password_path) as f:
     opensubtitles_password = f.read().strip()
 
 # Update OpenSubtitles configuration
@@ -86,10 +88,11 @@ else:
 
 # Read admin credentials from files
 
-with open(f"{SECRETS_DIR}/admin/username", "r") as f:
+with open(f"{SECRETS_DIR}/admin/username") as f:
     admin_username = f.read().strip()
-with open(f"{SECRETS_DIR}/bazarr/password", "r") as f:
-    admin_password_md5 = hashlib.md5(f.read().strip().encode()).hexdigest()
+with open(f"{SECRETS_DIR}/bazarr/password") as f:
+    # Bazarr stores and checks an unsalted MD5; its format, not our choice
+    admin_password_md5 = hashlib.md5(f.read().strip().encode()).hexdigest()  # noqa: S324
 new_config.setdefault("auth", {})
 new_config["auth"]["type"] = "form"
 new_config["auth"]["username"] = admin_username
@@ -98,16 +101,16 @@ new_config["auth"]["password"] = admin_password_md5
 # Read ASSRT token from secrets
 assrt_token_path = f"{SECRETS_DIR}/assrt/api-token"
 if os.path.exists(assrt_token_path):
-    with open(assrt_token_path, "r") as f:
+    with open(assrt_token_path) as f:
         new_config.setdefault("assrt", {})
         new_config["assrt"]["token"] = f.read().strip()
 
 wait_for_file(config_path)
 
-os.system("systemctl stop bazarr")
+subprocess.run(["systemctl", "stop", "bazarr"], check=True)
 
 try:
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         existing_config = yaml.safe_load(f) or {}
 except FileNotFoundError:
     existing_config = {}
@@ -162,13 +165,13 @@ cursor.execute(
 )
 conn.commit()
 
-os.system("systemctl start bazarr")
+subprocess.run(["systemctl", "start", "bazarr"], check=True)
 
 # Export the actual API key to secrets for homepage
 os.umask(0o077)  # a new secret file is 0600 from the start
 api_key_dir = f"{SECRETS_DIR}/bazarr"
 os.makedirs(api_key_dir, exist_ok=True)
-with open(config_path, "r") as f:
+with open(config_path) as f:
     final_config = yaml.safe_load(f) or {}
 api_key = final_config.get("auth", {}).get("apikey", "")
 with open(os.path.join(api_key_dir, "api-key"), "w") as f:

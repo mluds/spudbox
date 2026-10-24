@@ -110,7 +110,9 @@ def reset_root_user(username, token):
 
 def create_library(headers):
     lib_name = "Audiobooks"
-    libraries = requests.get(f"{BASE_URL}/api/libraries", headers=headers, timeout=30).json()["libraries"]
+    libraries = requests.get(f"{BASE_URL}/api/libraries", headers=headers, timeout=30).json()[
+        "libraries"
+    ]
     if any(lib["name"] == lib_name for lib in libraries):
         print("Audiobooks library already exists")
         return
@@ -122,10 +124,14 @@ def create_library(headers):
         "mediaType": "book",
         "provider": "google",
     }
-    response = requests.post(f"{BASE_URL}/api/libraries", headers=headers, json=new_library, timeout=30)
+    response = requests.post(
+        f"{BASE_URL}/api/libraries", headers=headers, json=new_library, timeout=30
+    )
     response.raise_for_status()
     library_id = response.json()["id"]
-    response = requests.post(f"{BASE_URL}/api/libraries/{library_id}/scan", headers=headers, timeout=30)
+    response = requests.post(
+        f"{BASE_URL}/api/libraries/{library_id}/scan", headers=headers, timeout=30
+    )
     response.raise_for_status()
     print("Library created successfully!")
 
@@ -153,7 +159,9 @@ def create_users(headers):
             "type": "admin" if user["superuser"] else "user",
             "isActive": True,
         }
-        response = requests.post(f"{BASE_URL}/api/users", headers=headers, json=new_user, timeout=30)
+        response = requests.post(
+            f"{BASE_URL}/api/users", headers=headers, json=new_user, timeout=30
+        )
         response.raise_for_status()
         print(f"Created user {username}")
 
@@ -161,7 +169,9 @@ def create_users(headers):
 def main():
     existing = user_count()
     if existing and os.getenv("ABS_FORCE") != "1":
-        sys.exit(f"Refusing: the database has {existing} user(s), which this would delete. Set ABS_FORCE=1 to override.")
+        sys.exit(
+            f"Refusing: the database has {existing} user(s), which this would delete. Set ABS_FORCE=1 to override."
+        )
 
     username = read_secret("admin/username")
     # A forged root token, used only for this setup's own API calls.

@@ -1,12 +1,12 @@
-from os import getenv, path, urandom, makedirs, walk, lstat, chmod, umask
-from stat import S_IMODE, S_ISLNK
 import configparser
-from base64 import b64encode
-from hashlib import pbkdf2_hmac
-from urllib.request import urlopen
-from xml.etree import ElementTree
 import subprocess
 import time
+from base64 import b64encode
+from hashlib import pbkdf2_hmac
+from os import chmod, getenv, lstat, makedirs, path, umask, urandom, walk
+from stat import S_IMODE, S_ISLNK
+from urllib.request import urlopen
+from xml.etree import ElementTree
 
 
 def main():
@@ -78,15 +78,16 @@ def make_hash(password):
 
 def read_plex_token():
     token_path = f"{getenv('SECRETS_DIR')}/plex/token"
-    with open(token_path, "r") as f:
+    with open(token_path) as f:
         return f.read().strip()
 
 
 def get_plex_identity():
     plex_port = getenv("PLEX_PORT")
     url = f"http://127.0.0.1:{plex_port}/identity"
-    response = urlopen(url, timeout=30)
-    tree = ElementTree.parse(response)
+    # A fixed http://127.0.0.1 URL to the local Plex, not user input
+    response = urlopen(url, timeout=30)  # noqa: S310
+    tree = ElementTree.parse(response)  # noqa: S314
     root = tree.getroot()
     return {
         "machineIdentifier": root.get("machineIdentifier", ""),
@@ -106,9 +107,9 @@ def update_config(plex_token, plex_identity):
     if not parser.has_section("PMS"):
         parser.add_section("PMS")
 
-    with open(getenv("TAUTULLI_ADMIN_USERNAME_FILE"), "r") as f:
+    with open(getenv("TAUTULLI_ADMIN_USERNAME_FILE")) as f:
         parser["General"]["http_username"] = f.read().strip()
-    with open(getenv("TAUTULLI_ADMIN_PASSWORD_FILE"), "r") as f:
+    with open(getenv("TAUTULLI_ADMIN_PASSWORD_FILE")) as f:
         parser["General"]["http_password"] = make_hash(f.read().strip())
     parser["General"]["http_host"] = "127.0.0.1"  # loopback only; reached through Caddy
     parser["General"]["http_port"] = getenv("TAUTULLI_PORT")

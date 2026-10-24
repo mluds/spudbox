@@ -1,0 +1,4 @@
+# typos, run by lint.sh. Words below are other programs' identifiers.
+[default.extend-words]
+pash = "pash"   # Audiobookshelf's password-hash column (users.pash)
+serie = "serie" # Bazarr settings: serie_default_enabled, serie_default_profile

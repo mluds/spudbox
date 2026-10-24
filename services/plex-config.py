@@ -1,14 +1,15 @@
 import os
 from os import getenv
 from urllib.parse import urlencode
+
 import requests
-from plexapi.server import PlexServer
-from plexapi.myplex import MyPlexAccount
 from plexapi.exceptions import NotFound
+from plexapi.myplex import MyPlexAccount
+from plexapi.server import PlexServer
 
 
 def read_file(path):
-    with open(path, "r") as f:
+    with open(path) as f:
         return f.read().strip()
 
 
@@ -20,8 +21,8 @@ def get_token(plex_url, token_path, username_file, password_file):
             PlexServer(plex_url, token)
             print("Existing token is valid, skipping sign-in")
             return token
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Saved token unusable ({type(e).__name__}); signing in again")
 
     # Token missing or invalid, sign in
     print("Signing in to Plex...")

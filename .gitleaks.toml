@@ -1,0 +1,8 @@
+# gitleaks, run by lint.sh: the default rules, minus secrets/, which git-crypt
+# encrypts (an unlocked checkout holds plaintext there on purpose).
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "git-crypt encrypted secrets"
+paths = ['''(^|/)secrets/''']
