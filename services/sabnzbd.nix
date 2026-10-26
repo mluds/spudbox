@@ -117,8 +117,8 @@ in
 
       sabnzbd-resume = {
         description = "Resume SABnzbd if paused";
+        # No Requires=: the nightly backup stops SABnzbd (see radarr-auto-import).
         after = [ "sabnzbd.service" ];
-        requires = [ "sabnzbd.service" ];
         serviceConfig = {
           Type = "oneshot";
           # Unprivileged; the API key arrives via LoadCredential and is sent
@@ -139,7 +139,11 @@ in
                 KEY=$(tr -d '\n' < "$CREDENTIALS_DIRECTORY/sabnzbd-api-key")
                 printf 'mode=queue&output=json&apikey=%s' "$KEY" > "$RUNTIME_DIRECTORY/queue"
                 printf 'mode=resume&output=json&apikey=%s' "$KEY" > "$RUNTIME_DIRECTORY/resume"
-                PAUSED=$(curl -sS --fail -d @"$RUNTIME_DIRECTORY/queue" "$API" | jq -r '.queue.paused')
+                if ! QUEUE=$(curl -sS --fail -d @"$RUNTIME_DIRECTORY/queue" "$API"); then
+                  echo "SABnzbd not reachable; will retry"
+                  exit 0
+                fi
+                PAUSED=$(jq -r '.queue.paused' <<< "$QUEUE")
                 if [ "$PAUSED" = "true" ]; then
                   echo "SABnzbd is paused, resuming..."
                   curl -sS --fail -o /dev/null -d @"$RUNTIME_DIRECTORY/resume" "$API"

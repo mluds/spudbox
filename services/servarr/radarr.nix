@@ -86,11 +86,12 @@ let
         while read -r item; do
           DOWNLOAD_ID=$(jq -r '.downloadId' <<< "$item")
           grep -qxF "$DOWNLOAD_ID" "$TRIED" && continue
-          echo "$DOWNLOAD_ID" >> "$TRIED"
           MOVIE_ID=$(jq '.movieId' <<< "$item")
           TITLE=$(jq -r '.title' <<< "$item")
 
+          # Marked only once Radarr answers, so a stop mid-run (the backup) doesn't use up the try.
           CANDIDATES=$(api "$API/manualimport?downloadId=$DOWNLOAD_ID&movieId=$MOVIE_ID") || continue
+          echo "$DOWNLOAD_ID" >> "$TRIED"
           FILES=$(jq -c --argjson mid "$MOVIE_ID" \
             '[.[] | select(all(.rejections[]?; .type != "permanent")) | . + {movieId: $mid}]' <<< "$CANDIDATES")
           if [ "$(jq length <<< "$FILES")" -eq 0 ]; then
@@ -139,8 +140,10 @@ in
 
       radarr-auto-import = {
         description = "Auto-import blocked Radarr downloads";
+        # No Requires=: the nightly backup stops Radarr, and that would kill a
+        # run in progress (an alert) or let a run start Radarr mid-backup. The
+        # script exits 0 when Radarr is down.
         after = [ "radarr.service" ];
-        requires = [ "radarr.service" ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = lib.getExe autoImportScript;

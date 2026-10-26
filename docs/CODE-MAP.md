@@ -39,7 +39,7 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | `services/hardening.nix` | Shared systemd sandbox settings, merged into units that handle untrusted input. |
 | `services/plex.nix` + `plex-config.py` | Plex (GPU-only device access, no capabilities), plus libraries, token sign-in and remote-access settings. |
 | `services/tautulli.nix` + `tautulli-config.py` | Rewrites `config.ini` (login hash, Plex link). Exports the API key. |
-| `services/sabnzbd.nix` | SABnzbd via NixOS `settings` + `secretValues`. Hourly `sabnzbd-resume`. |
+| `services/sabnzbd.nix` | SABnzbd via NixOS `settings` + `secretValues`. Hourly `sabnzbd-resume` (no `Requires=`; exits 0 if SABnzbd is down). |
 | `services/transmission.nix` | Transmission 4 + Flood UI. RPC credentials built in `ExecStartPre`. |
 | `services/audiobookshelf.nix` + `audiobookshelf-access.py` | Every boot: checks the root password, issues homepage's read-only API key. |
 | `services/audiobookshelf-config.py` | One-off, started by hand: seeds the root user in SQLite, library, users. Refuses if users exist, unless `ABS_FORCE=1`. |
@@ -52,7 +52,7 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | `services/notify.nix` | Lists the setup oneshots and timer jobs. `notify-failure@` sends a Pushover alert with the journal tail when one fails. Setup oneshots get `RemainAfterExit` (run once per boot or change). Exports `ALERT_UNITS` and `SETUP_UNITS`. |
 | `services/claude-code.nix` | Claude Code Remote Control, running as `luds`. Never restarted by a switch (`restartIfChanged = false`). Its status-screen redraws are filtered from the journal. |
 | `services/servarr/mkArrConfig.nix` | Shared `sonarr-config`/`radarr-config` builder: login, indexer, SABnzbd, quality, custom formats, folder import. |
-| `services/servarr/{sonarr,radarr}.nix` | The apps plus their mkArrConfig args. Radarr also has the `radarr-auto-import` timer: skips permanently rejected files, tries each download once. The scheduled metadata refresh doesn't rescan the disk (`rescanAfterRefresh = "afterManual"`): files changed outside the apps show up after a manual refresh. |
+| `services/servarr/{sonarr,radarr}.nix` | The apps plus their mkArrConfig args. Radarr also has the `radarr-auto-import` timer: skips permanently rejected files, tries each download once, and has no `Requires=` on Radarr (exits 0 if it's down). The scheduled metadata refresh doesn't rescan the disk (`rescanAfterRefresh = "afterManual"`): files changed outside the apps show up after a manual refresh. |
 | `services/servarr/qualityDefinitions.nix` | Size limits and quality profiles. |
 | `services/servarr/set-config-xml.nix` | Writes secret files into `config.xml` without putting them on argv. |
 | `services/servarr/prowlarr.nix` | Prowlarr, **off** (`my.prowlarr.enable = false`; code kept). Enabling it restores its Caddy site, homepage tile, backup stop, alerts and tests. Add sandboxing when re-enabling (it scored 8.2). |
@@ -114,6 +114,10 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 - `ensure-partition` only touches disks with no signature, because `/dev/sdX`
   names can move between boots. Nothing starts it (no `wantedBy`); see the open
   item below.
+- The backup stops the apps at 02:30. A timer job that talks to one of them
+  must not have `Requires=` on it: the stop kills a run in progress (a
+  `notify-failure@` alert) and a run can start the app again mid-backup. Use
+  `after` alone and exit 0 when the app doesn't answer.
 - Mounts are `nofail`. The local backup has `RequiresMountsFor`, so it never
   writes to the NVMe by mistake.
 - The WD Ultrastar ignores `hdparm -S`, so `check-drive-status` spins it down
@@ -152,6 +156,7 @@ findings here as rows.
 
 | # | Priority | Recommendation | Where | Why | Status |
 | --- | --- | --- | --- | --- | --- |
+| 2 | Low | Stop the nightly backup deactivating `plex-config`: `wants` instead of `requires = [ "plex.service" ]`, or re-start it in `backupCleanupCommand`. | `services/plex.nix`, `services/backup.nix` | The backup's `systemctl stop plex` propagates through `Requires=` (found 2026-10-26). It isn't an alert, but `plex-config` stays inactive until the next switch, so `test.sh`'s "stays active" check fails between a backup and a deploy. | Open |
 | 1 | Low | Either start `ensure-partition-*` before its mount (`wantedBy`/`before` the `.mount` unit) or drop it and document formatting a new disk by hand. | `storage.nix` | The units are defined but never run (found 2026-10-24), so a new blank disk isn't formatted; its `nofail` mount just fails. | Open |
 
 Follow-ups left by the review:
@@ -178,6 +183,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-10-26 | see `git log` | Nightly `radarr-auto-import` alert fixed: the 02:30 backup stopped Radarr, and `Requires=` killed the run the timer had just started. Dropped `Requires=` from it and `sabnzbd-resume` (which now exits 0 when SABnzbd is down too). Auto-import marks a download tried only once Radarr answers. |
 | 2026-10-24 | `c5bd3df` | `lint.sh` also runs shellcheck, ruff (check + format), gitleaks and typos. First run fixed: `os.system` → `subprocess.run` in bazarr-config, an unclosed file in audiobookshelf-access, a silent `except: pass` in plex-config, import order and formatting. Allowlisted with reasons: Bazarr's MD5, localhost Plex URL/XML, `pash`/`serie` spellings. Git history scanned clean of secrets (39 commits). |
 | 2026-10-23 | `9ca27ce`, `73446fc` | Efficiency: setup oneshots run once per boot or change (`RemainAfterExit`) instead of every deploy restarting Sonarr/Radarr/Bazarr/Tautulli; `deploy.sh` re-runs them when a secret changed. Journal noise cut: claude-remote-control status redraws (~400k lines/day, filtered) and Plex debug. `claude-remote-control` never restarted by a switch. restic skips ~1 GB of caches/posters/logs. HDD spin-downs/wakes logged; standby sent once. Sonarr/Radarr no longer rescan the disk after each 12-24 h refresh (manual refresh only; a weekly rescan timer was tried and dropped). |
 | 2026-10-23 | `a9ea58e` | Review items 5-21. Sandboxing for caddy (7.8 to 3.0), plex (7.0 to 4.0) and seerr (6.1 to 2.9). Shared `admin/password` and Gmail secrets retired. Prowlarr switched off (code kept). `radarr-auto-import` skips rejected files and tries each once (one item had looped 5,137 times). Python setup scripts: umask, timeouts, Bazarr key bug, ABS guard. All shell in `writeShellApplication`. `PASSWORD_SERVICES`/`ALERT_UNITS` generated for `test.sh`. Deployed revision recorded. `homebridge-dummy` pinned. hdparm rule documented. Prod builds pure (`hosts/prod-hardware.nix`). `inherit (config.my)` instead of `with`. Caddy sites LAN-only. |
