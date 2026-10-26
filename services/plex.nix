@@ -58,6 +58,26 @@ in
         ProtectClock = true;
         ProtectHostname = true;
         SystemCallArchitectures = "native";
+        # The main process is the FHS env's bwrap, not Plex. The module's
+        # KillSignal (SIGQUIT, to the whole cgroup) made bwrap dump core (the
+        # unit ended "failed") and, through --die-with-parent, SIGKILL Plex
+        # mid-shutdown, so its transcoder and EasyAudioEncode were left until
+        # the 90 s stop timeout. Signal only Plex (bwrap's one child) and wait:
+        # it stops its own helpers, and bwrap exits with it. Anything left
+        # still gets KillSignal afterwards.
+        ExecStop = lib.getExe (
+          pkgs.writeShellApplication {
+            name = "plex-stop";
+            runtimeInputs = with pkgs; [
+              coreutils
+              procps
+            ];
+            text = ''
+              pkill -QUIT -P "''${MAINPID:-0}" || exit 0
+              while kill -0 "$MAINPID" 2>/dev/null; do sleep 0.2; done
+            '';
+          }
+        );
       };
 
       plex-config = {

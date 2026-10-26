@@ -37,7 +37,7 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | `environments/default.nix` | Ports, dirs, usenet hosts, users. `{prod,dev}.nix`: domain and drives per host. |
 | `services/caddy.nix` | Reverse proxy per subdomain, LAN-only (`remote_ip private_ranges`). Cloudflare DNS-challenge wildcard cert. `caddy-config` writes the token env file. Sandboxed: only `CAP_NET_BIND_SERVICE`. |
 | `services/hardening.nix` | Shared systemd sandbox settings, merged into units that handle untrusted input. |
-| `services/plex.nix` + `plex-config.py` | Plex (GPU-only device access, no capabilities), plus libraries, token sign-in and remote-access settings. |
+| `services/plex.nix` + `plex-config.py` | Plex (GPU-only device access, no capabilities), plus libraries, token sign-in and remote-access settings. `ExecStop` signals Plex itself, not the FHS env's `bwrap`, so it stops cleanly. |
 | `services/tautulli.nix` + `tautulli-config.py` | Rewrites `config.ini` (login hash, Plex link). Exports the API key. |
 | `services/sabnzbd.nix` | SABnzbd via NixOS `settings` + `secretValues`. Hourly `sabnzbd-resume` (no `Requires=`; exits 0 if SABnzbd is down). |
 | `services/transmission.nix` | Transmission 4 + Flood UI. RPC credentials built in `ExecStartPre`. |
@@ -157,7 +157,6 @@ findings here as rows.
 
 | # | Priority | Recommendation | Where | Why | Status |
 | --- | --- | --- | --- | --- | --- |
-| 2 | Low | Make Plex stop cleanly: e.g. `SuccessExitStatus`/`TimeoutStopSec` on `plex.service`, after checking why its `SIGQUIT` stop leaves a child (`EasyAudioEncode`) running. | `services/plex.nix` | Every stop, including the nightly backup's, ends in a core dump, a 90 s wait for the stop timeout and a SIGKILL (found 2026-10-26). The unit is left `failed` (no alert) and the backup runs 90 s longer. | Open |
 | 1 | Low | Either start `ensure-partition-*` before its mount (`wantedBy`/`before` the `.mount` unit) or drop it and document formatting a new disk by hand. | `storage.nix` | The units are defined but never run (found 2026-10-24), so a new blank disk isn't formatted; its `nofail` mount just fails. | Open |
 
 Follow-ups left by the review:
@@ -184,6 +183,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-10-26 | see `git log` | Plex stops cleanly. The module's SIGQUIT to the whole cgroup made `bwrap` (the main process) dump core, leaving the unit `failed`, and SIGKILL Plex mid-shutdown, so EasyAudioEncode and the transcoder hung until the 90 s timeout most nights. `ExecStop` now signals only Plex and waits for it. |
 | 2026-10-26 | `0624de0` | `plex-config` uses `wants` instead of `requires` on Plex, so the nightly backup no longer deactivates it until the next switch. |
 | 2026-10-26 | `73a8b35` | Nightly `radarr-auto-import` alert fixed: the 02:30 backup stopped Radarr, and `Requires=` killed the run the timer had just started. Dropped `Requires=` from it and `sabnzbd-resume` (which now exits 0 when SABnzbd is down too). Auto-import marks a download tried only once Radarr answers. |
 | 2026-10-24 | `c5bd3df` | `lint.sh` also runs shellcheck, ruff (check + format), gitleaks and typos. First run fixed: `os.system` → `subprocess.run` in bazarr-config, an unclosed file in audiobookshelf-access, a silent `except: pass` in plex-config, import order and formatting. Allowlisted with reasons: Bazarr's MD5, localhost Plex URL/XML, `pash`/`serie` spellings. Git history scanned clean of secrets (39 commits). |
