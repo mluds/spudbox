@@ -114,10 +114,11 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 - `ensure-partition` only touches disks with no signature, because `/dev/sdX`
   names can move between boots. Nothing starts it (no `wantedBy`); see the open
   item below.
-- The backup stops the apps at 02:30. A timer job that talks to one of them
-  must not have `Requires=` on it: the stop kills a run in progress (a
-  `notify-failure@` alert) and a run can start the app again mid-backup. Use
-  `after` alone and exit 0 when the app doesn't answer.
+- The backup stops the apps at 02:30. Units that talk to one of them must not
+  have `Requires=` on it, because the stop propagates. A timer job gets killed
+  mid-run (a `notify-failure@` alert) and can start the app again mid-backup:
+  use `after` alone and exit 0 when the app doesn't answer. A setup oneshot is
+  deactivated until the next switch: use `after` + `wants` (`plex-config`).
 - Mounts are `nofail`. The local backup has `RequiresMountsFor`, so it never
   writes to the NVMe by mistake.
 - The WD Ultrastar ignores `hdparm -S`, so `check-drive-status` spins it down
@@ -156,7 +157,6 @@ findings here as rows.
 
 | # | Priority | Recommendation | Where | Why | Status |
 | --- | --- | --- | --- | --- | --- |
-| 2 | Low | Stop the nightly backup deactivating `plex-config`: `wants` instead of `requires = [ "plex.service" ]`, or re-start it in `backupCleanupCommand`. | `services/plex.nix`, `services/backup.nix` | The backup's `systemctl stop plex` propagates through `Requires=` (found 2026-10-26). It isn't an alert, but `plex-config` stays inactive until the next switch, so `test.sh`'s "stays active" check fails between a backup and a deploy. | Open |
 | 1 | Low | Either start `ensure-partition-*` before its mount (`wantedBy`/`before` the `.mount` unit) or drop it and document formatting a new disk by hand. | `storage.nix` | The units are defined but never run (found 2026-10-24), so a new blank disk isn't formatted; its `nofail` mount just fails. | Open |
 
 Follow-ups left by the review:
@@ -183,6 +183,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-10-26 | see `git log` | `plex-config` uses `wants` instead of `requires` on Plex, so the nightly backup no longer deactivates it until the next switch. |
 | 2026-10-26 | `73a8b35` | Nightly `radarr-auto-import` alert fixed: the 02:30 backup stopped Radarr, and `Requires=` killed the run the timer had just started. Dropped `Requires=` from it and `sabnzbd-resume` (which now exits 0 when SABnzbd is down too). Auto-import marks a download tried only once Radarr answers. |
 | 2026-10-24 | `c5bd3df` | `lint.sh` also runs shellcheck, ruff (check + format), gitleaks and typos. First run fixed: `os.system` → `subprocess.run` in bazarr-config, an unclosed file in audiobookshelf-access, a silent `except: pass` in plex-config, import order and formatting. Allowlisted with reasons: Bazarr's MD5, localhost Plex URL/XML, `pash`/`serie` spellings. Git history scanned clean of secrets (39 commits). |
 | 2026-10-23 | `9ca27ce`, `73446fc` | Efficiency: setup oneshots run once per boot or change (`RemainAfterExit`) instead of every deploy restarting Sonarr/Radarr/Bazarr/Tautulli; `deploy.sh` re-runs them when a secret changed. Journal noise cut: claude-remote-control status redraws (~400k lines/day, filtered) and Plex debug. `claude-remote-control` never restarted by a switch. restic skips ~1 GB of caches/posters/logs. HDD spin-downs/wakes logged; standby sent once. Sonarr/Radarr no longer rescan the disk after each 12-24 h refresh (manual refresh only; a weekly rescan timer was tried and dropped). |

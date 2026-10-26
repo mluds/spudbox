@@ -62,8 +62,10 @@ in
 
       plex-config = {
         description = "Configure Plex libraries and settings after startup";
+        # Wants, not Requires: the nightly backup stops Plex, and Requires=
+        # would deactivate this unit until the next switch.
         after = [ "plex.service" ];
-        requires = [ "plex.service" ];
+        wants = [ "plex.service" ];
         wantedBy = [ "multi-user.target" ];
 
         serviceConfig = {
