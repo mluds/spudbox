@@ -157,6 +157,7 @@ findings here as rows.
 
 | # | Priority | Recommendation | Where | Why | Status |
 | --- | --- | --- | --- | --- | --- |
+| 2 | Low | Make Plex stop cleanly: e.g. `SuccessExitStatus`/`TimeoutStopSec` on `plex.service`, after checking why its `SIGQUIT` stop leaves a child (`EasyAudioEncode`) running. | `services/plex.nix` | Every stop, including the nightly backup's, ends in a core dump, a 90 s wait for the stop timeout and a SIGKILL (found 2026-10-26). The unit is left `failed` (no alert) and the backup runs 90 s longer. | Open |
 | 1 | Low | Either start `ensure-partition-*` before its mount (`wantedBy`/`before` the `.mount` unit) or drop it and document formatting a new disk by hand. | `storage.nix` | The units are defined but never run (found 2026-10-24), so a new blank disk isn't formatted; its `nofail` mount just fails. | Open |
 
 Follow-ups left by the review:
