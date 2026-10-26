@@ -183,7 +183,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
-| 2026-10-26 | see `git log` | Plex stops cleanly. The module's SIGQUIT to the whole cgroup made `bwrap` (the main process) dump core, leaving the unit `failed`, and SIGKILL Plex mid-shutdown, so EasyAudioEncode and the transcoder hung until the 90 s timeout most nights. `ExecStop` now signals only Plex and waits for it. |
+| 2026-10-26 | `ff57ffe` | Plex stops cleanly. The module's SIGQUIT to the whole cgroup made `bwrap` (the main process) dump core, leaving the unit `failed`, and SIGKILL Plex mid-shutdown, so EasyAudioEncode and the transcoder hung until the 90 s timeout most nights. `ExecStop` now signals only Plex and waits for it. |
 | 2026-10-26 | `0624de0` | `plex-config` uses `wants` instead of `requires` on Plex, so the nightly backup no longer deactivates it until the next switch. |
 | 2026-10-26 | `73a8b35` | Nightly `radarr-auto-import` alert fixed: the 02:30 backup stopped Radarr, and `Requires=` killed the run the timer had just started. Dropped `Requires=` from it and `sabnzbd-resume` (which now exits 0 when SABnzbd is down too). Auto-import marks a download tried only once Radarr answers. |
 | 2026-10-24 | `c5bd3df` | `lint.sh` also runs shellcheck, ruff (check + format), gitleaks and typos. First run fixed: `os.system` → `subprocess.run` in bazarr-config, an unclosed file in audiobookshelf-access, a silent `except: pass` in plex-config, import order and formatting. Allowlisted with reasons: Bazarr's MD5, localhost Plex URL/XML, `pash`/`serie` spellings. Git history scanned clean of secrets (39 commits). |
