@@ -23,7 +23,6 @@ in
     jellyseerrPort = 5055;
     homepagePort = 3000;
     transmissionPort = 9091;
-    prowlarrPort = 9696;
     audiobookshelfPort = 8000;
     homebridgePort = 8581;
     driveStatusPort = 9100;

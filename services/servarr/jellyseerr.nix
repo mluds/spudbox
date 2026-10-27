@@ -93,118 +93,63 @@ let
       }
       touch "$TMP/key" "$TMP/cookies"
 
-      # Rewrite settings.json through a jq filter (extra jq args first).
-      edit_settings() {
-        jq "$@" ${settingsFile} > ${settingsFile}.tmp
-        mv ${settingsFile}.tmp ${settingsFile}
-        chown jellyseerr:jellyseerr ${settingsFile}
-      }
-
       echo "Waiting for Jellyseerr to start..."
       wait-for-http "$BASE/settings/public"
 
-      use_api_key() {
-        printf 'X-Api-Key: %s\n' "$(jq -r '.main.apiKey' ${settingsFile})" > "$TMP/key"
-      }
+      # First run: sign in with the Plex token (which creates the API key),
+      # finish the setup wizard and add Radarr and Sonarr.
+      FRESH=false
+      if [ "$(api GET settings/public | jq -r '.initialized')" != true ]; then
+        FRESH=true
+        echo "Authenticating with Plex..."
+        jq -n --rawfile token ${secretsDir}/plex/token '{authToken: ($token | rtrimstr("\n"))}' \
+          | api POST auth/plex -c "$TMP/cookies" -d @- >/dev/null
 
-      export_api_key() {
-        echo "Exporting API key..."
-        mkdir -p ${secretsDir}/jellyseerr
-        jq -r '.main.apiKey' ${settingsFile} > ${secretsDir}/jellyseerr/api-key
-      }
+        echo "Marking setup as complete..."
+        api POST settings/initialize >/dev/null
 
-      # Email notifications were replaced by Pushover; an earlier version
-      # stored a Gmail app password here. Blank it, then restart so seerr
-      # doesn't write its in-memory copy back.
-      clear_email() {
-        if [ -n "$(jq -r '.notifications.agents.email.options.authPass // empty' ${settingsFile})" ]; then
-          echo "Removing the old email credentials..."
-          edit_settings '.notifications.agents.email.enabled = false
-            | .notifications.agents.email.options |= (.authUser = "" | .authPass = "" | .emailFrom = "")'
-          systemctl restart seerr
-        fi
-      }
-
-      configure_pushover() {
-        echo "Configuring Pushover notifications..."
-        jq -n --rawfile token ${secretsDir}/pushover/app-token \
-          --rawfile user ${secretsDir}/pushover/user-key \
-          '{enabled: true, types: 24, options: {
-            accessToken: ($token | rtrimstr("\n")),
-            userToken: ($user | rtrimstr("\n")),
-            sound: "pushover"
-          }}' \
-          | api POST settings/notifications/pushover -d @- >/dev/null
-      }
-
-      configure_plex() {
-        echo "Configuring Plex settings..."
-        api POST settings/plex -d ${json plexSettings} >/dev/null
-
-        # Enable all libraries for scanning
-        LIB_IDS=$(api GET settings/plex/library | jq -r '[.[].id] | join(",")')
-        api GET "settings/plex/library?sync=true&enable=$LIB_IDS" >/dev/null
-
-        # Run recently added scan once daily instead of every 5 minutes
-        # to avoid waking the HDD with constant Plex API queries
-        api POST settings/jobs/plex-recently-added-scan/schedule \
-          -d '{"schedule": "0 0 6 * * *"}' >/dev/null
-      }
-
-      set_external_urls() {
-        echo "Setting external URLs for Radarr/Sonarr..."
-        # shellcheck disable=SC2016 # jq program, not shell
-        edit_settings \
-          '.radarr = [.radarr[] | .externalUrl = ${builtins.toJSON radarr.externalUrl}]
-          | .sonarr = [.sonarr[] | .externalUrl = ${builtins.toJSON sonarr.externalUrl}]'
-      }
-
-      # add_arr BODY SECRET PATH: POST BODY with its apiKey set to the secret.
-      add_arr() {
-        jq -n --argjson body "$1" --rawfile key "${secretsDir}/$2" \
-          '$body + {apiKey: ($key | rtrimstr("\n"))}' \
-          | api POST "$3" -d @- >/dev/null
-      }
-
-      if [ "$(api GET settings/public | jq -r '.initialized')" = true ]; then
-        echo "Jellyseerr already initialized, skipping setup."
-        use_api_key
-        export_api_key
-        configure_plex
-        configure_pushover
-        set_external_urls
-        clear_email
-        exit 0
+        # add_arr BODY APP: POST BODY with its apiKey set to APP's secret.
+        add_arr() {
+          jq -n --argjson body "$1" --rawfile key "${secretsDir}/$2/api-key" \
+            '$body + {apiKey: ($key | rtrimstr("\n"))}' \
+            | api POST "settings/$2" -d @- >/dev/null
+        }
+        echo "Adding Radarr..."
+        add_arr ${json radarr} radarr
+        echo "Adding Sonarr..."
+        add_arr ${json sonarr} sonarr
       fi
 
-      echo "Authenticating with Plex..."
-      jq -n --rawfile token ${secretsDir}/plex/token '{authToken: ($token | rtrimstr("\n"))}' \
-        | api POST auth/plex -c "$TMP/cookies" -d @- >/dev/null
+      printf 'X-Api-Key: %s\n' "$(jq -r '.main.apiKey' ${settingsFile})" > "$TMP/key"
+      echo "Exporting API key..."
+      mkdir -p ${secretsDir}/jellyseerr
+      jq -r '.main.apiKey' ${settingsFile} > ${secretsDir}/jellyseerr/api-key
 
-      echo "Marking setup as complete..."
-      api POST settings/initialize >/dev/null
-
-      echo "Configuring Plex server..."
+      echo "Configuring Plex settings..."
       api POST settings/plex -d ${json plexSettings} >/dev/null
+      # Enable all libraries for scanning
+      LIB_IDS=$(api GET "settings/plex/library?sync=true" | jq -r '[.[].id] | join(",")')
+      api GET "settings/plex/library?sync=true&enable=$LIB_IDS" >/dev/null
+      # Run recently added scan once daily instead of every 5 minutes
+      # to avoid waking the HDD with constant Plex API queries
+      api POST settings/jobs/plex-recently-added-scan/schedule \
+        -d '{"schedule": "0 0 6 * * *"}' >/dev/null
 
-      echo "Syncing Plex libraries..."
-      api GET "settings/plex/library?sync=true" >/dev/null
+      echo "Configuring Pushover notifications..."
+      jq -n --rawfile token ${secretsDir}/pushover/app-token \
+        --rawfile user ${secretsDir}/pushover/user-key \
+        '{enabled: true, types: 24, options: {
+          accessToken: ($token | rtrimstr("\n")),
+          userToken: ($user | rtrimstr("\n")),
+          sound: "pushover"
+        }}' \
+        | api POST settings/notifications/pushover -d @- >/dev/null
 
-      echo "Adding Radarr..."
-      add_arr ${json radarr} radarr/api-key settings/radarr
-
-      echo "Adding Sonarr..."
-      add_arr ${json sonarr} sonarr/api-key settings/sonarr
-
-      use_api_key
-      export_api_key
-      configure_plex
-      configure_pushover
-
-      echo "Restarting Jellyseerr..."
-      systemctl restart seerr
-
-      echo "Jellyseerr setup complete."
+      if [ "$FRESH" = true ]; then
+        echo "Restarting Jellyseerr..."
+        systemctl restart seerr
+      fi
+      echo "Jellyseerr configured."
     '';
   };
 in
@@ -261,8 +206,6 @@ in
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {
-      Type = "oneshot";
-      User = "root";
       ExecStart = lib.getExe configScript;
     };
   };

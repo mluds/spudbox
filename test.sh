@@ -28,9 +28,6 @@ check_eq() {
   if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (got '$2', expected '$3')"; fi
 }
 
-# Prowlarr is off unless my.prowlarr.enable (services/servarr/prowlarr.nix)
-prowlarr_on() { [ "${PROWLARR_ENABLED:-0}" = 1 ]; }
-
 read_secret() { sudo cat "$SECRETS_DIR/$1" 2>/dev/null | tr -d '\n'; }
 
 # Secrets reach curl and grep through files in this private dir, never as
@@ -47,7 +44,6 @@ auth_file() {
 }
 auth_file radarr 'X-Api-Key: %s\n' radarr/api-key
 auth_file sonarr 'X-Api-Key: %s\n' sonarr/api-key
-if prowlarr_on; then auth_file prowlarr 'X-Api-Key: %s\n' prowlarr/api-key; fi
 auth_file bazarr 'X-API-KEY: %s\n' bazarr/api-key
 auth_file jellyseerr 'X-Api-Key: %s\n' jellyseerr/api-key
 auth_file abs 'Authorization: Bearer %s\n' audiobookshelf/apikey
@@ -140,7 +136,6 @@ test_secrets() {
     jellyseerr/api-key audiobookshelf/apikey; do
     check_secret "$s"
   done
-  if prowlarr_on; then check_secret prowlarr/api-key; fi
 
   # Retired: the shared admin password (finding #5), the Gmail SMTP login
   for s in admin/password gmail; do
@@ -157,7 +152,6 @@ test_services() {
     seerr audiobookshelf homepage-dashboard caddy homebridge drive-status-http; do
     check_service "$u.service"
   done
-  if prowlarr_on; then check_service prowlarr.service; fi
 
   # Oneshots and timer jobs (services/notify.nix alerts on these)
   for u in "${ALERT_UNITS[@]}" media-fixup; do
@@ -177,18 +171,11 @@ test_services() {
 test_ports() {
   section "Ports"
 
-  check_port "$PLEX_PORT" t "plex"
-  check_port "$TAUTULLI_PORT" t "tautulli"
-  check_port "$SONARR_PORT" t "sonarr"
-  check_port "$RADARR_PORT" t "radarr"
-  check_port "$BAZARR_PORT" t "bazarr"
-  if prowlarr_on; then check_port "$PROWLARR_PORT" t "prowlarr"; fi
-  check_port "$SABNZBD_PORT" t "sabnzbd"
-  check_port "$TRANSMISSION_PORT" t "transmission"
-  check_port "$JELLYSEERR_PORT" t "jellyseerr"
-  check_port "$AUDIOBOOKSHELF_PORT" t "audiobookshelf"
-  check_port "$HOMEPAGE_PORT" t "homepage"
-  check_port "$HOMEBRIDGE_PORT" t "homebridge"
+  local svc port
+  for svc in "${CADDY_HOSTS[@]}"; do
+    port=${svc^^}_PORT
+    check_port "${!port}" t "$svc"
+  done
   check_port 80 t "caddy-http"
   check_port 443 t "caddy-https"
   check_port "$CADDY_ADMIN_PORT" t "caddy-admin"
@@ -202,7 +189,6 @@ test_http() {
   check_http "http://localhost:$SONARR_PORT" "200 302" "sonarr"
   check_http "http://localhost:$RADARR_PORT" "200 302" "radarr"
   check_http "http://localhost:$BAZARR_PORT" "200 302" "bazarr"
-  if prowlarr_on; then check_http "http://localhost:$PROWLARR_PORT" "200 302" "prowlarr"; fi
   check_http "http://localhost:$SABNZBD_PORT" "200 302 303" "sabnzbd"
   check_http "http://localhost:$TRANSMISSION_PORT" "401" "transmission"
   check_http "http://localhost:$JELLYSEERR_PORT/api/v1/settings/public" "200" "jellyseerr"
@@ -217,9 +203,6 @@ test_api_auth() {
 
   check_http "http://localhost:$RADARR_PORT/api/v3/system/status" "200" "radarr" -H @"$AUTH/radarr"
   check_http "http://localhost:$SONARR_PORT/api/v3/system/status" "200" "sonarr" -H @"$AUTH/sonarr"
-  if prowlarr_on; then
-    check_http "http://localhost:$PROWLARR_PORT/api/v1/system/status" "200" "prowlarr" -H @"$AUTH/prowlarr"
-    fi
   check_http "http://localhost:$SABNZBD_PORT/api" "200" "sabnzbd" -d @"$AUTH/sabnzbd" -d "mode=version&output=json"
   check_http "http://localhost:$TAUTULLI_PORT/api/v2" "200" "tautulli" -d @"$AUTH/tautulli" -d "cmd=arnold"
   check_http "http://localhost:$BAZARR_PORT/api/system/status" "200" "bazarr" -H @"$AUTH/bazarr"
@@ -228,31 +211,26 @@ test_api_auth() {
   check_http "http://localhost:$PLEX_PORT/identity" "200" "plex" -H @"$AUTH/plex"
   check_http "http://localhost:$TRANSMISSION_PORT/transmission/rpc" "409" "transmission" -K "$AUTH/transmission"
 
-  # Without credentials every API refuses (catches auth being switched off).
-  # Codes are each app's own: SABnzbd 403, Tautulli 400 "apikey is required".
-  check_http "http://localhost:$RADARR_PORT/api/v3/system/status" "401" "radarr rejects anonymous"
-  check_http "http://localhost:$SONARR_PORT/api/v3/system/status" "401" "sonarr rejects anonymous"
-  check_http "http://localhost:$BAZARR_PORT/api/system/status" "401" "bazarr rejects anonymous"
-  check_http "http://localhost:$SABNZBD_PORT/api?mode=queue&output=json" "403" "sabnzbd rejects anonymous"
-  check_http "http://localhost:$TAUTULLI_PORT/api/v2?cmd=arnold" "400 401" "tautulli rejects anonymous"
-  check_http "http://localhost:$JELLYSEERR_PORT/api/v1/settings/main" "401 403" "jellyseerr rejects anonymous"
-  check_http "http://localhost:$AUDIOBOOKSHELF_PORT/api/libraries" "401" "audiobookshelf rejects anonymous"
-  check_http "http://localhost:$PLEX_PORT/library/sections" "401" "plex rejects anonymous"
-  check_http "http://localhost:$TRANSMISSION_PORT/transmission/rpc" "401" "transmission rejects anonymous"
-  check_http "http://localhost:$HOMEBRIDGE_PORT/api/config-editor" "401" "homebridge rejects anonymous"
-
-  # Same through Caddy, which is what LAN clients reach
-  local svc path
-  local routes=(radarr:/api/v3/system/status sonarr:/api/v3/system/status
-    bazarr:/api/system/status "sabnzbd:/api?mode=queue&output=json" jellyseerr:/api/v1/settings/main
-    audiobookshelf:/api/libraries plex:/library/sections transmission:/transmission/rpc
-    homebridge:/api/config-editor)
-  if prowlarr_on; then routes+=(prowlarr:/api/v1/system/status); fi
-  for svc in "${routes[@]}"; do
-    path=${svc#*:}
-    svc=${svc%%:*}
-    check_http "https://${svc}.${DOMAIN}${path}" "401 403" "${svc} via caddy rejects anonymous" \
-      --resolve "${svc}.${DOMAIN}:443:127.0.0.1"
+  # Without credentials every API refuses (catches auth being switched off),
+  # directly and through Caddy, which is what LAN clients reach. Codes are
+  # each app's own: SABnzbd 403, Tautulli 400 "apikey is required".
+  local route svc path codes port
+  for route in \
+    "radarr /api/v3/system/status 401" \
+    "sonarr /api/v3/system/status 401" \
+    "bazarr /api/system/status 401" \
+    "sabnzbd /api?mode=queue&output=json 403" \
+    "tautulli /api/v2?cmd=arnold 400 401" \
+    "jellyseerr /api/v1/settings/main 401 403" \
+    "audiobookshelf /api/libraries 401" \
+    "plex /library/sections 401" \
+    "transmission /transmission/rpc 401" \
+    "homebridge /api/config-editor 401"; do
+    read -r svc path codes <<< "$route"
+    port=${svc^^}_PORT
+    check_http "http://localhost:${!port}$path" "$codes" "$svc rejects anonymous"
+    check_http "https://$svc.$DOMAIN$path" "$codes" "$svc via caddy rejects anonymous" \
+      --resolve "$svc.$DOMAIN:443:127.0.0.1"
   done
 }
 
@@ -415,13 +393,6 @@ test_security() {
     | awk '{print $1}' | sort | uniq -d | wc -l)
   check_eq "per-service web passwords (reused)" "$dupes" 0
 
-  # Prowlarr stores a salted PBKDF2 hash (prowlarr-config sets it via the API)
-  if prowlarr_on; then
-    check_eq "prowlarr password hash salted (salted users)" \
-      "$(sudo sqlite3 -readonly /var/lib/private/prowlarr/prowlarr.db \
-        "select count(*) from Users where Salt is not null and Salt != '' and Iterations > 0;" 2>/dev/null || echo 0)" 1
-  fi
-
   # Jellyseerr no longer keeps the old Gmail app password
   check_eq "jellyseerr stores no email password" \
     "$(sudo jq -r '.notifications.agents.email.options.authPass // ""' /var/lib/jellyseerr/config/settings.json 2>/dev/null)" ""
@@ -494,7 +465,7 @@ test_security() {
   # Everything behind Caddy, and Caddy's admin API, listen on loopback only
   local port exposed
   for port in "$HOMEPAGE_PORT" "$JELLYSEERR_PORT" "$BAZARR_PORT" "$RADARR_PORT" "$SABNZBD_PORT" \
-    "$TAUTULLI_PORT" "$HOMEBRIDGE_PORT" "$SONARR_PORT" "$PROWLARR_PORT" "$CADDY_ADMIN_PORT"; do
+    "$TAUTULLI_PORT" "$HOMEBRIDGE_PORT" "$SONARR_PORT" "$CADDY_ADMIN_PORT"; do
     exposed=$(ss -tlnH "sport = :$port" | awk '{print $4}' | grep -vE '^(127\.0\.0\.1|\[::1\]):' || true)
     check_eq "port $port loopback-only (other listeners)" "$(tr '\n' ' ' <<< "$exposed" | xargs)" ""
   done

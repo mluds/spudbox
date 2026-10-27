@@ -33,9 +33,6 @@ let
   };
 in
 {
-  users.groups.sabnzbd = { };
-  users.users.sabnzbd.extraGroups = [ "media" ];
-
   # Only values that differ from SABnzbd's (or the NixOS module's) defaults.
   # The existing sabnzbd.ini is merged underneath (allowConfigWrite), so
   # settings changed in the web UI survive until they're set here.

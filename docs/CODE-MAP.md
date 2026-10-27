@@ -19,7 +19,7 @@ and the server: 2026-10-24, at `c5bd3df`.
 
 ## Code outline
 
-One NixOS flake, about 5,600 lines. `configuration.nix` imports one module per
+One NixOS flake, about 5,100 lines. `configuration.nix` imports one module per
 service. Most services also have a `*-config` oneshot that sets up the app
 through its HTTP API, config file or SQLite DB on every boot, and on a switch
 that changes the unit. Caddy is
@@ -29,13 +29,13 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | --- | --- |
 | `flake.nix` | One `nixpkgs` input. Hosts `spudbox-prod` (x86_64) and `spudbox-dev` (aarch64). Hand-pinned Plex overlay. Sets `system.configurationRevision`. |
 | `hosts/prod-hardware.nix` | Prod's generated hardware config, so prod builds pure. statix and deadnix skip it; regenerate rather than edit. |
-| `configuration.nix` | Shared config: imports, packages, nix GC, SSH, sudo, firewall, users, IPv6 off. `create-dirs` oneshot: media dirs (non-recursive), secrets perms, deletes retired secrets. Exports `PASSWORD_SERVICES`. |
+| `configuration.nix` | Shared config: imports, packages, nix GC, SSH, sudo, firewall, users, IPv6 off. `create-dirs` oneshot: media dirs (non-recursive), secrets perms. Exports `PASSWORD_SERVICES`. |
 | `storage.nix` | Mounts the XFS disks (`nofail`) and pools them with mergerfs. `ensure-partition-*` units format a blank disk, but nothing starts them: run one by hand for a new disk. hdparm udev rule. |
-| `common/vars.nix` | Typed `my.*` options (ports, dirs, drives, users, `prowlarr.enable`). |
-| `common/env.nix` | Writes `/etc/spudbox/env` (dirs, domain, `REVISION`, every `*_PORT`) for `test.sh` and `deploy.sh`. Modules append `CADDY_HOSTS`, `PASSWORD_SERVICES`, `ALERT_UNITS`, `SETUP_UNITS`, `PROWLARR_ENABLED`. |
+| `common/vars.nix` | Typed `my.*` options (ports, dirs, drives, users). |
+| `common/env.nix` | Writes `/etc/spudbox/env` (dirs, domain, `REVISION`, every `*_PORT`) for `test.sh` and `deploy.sh`. Modules append `CADDY_HOSTS`, `PASSWORD_SERVICES`, `ALERT_UNITS`, `SETUP_UNITS`. |
 | `common/helpers.nix` | The `helpers` module arg: `read-secret`, `wait-for-http`. |
 | `environments/default.nix` | Ports, dirs, usenet hosts, users. `{prod,dev}.nix`: domain and drives per host. |
-| `services/caddy.nix` | Reverse proxy per subdomain, LAN-only (`remote_ip private_ranges`). Cloudflare DNS-challenge wildcard cert. `caddy-config` writes the token env file. Sandboxed: only `CAP_NET_BIND_SERVICE`. |
+| `services/caddy.nix` | Reverse proxy per subdomain (`<name>` to `my.<name>Port`), LAN-only (`remote_ip private_ranges`). Cloudflare DNS-challenge wildcard cert. `caddy-config` writes the token env file. Sandboxed: only `CAP_NET_BIND_SERVICE`. |
 | `services/hardening.nix` | Shared systemd sandbox settings, merged into units that handle untrusted input. |
 | `services/plex.nix` + `plex-config.py` | Plex (GPU-only device access, no capabilities), plus libraries, token sign-in and remote-access settings. `ExecStop` signals Plex itself, not the FHS env's `bwrap`, so it stops cleanly. |
 | `services/tautulli.nix` + `tautulli-config.py` | Rewrites `config.ini` (login hash, Plex link). Exports the API key. |
@@ -43,20 +43,19 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 | `services/transmission.nix` | Transmission 4 + Flood UI. RPC credentials built in `ExecStartPre`. |
 | `services/audiobookshelf.nix` + `audiobookshelf-access.py` | Every boot: checks the root password, issues homepage's read-only API key. |
 | `services/audiobookshelf-config.py` | One-off, started by hand: seeds the root user in SQLite, library, users. Refuses if users exist, unless `ABS_FORCE=1`. |
-| `services/homepage.nix` | Dashboard. Keys come through `LoadCredential`. |
+| `services/homepage.nix` | Dashboard, built with `tile`/`widget`/`bookmark` helpers. Keys come through `LoadCredential`. |
 | `services/homebridge.nix` | Homebridge in Docker (pinned digest). `homebridge-config` does first setup (pinned `homebridge-dummy`) and checks the password. Avahi. |
 | `services/docker.nix` | Docker, used only by Homebridge. |
 | `services/backup.nix` | restic: nightly `/var/lib` backup to the HDD, then `restic copy` to Cloudflare R2. Skips caches, poster art, logs and app-internal backups. |
 | `services/drive-check.nix` | 5-minute timer that forces the HDD into standby when idle, logging each spin-down and wake. `drive-status-http` serves JSON for homepage. |
 | `services/media-fixup.{nix,sh}` | 15-minute timer: DV5 to HDR10, hybrid DV8 strip, SRT `<font>` cleanup. x86_64 only. Sandboxed as user `media-fixup` (CAP_CHOWN only, writes only `/mnt/storage/data`). |
-| `services/notify.nix` | Lists the setup oneshots and timer jobs. `notify-failure@` sends a Pushover alert with the journal tail when one fails. Setup oneshots get `RemainAfterExit` (run once per boot or change). Exports `ALERT_UNITS` and `SETUP_UNITS`. |
+| `services/notify.nix` | Lists the setup oneshots and timer jobs. `notify-failure@` sends a Pushover alert with the journal tail when one fails. Setup oneshots get `Type=oneshot` and `RemainAfterExit` here (run once per boot or change), so their modules don't set `Type`. Exports `ALERT_UNITS` and `SETUP_UNITS`. |
 | `services/claude-code.nix` | Claude Code Remote Control, running as `luds`. Never restarted by a switch (`restartIfChanged = false`). Its status-screen redraws are filtered from the journal. |
-| `services/servarr/mkArrConfig.nix` | Shared `sonarr-config`/`radarr-config` builder: login, indexer, SABnzbd, quality, custom formats, folder import. |
+| `services/servarr/mkArrConfig.nix` | Returns the Sonarr/Radarr module: the app (loopback only) plus its `*-config` unit (login, indexer, SABnzbd, quality, custom formats, folder import). |
 | `services/servarr/{sonarr,radarr}.nix` | The apps plus their mkArrConfig args. Radarr also has the `radarr-auto-import` timer: skips permanently rejected files, tries each download once, and has no `Requires=` on Radarr (exits 0 if it's down). The scheduled metadata refresh doesn't rescan the disk (`rescanAfterRefresh = "afterManual"`): files changed outside the apps show up after a manual refresh. |
 | `services/servarr/qualityDefinitions.nix` | Size limits and quality profiles. |
 | `services/servarr/set-config-xml.nix` | Writes secret files into `config.xml` without putting them on argv. |
-| `services/servarr/prowlarr.nix` | Prowlarr, **off** (`my.prowlarr.enable = false`; code kept). Enabling it restores its Caddy site, homepage tile, backup stop, alerts and tests. Add sandboxing when re-enabling (it scored 8.2). |
-| `services/servarr/bazarr.nix` + `bazarr-config.py` | Merges a YAML template into the config. Rewrites language profiles. |
+| `services/servarr/bazarr.nix` + `bazarr-config.py` | Merges a YAML template into the config (lists merged without duplicates; Bazarr keeps its own API key). Rewrites language profiles. |
 | `services/servarr/jellyseerr.nix` | seerr under a fixed user, sandboxed. First-run setup, Plex/arr links, Pushover. Email is gone. |
 | `deploy.sh` | Runs on the Mac: refuses a locked checkout, rsyncs the tree (no secrets) to prod `~/deploy`, writes `.revision`, streams secrets into `/var/lib/secrets` via tar, pure `nixos-rebuild switch`, re-runs `SETUP_UNITS` if a secret changed, wait, `test.sh`. |
 | `test.sh` | About 260 server checks. |
@@ -72,7 +71,7 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 - Non-root units get secrets via `LoadCredential=`, never through group access.
 - Some secrets are generated at runtime and exported into `/var/lib/secrets` by
   the setup units: the Plex token and the Bazarr, Tautulli, Jellyseerr and
-  Audiobookshelf API keys (and Prowlarr's, when it's on). Homepage starts after
+  Audiobookshelf API keys. Homepage starts after
   those units for this reason. The Sonarr, Radarr and SABnzbd keys come from
   `secrets/`.
 - The backup secrets (`restic/password`, `r2/*`) aren't in `secrets/` at all;
@@ -97,7 +96,7 @@ the only way into the web UIs from the LAN; Plex on 32400 is the exception.
 
 **Networking**
 
-- Every web UI binds 127.0.0.1. sonarr, radarr and prowlarr do this through
+- Every web UI binds 127.0.0.1. sonarr and radarr do this through
   `settings.server.bindaddress`, an env var that overrides `config.xml`.
 - IPv6 is off. The NetworkManager profile is set by hand (see `CLAUDE.md`).
 - Homebridge uses host networking. `homebridge-config` keeps its UI on loopback.
@@ -163,7 +162,9 @@ Follow-ups left by the review:
 
 - Revoke the old Gmail app password in the Google account (owner). It is gone
   from the repo and server but stays valid until revoked.
-- When Prowlarr is re-enabled, sandbox it like seerr (it scored 8.2).
+- After deploying the 2026-10-26 simplify pass: `sudo rm -r /var/lib/secrets/prowlarr`
+  (deploy never deletes secrets). Prowlarr's state in `/var/lib/private/prowlarr`
+  can go too, unless you want it back: the module is in git before the removal.
 - Dev's hardware config isn't in the repo, so `spudbox-dev` still needs `--impure`.
 - Apply the `claude-remote-control` log filter: `sudo systemctl restart
   claude-remote-control` over SSH (ends running Claude sessions), or reboot.
@@ -183,6 +184,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-10-26 | `simplify` branch | Simplify pass (about 500 lines fewer; evaluated config diffed before/after). Prowlarr removed entirely (module, option, port, secret, tile, tests). Caddy proxies and homepage tiles derived from service names via `my.<name>Port`. `mkArrConfig` returns the whole Sonarr/Radarr module. Leftover `radarr`/`plex`/`bazarr`/`sabnzbd` groups dropped. Setup units get `Type=oneshot` from `notify.nix`; redundant `User=root` dropped. bazarr-config: no longer waits for its own exported key (a fresh install hung 5 min, then crashed), `append_unique` merge, template passed by path. jellyseerr-config: one flow for fresh and existing installs. One-time migrations removed (seerr email/external URLs, retired-secret `rm`); `test.sh` still checks them. drive-check loops over its devices. `test.sh` drives direct and via-Caddy anonymous checks from one table (Tautulli via Caddy now checked too). Secrets-dir tmpfiles rule moved to `configuration.nix`. |
 | 2026-10-26 | `ff57ffe` | Plex stops cleanly. The module's SIGQUIT to the whole cgroup made `bwrap` (the main process) dump core, leaving the unit `failed`, and SIGKILL Plex mid-shutdown, so EasyAudioEncode and the transcoder hung until the 90 s timeout most nights. `ExecStop` now signals only Plex and waits for it. |
 | 2026-10-26 | `0624de0` | `plex-config` uses `wants` instead of `requires` on Plex, so the nightly backup no longer deactivates it until the next switch. |
 | 2026-10-26 | `73a8b35` | Nightly `radarr-auto-import` alert fixed: the 02:30 backup stopped Radarr, and `Requires=` killed the run the timer had just started. Dropped `Requires=` from it and `sabnzbd-resume` (which now exits 0 when SABnzbd is down too). Auto-import marks a download tried only once Radarr answers. |

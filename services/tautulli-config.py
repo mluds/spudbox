@@ -24,7 +24,7 @@ def main():
     time.sleep(5)
 
     print("Reading Plex token...")
-    plex_token = read_plex_token()
+    plex_token = read_file(f"{getenv('SECRETS_DIR')}/plex/token")
 
     print("Fetching Plex server identity...")
     plex_identity = get_plex_identity()
@@ -76,9 +76,8 @@ def make_hash(password):
     )
 
 
-def read_plex_token():
-    token_path = f"{getenv('SECRETS_DIR')}/plex/token"
-    with open(token_path) as f:
+def read_file(path):
+    with open(path) as f:
         return f.read().strip()
 
 
@@ -99,33 +98,32 @@ def update_config(plex_token, plex_identity):
     cfg_path = getenv("TAUTULLI_CONFIG")
 
     parser = configparser.ConfigParser()
-    if path.exists(cfg_path):
-        parser.read(cfg_path)
-
-    if not parser.has_section("General"):
-        parser.add_section("General")
-    if not parser.has_section("PMS"):
-        parser.add_section("PMS")
-
-    with open(getenv("TAUTULLI_ADMIN_USERNAME_FILE")) as f:
-        parser["General"]["http_username"] = f.read().strip()
-    with open(getenv("TAUTULLI_ADMIN_PASSWORD_FILE")) as f:
-        parser["General"]["http_password"] = make_hash(f.read().strip())
-    parser["General"]["http_host"] = "127.0.0.1"  # loopback only; reached through Caddy
-    parser["General"]["http_port"] = getenv("TAUTULLI_PORT")
-    parser["General"]["first_run_complete"] = "1"
-    parser["General"]["system_analytics"] = "0"
+    parser.read(cfg_path)  # skips a missing file
 
     plex_port = getenv("PLEX_PORT")
-    parser["PMS"]["pms_ip"] = "127.0.0.1"
-    parser["PMS"]["pms_port"] = plex_port
-    parser["PMS"]["pms_url"] = f"http://127.0.0.1:{plex_port}"
-    parser["PMS"]["pms_token"] = plex_token
-    parser["PMS"]["pms_identifier"] = plex_identity["machineIdentifier"]
-    parser["PMS"]["pms_name"] = plex_identity["friendlyName"]
-    parser["PMS"]["pms_ssl"] = "0"
-    parser["PMS"]["pms_is_cloud"] = "0"
-    parser["PMS"]["pms_is_remote"] = "0"
+    parser.read_dict(
+        {
+            "General": {
+                "http_username": read_file(getenv("TAUTULLI_ADMIN_USERNAME_FILE")),
+                "http_password": make_hash(read_file(getenv("TAUTULLI_ADMIN_PASSWORD_FILE"))),
+                "http_host": "127.0.0.1",  # loopback only; reached through Caddy
+                "http_port": getenv("TAUTULLI_PORT"),
+                "first_run_complete": "1",
+                "system_analytics": "0",
+            },
+            "PMS": {
+                "pms_ip": "127.0.0.1",
+                "pms_port": plex_port,
+                "pms_url": f"http://127.0.0.1:{plex_port}",
+                "pms_token": plex_token,
+                "pms_identifier": plex_identity["machineIdentifier"],
+                "pms_name": plex_identity["friendlyName"],
+                "pms_ssl": "0",
+                "pms_is_cloud": "0",
+                "pms_is_remote": "0",
+            },
+        }
+    )
 
     with open(cfg_path, "w") as configfile:
         parser.write(configfile)

@@ -47,8 +47,7 @@ let
     "tautulli"
     "homebridge"
     "audiobookshelf"
-  ]
-  ++ lib.optional config.my.prowlarr.enable "prowlarr";
+  ];
 
   createDirsScript = pkgs.writeShellApplication {
     name = "create-dirs";
@@ -78,10 +77,6 @@ let
       # Login passwords in plaintext are for recovery only; they stay in the
       # repo and the password manager, never on the server (deploy.sh skips them).
       rm -f ${secretsDir}/users/*/plaintext
-
-      # Retired secrets (deploy.sh never deletes): the pre-git-crypt file, the
-      # shared admin password (finding #5), the unused Gmail SMTP login.
-      rm -rf ${secretsDir}/default.json ${secretsDir}/admin/password ${secretsDir}/gmail
     '';
   };
 in
@@ -102,7 +97,6 @@ in
     ./services/servarr/radarr.nix
     ./services/servarr/bazarr.nix
     ./services/servarr/jellyseerr.nix
-    ./services/servarr/prowlarr.nix
     ./services/audiobookshelf.nix
     ./services/backup.nix
     ./services/drive-check.nix
@@ -227,15 +221,17 @@ in
     mutableUsers = false;
   };
 
-  systemd.services.create-dirs = {
-    description = "Create directories";
-    after = [ "local-fs.target" ];
-    requires = [ "local-fs.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = lib.getExe createDirsScript;
+  systemd = {
+    # Before the first deploy, which streams the secrets into it.
+    tmpfiles.rules = [ "d ${secretsDir} 0700 root root -" ];
+
+    services.create-dirs = {
+      description = "Create directories";
+      after = [ "local-fs.target" ];
+      requires = [ "local-fs.target" ];
+      serviceConfig.ExecStart = lib.getExe createDirsScript;
+      wantedBy = [ "multi-user.target" ];
     };
-    wantedBy = [ "multi-user.target" ];
   };
 
   environment.etc."spudbox/env".text = lib.toShellVar "PASSWORD_SERVICES" passwordServices;

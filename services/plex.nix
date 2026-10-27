@@ -23,8 +23,6 @@ let
   } (builtins.readFile ./plex-config.py);
 in
 {
-  users.groups.plex = { };
-
   services.plex = {
     enable = true;
     user = "plex";
@@ -35,15 +33,8 @@ in
   };
 
   systemd = {
-    tmpfiles.rules = [
-      # Plex state (databases, Preferences.xml with its token) is private
-      "d ${config.services.plex.dataDir} 0700 plex media -"
-      "d ${secretsDir} 0700 root root -"
-      "d ${secretsDir}/plex 0700 root root -"
-      "f ${secretsDir}/plex/token 0600 root root -"
-      "f ${secretsDir}/plex/username 0600 root root -"
-      "f ${secretsDir}/plex/password 0600 root root -"
-    ];
+    # Plex state (databases, Preferences.xml with its token) is private
+    tmpfiles.rules = [ "d ${config.services.plex.dataDir} 0700 plex media -" ];
 
     services = {
       # On top of the module's own hardening (MemoryDenyWriteExecute,
@@ -89,8 +80,6 @@ in
         wantedBy = [ "multi-user.target" ];
 
         serviceConfig = {
-          Type = "oneshot";
-          User = "root";
           Environment = [
             "SECRETS_DIR=${secretsDir}"
             "MEDIA_DIR=${storageDir}/data/media"

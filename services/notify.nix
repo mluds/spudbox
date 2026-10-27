@@ -45,7 +45,8 @@ let
     '';
   };
 
-  # Configure an app from Nix and secrets, once per boot or change.
+  # Configure an app from Nix and secrets, once per boot or change. Their
+  # Type=oneshot is set here, with RemainAfterExit.
   setupUnits = [
     "create-dirs"
     "caddy-config"
@@ -57,8 +58,7 @@ let
     "jellyseerr-config"
     "audiobookshelf-access"
     "homebridge-config"
-  ]
-  ++ lib.optional config.my.prowlarr.enable "prowlarr-config";
+  ];
 
   # Run by timers.
   jobUnits = [
@@ -91,7 +91,10 @@ in
   })
   // lib.genAttrs setupUnits (_: {
     onFailure = [ "notify-failure@%n.service" ];
-    serviceConfig.RemainAfterExit = true;
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
   });
 
   # For test.sh (none may be failed) and deploy.sh (restarts SETUP_UNITS

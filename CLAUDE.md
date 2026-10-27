@@ -28,7 +28,7 @@ homebridge). Almost every package version flows from a single
   values; `environments/{prod,dev}.nix` — per-host domain and drives.
 - `common/env.nix` — writes `/etc/spudbox/env` (dirs, domain, `REVISION`, every
   `my.*Port` as `FOO_PORT`; modules append `CADDY_HOSTS`, `PASSWORD_SERVICES`,
-  `ALERT_UNITS`, `SETUP_UNITS`, `PROWLARR_ENABLED`); `test.sh` and `deploy.sh`
+  `ALERT_UNITS`, `SETUP_UNITS`); `test.sh` and `deploy.sh`
   (wait loop, setup re-runs) source it instead of hard-coding ports and service
   lists.
 - `common/helpers.nix` — the `helpers` module argument: `read-secret NAME`

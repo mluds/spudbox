@@ -58,8 +58,6 @@ in
       wantedBy = [ "multi-user.target" ];
       inherit environment;
       serviceConfig = {
-        Type = "oneshot";
-        User = "root";
         ExecStart = lib.getExe accessScript;
       };
     };
@@ -77,7 +75,6 @@ in
         );
       };
       serviceConfig = {
-        User = "root";
         Type = "oneshot";
         ExecStart = lib.getExe configScript;
       };

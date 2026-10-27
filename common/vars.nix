@@ -60,12 +60,9 @@ in
     jellyseerrPort = port "Jellyseerr (seerr)";
     homepagePort = port "Homepage dashboard";
     transmissionPort = port "Transmission RPC/web UI";
-    prowlarrPort = port "Prowlarr";
     audiobookshelfPort = port "Audiobookshelf";
     homebridgePort = port "Homebridge UI";
     driveStatusPort = port "drive-status JSON server";
-
-    prowlarr.enable = lib.mkEnableOption "Prowlarr (off: Sonarr and Radarr query NZBGeek directly; the module is kept for later)";
 
     usenetServerHosts = mkOption {
       type = types.listOf types.str;

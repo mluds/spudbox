@@ -155,8 +155,6 @@ in
       wants = [ "homebridge.service" ];
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
-        Type = "oneshot";
-        User = "root";
         ExecStart = lib.getExe configScript;
       };
     };

@@ -1,9 +1,4 @@
-{
-  config,
-  lib,
-  pkgs,
-  ...
-}:
+{ config, pkgs, ... }:
 
 # Nightly restic backup of /var/lib (app configs + databases; media is not
 # backed up, it's re-downloadable and the *arr DBs record what we had).
@@ -32,9 +27,7 @@ let
     "sabnzbd"
     "tautulli"
     "audiobookshelf"
-  ]
-  # A unit that doesn't exist would make `systemctl stop` fail the backup.
-  ++ lib.optional config.my.prowlarr.enable "prowlarr";
+  ];
 
   pruneOpts = [
     "--keep-daily 7"

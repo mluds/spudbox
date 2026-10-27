@@ -6,23 +6,7 @@
 }:
 
 let
-  inherit (config.my)
-    secretsDir
-    domain
-    caddyAdminPort
-    audiobookshelfPort
-    bazarrPort
-    homebridgePort
-    homepagePort
-    jellyseerrPort
-    plexPort
-    prowlarrPort
-    radarrPort
-    sabnzbdPort
-    sonarrPort
-    tautulliPort
-    transmissionPort
-    ;
+  inherit (config.my) secretsDir domain caddyAdminPort;
 
   # The Cloudflare token reaches Caddy only through its environment, so it
   # isn't in the Caddyfile or in the config served by the admin API (which
@@ -37,29 +21,26 @@ let
     '';
   };
 
-  # Each one is served at https://<name>.${domain} -> localhost:<port>.
+  # Each one is served at https://<name>.${domain} -> localhost:my.<name>Port.
   # Caddy passes request headers (X-Plex-*) through and sets
   # X-Forwarded-For/-Proto itself; Plex only needs X-Real-IP added.
-  proxies = {
-    audiobookshelf = {
-      port = audiobookshelfPort;
-      extraConfig = "encode gzip zstd";
-    };
-    bazarr.port = bazarrPort;
-    homebridge.port = homebridgePort;
-    homepage.port = homepagePort;
-    jellyseerr.port = jellyseerrPort;
-    plex = {
-      port = plexPort;
-      proxyConfig = "header_up X-Real-IP {http.request.remote.host}";
-    };
-    radarr.port = radarrPort;
-    sabnzbd.port = sabnzbdPort;
-    sonarr.port = sonarrPort;
-    tautulli.port = tautulliPort;
-    transmission.port = transmissionPort;
-  }
-  // lib.optionalAttrs config.my.prowlarr.enable { prowlarr.port = prowlarrPort; };
+  proxyExtras = {
+    audiobookshelf.extraConfig = "encode gzip zstd";
+    plex.proxyConfig = "header_up X-Real-IP {http.request.remote.host}";
+  };
+  proxies = lib.genAttrs [
+    "audiobookshelf"
+    "bazarr"
+    "homebridge"
+    "homepage"
+    "jellyseerr"
+    "plex"
+    "radarr"
+    "sabnzbd"
+    "sonarr"
+    "tautulli"
+    "transmission"
+  ] (name: { port = config.my."${name}Port"; } // proxyExtras.${name} or { });
 
   virtualHost =
     {
@@ -90,8 +71,6 @@ in
       wantedBy = [ "caddy.service" ];
       before = [ "caddy.service" ];
       serviceConfig = {
-        User = "root";
-        Type = "oneshot";
         ExecStart = lib.getExe configScript;
       };
     };

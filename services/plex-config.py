@@ -80,17 +80,7 @@ def main():
         the com.plexapp.agents.none agent (Other Videos), so we use the
         raw API for all libraries to keep things consistent.
         """
-        params = urlencode(
-            {
-                "name": section["name"],
-                "type": section["type"],
-                "agent": section["agent"],
-                "scanner": section["scanner"],
-                "language": section["language"],
-                "location": section["location"],
-            }
-        )
-        url = f"{plex_url}/library/sections?{params}"
+        url = f"{plex_url}/library/sections?{urlencode(section)}"
         resp = requests.post(url, headers={"X-Plex-Token": token}, timeout=60)
         resp.raise_for_status()
 

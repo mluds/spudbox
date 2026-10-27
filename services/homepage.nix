@@ -7,38 +7,31 @@ let
     domain
     driveStatusPort
     homepagePort
-    plexPort
-    tautulliPort
-    jellyseerrPort
-    audiobookshelfPort
-    radarrPort
-    sonarrPort
-    bazarrPort
-    prowlarrPort
-    sabnzbdPort
-    transmissionPort
-    caddyAdminPort
     secretsDir
     ;
-  prowlarr = config.my.prowlarr.enable;
-  prowlarrTile = {
-    "Prowlarr" = {
-      icon = "prowlarr";
-      href = "https://prowlarr.${domain}";
-      description = "Torrent Index Management";
-      widget = {
-        type = "prowlarr";
-        fields = [
-          "numberOfGrabs"
-          "numberOfQueries"
-          "numberOfFailGrabs"
-          "numberOfFailQueries"
-        ];
-        url = "http://localhost:${toString prowlarrPort}";
-        key = "{{HOMEPAGE_FILE_PROWLARR_API_KEY}}";
-      };
-    };
+
+  # homepage substitutes the contents of credential NAME (see credentials).
+  file = name: "{{HOMEPAGE_FILE_${name}}}";
+  local = name: "http://localhost:${toString config.my."${name}Port"}";
+  # homepage's <name> widget, talking to localhost:my.<name>Port.
+  widget =
+    name: attrs:
+    {
+      type = name;
+      url = local name;
+    }
+    // attrs;
+  # A tile for <name>, linking to https://<name>.<domain>, with its widget
+  # (null: none).
+  tile = name: title: description: widgetAttrs: {
+    ${title} = {
+      icon = name;
+      href = "https://${name}.${domain}";
+      inherit description;
+    }
+    // lib.optionalAttrs (widgetAttrs != null) { widget = widget name widgetAttrs; };
   };
+  bookmark = title: href: description: icon: { ${title} = [ { inherit href description icon; } ]; };
 
   uniqueDevices = lib.unique (map (drive: drive.device) storageDrives);
   driveWidgets = lib.imap1 (
@@ -99,8 +92,7 @@ in
         SABNZBD_API_KEY = "sabnzbd/api-key";
         ADMIN_USERNAME = "admin/username";
         TRANSMISSION_PASSWORD = "transmission/password";
-      }
-      // lib.optionalAttrs prowlarr { PROWLARR_API_KEY = "prowlarr/api-key"; };
+      };
     in
     {
       # Several keys are exported by these oneshots on first boot; a missing
@@ -111,8 +103,7 @@ in
         "tautulli-config.service"
         "jellyseerr-config.service"
         "audiobookshelf-access.service"
-      ]
-      ++ lib.optional prowlarr "prowlarr-config.service";
+      ];
       serviceConfig = {
         LoadCredential = lib.mapAttrsToList (name: path: "${name}:${secretsDir}/${path}") credentials;
         Environment = [
@@ -180,182 +171,98 @@ in
       {
         Services = [
           {
-            "Plex" = {
+            Plex = {
               icon = "plex";
               href = "https://plex.${domain}";
               description = "Media Server";
               widgets = [
-                {
-                  type = "plex";
-                  url = "http://localhost:${toString plexPort}";
-                  key = "{{HOMEPAGE_FILE_PLEX_TOKEN}}";
+                (widget "plex" {
+                  key = file "PLEX_TOKEN";
                   fields = [
                     "movies"
                     "tv"
                   ];
-                }
-                {
-                  type = "tautulli";
-                  url = "http://localhost:${toString tautulliPort}";
-                  key = "{{HOMEPAGE_FILE_TAUTULLI_API_KEY}}";
+                })
+                (widget "tautulli" {
+                  key = file "TAUTULLI_API_KEY";
                   enableUser = true;
                   showEpisodeNumber = true;
                   expandOneStreamToTwoRows = false;
-                }
+                })
               ];
             };
           }
-          {
-            "Jellyseerr" = {
-              icon = "jellyseerr";
-              href = "https://jellyseerr.${domain}";
-              description = "Media Requests";
-              widget = {
-                type = "jellyseerr";
-                url = "http://localhost:${toString jellyseerrPort}";
-                key = "{{HOMEPAGE_FILE_JELLYSEERR_API_KEY}}";
-                fields = [
-                  "pending"
-                  "approved"
-                  "available"
-                ];
-              };
-            };
-          }
-          {
-            "Audiobookshelf" = {
-              icon = "audiobookshelf";
-              href = "https://audiobookshelf.${domain}";
-              description = "Audiobook Server";
-              widget = {
-                type = "audiobookshelf";
-                url = "http://localhost:${toString audiobookshelfPort}";
-                key = "{{HOMEPAGE_FILE_ABS_API_KEY}}";
-                fields = [
-                  "books"
-                  "booksDuration"
-                ];
-              };
-            };
-          }
-          {
-            "Radarr" = {
-              icon = "radarr";
-              href = "https://radarr.${domain}";
-              description = "Movie Management";
-              widget = {
-                type = "radarr";
-                fields = [
-                  "movies"
-                  "wanted"
-                  "missing"
-                  "queued"
-                ];
-                url = "http://localhost:${toString radarrPort}";
-                key = "{{HOMEPAGE_FILE_RADARR_API_KEY}}";
-                enableQueue = false;
-              };
-            };
-          }
-          {
-            "Sonarr" = {
-              icon = "sonarr";
-              href = "https://sonarr.${domain}";
-              description = "TV Show Management";
-              widget = {
-                type = "sonarr";
-                fields = [
-                  "series"
-                  "wanted"
-                  "queued"
-                ];
-                url = "http://localhost:${toString sonarrPort}";
-                key = "{{HOMEPAGE_FILE_SONARR_API_KEY}}";
-                enableQueue = false;
-              };
-            };
-          }
-          {
-            "Bazarr" = {
-              icon = "bazarr";
-              href = "https://bazarr.${domain}";
-              description = "Subtitles Management";
-              widget = {
-                type = "bazarr";
-                fields = [
-                  "missingEpisodes"
-                  "missingMovies"
-                ];
-                url = "http://localhost:${toString bazarrPort}";
-                key = "{{HOMEPAGE_FILE_BAZARR_API_KEY}}";
-              };
-            };
-          }
-        ]
-        ++ lib.optional prowlarr prowlarrTile
-        ++ [
-          {
-            "SABnzbd" = {
-              icon = "sabnzbd";
-              href = "https://sabnzbd.${domain}";
-              description = "Usenet Downloader";
-              widget = {
-                type = "sabnzbd";
-                url = "http://localhost:${toString sabnzbdPort}";
-                key = "{{HOMEPAGE_FILE_SABNZBD_API_KEY}}";
-              };
-            };
-          }
-          {
-            "Transmission" = {
-              icon = "transmission";
-              href = "https://transmission.${domain}";
-              description = "Torrent Downloader";
-              widget = {
-                type = "transmission";
-                url = "http://localhost:${toString transmissionPort}";
-                username = "{{HOMEPAGE_FILE_ADMIN_USERNAME}}";
-                password = "{{HOMEPAGE_FILE_TRANSMISSION_PASSWORD}}";
-                fields = [
-                  "leech"
-                  "download"
-                  "seed"
-                  "upload"
-                ];
-                rpcUrl = "/transmission/";
-                enableLeechProgress = false;
-              };
-            };
-          }
+          (tile "jellyseerr" "Jellyseerr" "Media Requests" {
+            key = file "JELLYSEERR_API_KEY";
+            fields = [
+              "pending"
+              "approved"
+              "available"
+            ];
+          })
+          (tile "audiobookshelf" "Audiobookshelf" "Audiobook Server" {
+            key = file "ABS_API_KEY";
+            fields = [
+              "books"
+              "booksDuration"
+            ];
+          })
+          (tile "radarr" "Radarr" "Movie Management" {
+            key = file "RADARR_API_KEY";
+            fields = [
+              "movies"
+              "wanted"
+              "missing"
+              "queued"
+            ];
+            enableQueue = false;
+          })
+          (tile "sonarr" "Sonarr" "TV Show Management" {
+            key = file "SONARR_API_KEY";
+            fields = [
+              "series"
+              "wanted"
+              "queued"
+            ];
+            enableQueue = false;
+          })
+          (tile "bazarr" "Bazarr" "Subtitles Management" {
+            key = file "BAZARR_API_KEY";
+            fields = [
+              "missingEpisodes"
+              "missingMovies"
+            ];
+          })
+          (tile "sabnzbd" "SABnzbd" "Usenet Downloader" { key = file "SABNZBD_API_KEY"; })
+          (tile "transmission" "Transmission" "Torrent Downloader" {
+            username = file "ADMIN_USERNAME";
+            password = file "TRANSMISSION_PASSWORD";
+            fields = [
+              "leech"
+              "download"
+              "seed"
+              "upload"
+            ];
+            rpcUrl = "/transmission/";
+            enableLeechProgress = false;
+          })
         ]
         ++ driveWidgets
         ++ [
+          (tile "homebridge" "Homebridge" "Apple Home Integration" null)
+          (tile "tautulli" "Tautulli" "Plex Monitoring" null)
           {
-            "Homebridge" = {
-              icon = "homebridge";
-              href = "https://homebridge.${domain}";
-              description = "Apple Home Integration";
-            };
-          }
-          {
-            "Tautulli" = {
-              icon = "tautulli";
-              href = "https://tautulli.${domain}";
-              description = "Plex Monitoring";
-            };
-          }
-          {
-            "Caddy" = {
+            Caddy = {
               icon = "caddy";
               description = "Service Gateway";
               widget = {
                 type = "caddy";
+                url = local "caddyAdmin";
                 fields = [
                   "upstreams"
                   "requests"
                   "requests_failed"
                 ];
-                url = "http://localhost:${toString caddyAdminPort}";
               };
             };
           }
@@ -365,51 +272,16 @@ in
     bookmarks = [
       {
         Bookmarks = [
-          {
-            Cloudflare = [
-              {
-                href = "https://dash.cloudflare.com/";
-                description = "DNS Provider";
-                icon = "cloudflare";
-              }
-            ];
-          }
-          {
-            Namecheap = [
-              {
-                href = "https://ap.www.namecheap.com/";
-                description = "Domain Registrar";
-                icon = "namecheap";
-              }
-            ];
-          }
-          {
-            NZBGeek = [
-              {
-                href = "https://nzbgeek.info/dashboard.php?myaccount";
-                description = "Usenet Indexer";
-                icon = "mdi-multimedia";
-              }
-            ];
-          }
-          {
-            Frugal = [
-              {
-                href = "https://billing.frugalusenet.com/member";
-                description = "Usenet Provider";
-                icon = "mdi-multimedia";
-              }
-            ];
-          }
-          {
-            Letterboxd = [
-              {
-                href = "https://letterboxd.com/official/story/official-lists-hq-directory/";
-                description = "Movie Lists";
-                icon = "si-letterboxd";
-              }
-            ];
-          }
+          (bookmark "Cloudflare" "https://dash.cloudflare.com/" "DNS Provider" "cloudflare")
+          (bookmark "Namecheap" "https://ap.www.namecheap.com/" "Domain Registrar" "namecheap")
+          (bookmark "NZBGeek" "https://nzbgeek.info/dashboard.php?myaccount" "Usenet Indexer"
+            "mdi-multimedia"
+          )
+          (bookmark "Frugal" "https://billing.frugalusenet.com/member" "Usenet Provider" "mdi-multimedia")
+          (bookmark "Letterboxd" "https://letterboxd.com/official/story/official-lists-hq-directory/"
+            "Movie Lists"
+            "si-letterboxd"
+          )
         ];
       }
     ];

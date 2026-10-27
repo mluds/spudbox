@@ -21,7 +21,7 @@ let
       helpers
       ;
   };
-  configScript = mkArrConfig {
+  arr = mkArrConfig {
     name = "radarr";
     port = radarrPort;
     rootFolder = {
@@ -108,60 +108,36 @@ let
     '';
   };
 in
-{
-  users.groups.radarr = { };
-  users.users.radarr = {
-    isSystemUser = true;
-    group = "media";
-    extraGroups = [ "radarr" ];
-    createHome = false;
-    useDefaultShell = false;
-  };
-  services.radarr = {
-    enable = true;
-    user = "radarr";
-    group = "media";
-    openFirewall = false;
-    # Loopback only; reached through Caddy (env var overrides config.xml).
-    settings.server.bindaddress = "127.0.0.1";
-  };
-
-  systemd = {
-    services = {
-      radarr-config = {
-        wantedBy = [ "multi-user.target" ];
-        after = [ "radarr.service" ];
-        serviceConfig = {
-          User = "root";
-          Type = "oneshot";
-          ExecStart = lib.getExe configScript;
+lib.mkMerge [
+  arr
+  {
+    systemd = {
+      services = {
+        radarr-auto-import = {
+          description = "Auto-import blocked Radarr downloads";
+          # No Requires=: the nightly backup stops Radarr, and that would kill a
+          # run in progress (an alert) or let a run start Radarr mid-backup. The
+          # script exits 0 when Radarr is down.
+          after = [ "radarr.service" ];
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart = lib.getExe autoImportScript;
+            DynamicUser = true;
+            RuntimeDirectory = "radarr-auto-import";
+            StateDirectory = "radarr-auto-import";
+            LoadCredential = "radarr-api-key:${secretsDir}/radarr/api-key";
+          };
         };
       };
 
-      radarr-auto-import = {
-        description = "Auto-import blocked Radarr downloads";
-        # No Requires=: the nightly backup stops Radarr, and that would kill a
-        # run in progress (an alert) or let a run start Radarr mid-backup. The
-        # script exits 0 when Radarr is down.
-        after = [ "radarr.service" ];
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = lib.getExe autoImportScript;
-          DynamicUser = true;
-          RuntimeDirectory = "radarr-auto-import";
-          StateDirectory = "radarr-auto-import";
-          LoadCredential = "radarr-api-key:${secretsDir}/radarr/api-key";
+      timers.radarr-auto-import = {
+        description = "Periodically auto-import blocked Radarr downloads";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "*:0/15";
+          Persistent = true;
         };
       };
     };
-
-    timers.radarr-auto-import = {
-      description = "Periodically auto-import blocked Radarr downloads";
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnCalendar = "*:0/15";
-        Persistent = true;
-      };
-    };
-  };
-}
+  }
+]

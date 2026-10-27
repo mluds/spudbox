@@ -20,7 +20,9 @@ let
       helpers
       ;
   };
-  configScript = mkArrConfig {
+in
+lib.mkMerge [
+  (mkArrConfig {
     name = "sonarr";
     port = sonarrPort;
     rootFolder = {
@@ -58,27 +60,6 @@ let
     rescanCommand = "RescanSeries";
     # "Title (2020)" -> "Title"
     searchTermSed = "s/([^)]*)$//; s/ *$//";
-  };
-in
-{
-  services.sonarr = {
-    enable = true;
-    user = "sonarr";
-    group = "media";
-    openFirewall = false;
-    # Loopback only; reached through Caddy (env var overrides config.xml).
-    settings.server.bindaddress = "127.0.0.1";
-  };
-
-  systemd.services.sonarr.serviceConfig.StateDirectoryMode = "0700";
-
-  systemd.services.sonarr-config = {
-    wantedBy = [ "multi-user.target" ];
-    after = [ "sonarr.service" ];
-    serviceConfig = {
-      User = "root";
-      Type = "oneshot";
-      ExecStart = lib.getExe configScript;
-    };
-  };
-}
+  })
+  { systemd.services.sonarr.serviceConfig.StateDirectoryMode = "0700"; }
+]

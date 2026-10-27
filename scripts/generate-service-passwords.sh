@@ -14,9 +14,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Keep in step with passwordServices in configuration.nix (this runs on the
-# Mac, so it can't read /etc/spudbox/env). prowlarr is kept for when it's
-# re-enabled.
-services=(sonarr radarr prowlarr bazarr sabnzbd transmission tautulli homebridge audiobookshelf)
+# Mac, so it can't read /etc/spudbox/env).
+services=(sonarr radarr bazarr sabnzbd transmission tautulli homebridge audiobookshelf)
 
 # A locked checkout has no git-crypt filter, so `git add` would commit the
 # new passwords in plaintext. Refuse unless it's unlocked.

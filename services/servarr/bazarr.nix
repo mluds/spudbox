@@ -64,12 +64,8 @@ let
       assrt = { };
     }
   );
-
-  newConfigContent = builtins.readFile configTemplate;
 in
 {
-  users.groups.bazarr = { };
-
   services.bazarr = {
     enable = true;
     user = "bazarr";
@@ -89,13 +85,11 @@ in
     wants = [ "bazarr.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
-      Type = "oneshot";
-      User = "root";
       Environment = [
         "SECRETS_DIR=${secretsDir}"
         "CONFIG_PATH=/var/lib/bazarr/config/config.yaml"
         "DB_PATH=/var/lib/bazarr/db/bazarr.db"
-        "NEW_CONFIG=${lib.escapeShellArg newConfigContent}"
+        "CONFIG_TEMPLATE=${configTemplate}"
       ];
       ExecStart = lib.getExe configScript;
     };

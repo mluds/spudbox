@@ -17,12 +17,10 @@ let
   } (builtins.readFile ./tautulli-config.py);
 in
 {
-  services.tautulli = {
-    enable = true;
-  };
+  services.tautulli.enable = true;
 
   systemd.services.tautulli.serviceConfig = import ./hardening.nix // {
-    # New files owner-only; see lock_down_data_dir above
+    # New files owner-only; see lock_down_data_dir in tautulli-config.py
     UMask = "0077";
   };
 
@@ -36,8 +34,6 @@ in
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {
-      Type = "oneshot";
-      User = "root";
       ExecStart = lib.getExe configScript;
     };
 
