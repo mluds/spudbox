@@ -17,17 +17,21 @@ def main():
         print("Waiting for initial Tautulli config:", getenv("TAUTULLI_CONFIG"))
         time.sleep(5)
 
+    # Without a Plex token yet (a fresh install before Plex is claimed), the
+    # login and loopback binding are still applied; the Plex link waits for
+    # the next run, and the unit fails until then.
+    token_path = f"{getenv('SECRETS_DIR')}/plex/token"
+    plex_token = read_file(token_path) if path.exists(token_path) else ""
+    plex_identity = None
+    if plex_token:
+        print("Fetching Plex server identity...")
+        plex_identity = get_plex_identity()
+
     print("Stopping Tautulli service...")
     subprocess.run(["systemctl", "stop", "tautulli"], check=False)
 
     print("Waiting for service to stop...")
     time.sleep(5)
-
-    print("Reading Plex token...")
-    plex_token = read_file(f"{getenv('SECRETS_DIR')}/plex/token")
-
-    print("Fetching Plex server identity...")
-    plex_identity = get_plex_identity()
 
     print("Updating configuration...")
     update_config(plex_token, plex_identity)
@@ -40,6 +44,12 @@ def main():
 
     print("Exporting API key...")
     export_api_key()
+
+    if not plex_token:
+        raise SystemExit(
+            "No Plex token yet: login and binding set, Plex not linked. Once Plex is set up, "
+            "restart plex-config and tautulli-config."
+        )
 
 
 def lock_down_data_dir():
@@ -101,29 +111,29 @@ def update_config(plex_token, plex_identity):
     parser.read(cfg_path)  # skips a missing file
 
     plex_port = getenv("PLEX_PORT")
-    parser.read_dict(
-        {
-            "General": {
-                "http_username": read_file(getenv("TAUTULLI_ADMIN_USERNAME_FILE")),
-                "http_password": make_hash(read_file(getenv("TAUTULLI_ADMIN_PASSWORD_FILE"))),
-                "http_host": "127.0.0.1",  # loopback only; reached through Caddy
-                "http_port": getenv("TAUTULLI_PORT"),
-                "first_run_complete": "1",
-                "system_analytics": "0",
-            },
-            "PMS": {
-                "pms_ip": "127.0.0.1",
-                "pms_port": plex_port,
-                "pms_url": f"http://127.0.0.1:{plex_port}",
-                "pms_token": plex_token,
-                "pms_identifier": plex_identity["machineIdentifier"],
-                "pms_name": plex_identity["friendlyName"],
-                "pms_ssl": "0",
-                "pms_is_cloud": "0",
-                "pms_is_remote": "0",
-            },
+    settings = {
+        "General": {
+            "http_username": read_file(getenv("TAUTULLI_ADMIN_USERNAME_FILE")),
+            "http_password": make_hash(read_file(getenv("TAUTULLI_ADMIN_PASSWORD_FILE"))),
+            "http_host": "127.0.0.1",  # loopback only; reached through Caddy
+            "http_port": getenv("TAUTULLI_PORT"),
+            "first_run_complete": "1",
+            "system_analytics": "0",
+        },
+    }
+    if plex_token:
+        settings["PMS"] = {
+            "pms_ip": "127.0.0.1",
+            "pms_port": plex_port,
+            "pms_url": f"http://127.0.0.1:{plex_port}",
+            "pms_token": plex_token,
+            "pms_identifier": plex_identity["machineIdentifier"],
+            "pms_name": plex_identity["friendlyName"],
+            "pms_ssl": "0",
+            "pms_is_cloud": "0",
+            "pms_is_remote": "0",
         }
-    )
+    parser.read_dict(settings)
 
     with open(cfg_path, "w") as configfile:
         parser.write(configfile)

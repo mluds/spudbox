@@ -58,9 +58,10 @@ let
         echo "Creating partition on blank disk $DEVICE"
         printf 'g\nn\n1\n\n\nw\n' | fdisk "$DEVICE"
 
-        # Force kernel to re-read partition table
-        blockdev --rereadpt "$DEVICE" || true
-        udevadm settle -t 5  # Wait for udev events
+        # fdisk has the kernel re-read the table itself. Don't do it again
+        # (blockdev --rereadpt): the new partition's device would vanish and
+        # reappear, failing the fsck and mount systemd has bound to it.
+        udevadm settle -t 5
 
         # Wait longer for partition device
         echo "Waiting for partition $PARTITION..."
@@ -76,21 +77,21 @@ let
         fi
       fi
 
-      # blkid -p reads signatures only, so a dirty XFS log doesn't matter.
-      # Exit 2: no signature at all. Anything else (another filesystem, or
-      # conflicting signatures) is left alone; mkfs.xfs without -f would
-      # refuse to overwrite one too.
-      RC=0
-      TYPE=$(blkid -p -s TYPE -o value "$PARTITION") || RC=$?
-      if [ "$RC" -eq 0 ] && [ "$TYPE" = xfs ]; then
+      # The partition's signatures (wipefs lists them without erasing; it
+      # reads superblocks only, so a dirty XFS log doesn't matter). blkid -p
+      # won't do: it also reports the partition-table entry, blank or not.
+      # Anything but none or a lone XFS is left alone; mkfs.xfs without -f
+      # would refuse to overwrite one too.
+      SIGNATURES=$(wipefs --noheadings --output TYPE "$PARTITION" | sort -u | paste -sd ' ')
+      if [ "$SIGNATURES" = xfs ]; then
         echo "XFS filesystem already exists"
-      elif [ "$RC" -ne 2 ]; then
-        echo "ERROR: $PARTITION isn't blank XFS (blkid: ''${TYPE:-exit $RC}); refusing to format it"
+      elif [ -n "$SIGNATURES" ]; then
+        echo "ERROR: $PARTITION isn't blank or XFS (found: $SIGNATURES); refusing to format it"
         exit 1
       else
         echo "Creating XFS filesystem on blank partition $PARTITION"
         mkfs.xfs "$PARTITION"
-        if [ "$(blkid -p -s TYPE -o value "$PARTITION" || true)" != xfs ]; then
+        if [ "$(wipefs --noheadings --output TYPE "$PARTITION")" != xfs ]; then
           echo "ERROR: XFS creation failed!"
           exit 1
         fi
@@ -163,6 +164,11 @@ in
               "allow_other"
               "use_ino"
               "cache.files=partial"
+              # Like the drives under it: a missing disk must not stop the
+              # boot in emergency mode, where a headless server (root locked)
+              # can't be reached. The apps that use the pools wait for them
+              # (RequiresMountsFor, in module.nix) instead.
+              "nofail"
             ];
             depends = map (d: d.mount) drives;
           };

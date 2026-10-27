@@ -31,6 +31,7 @@ in
       (lib.toShellVar "SPUDBOX_REVISION" (toString cfg.revision))
       (lib.toShellVar "FEATURES" cfg.features)
       (lib.toShellVar "INDEXERS" (map (indexer: indexer.name) cfg.indexers))
+      (lib.toShellVar "USENET_SERVERS" cfg.usenet.servers)
       (lib.toShellVar "SUBTITLE_PROVIDERS" cfg.subtitleProviders)
       # Block device names (sda), as drive-check names its status files
       (lib.toShellVar "STORAGE_DEVICES" (

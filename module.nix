@@ -13,6 +13,7 @@ let
     "${storageDir}/data/media/movies"
     "${storageDir}/data/media/tv"
     "${storageDir}/data/media/audiobooks"
+    "${storageDir}/data/media/videos" # Transmission's download-dir
     "${storageDir}/data/misc"
     "${cacheDir}/data"
     "${cacheDir}/data/torrents"
@@ -101,6 +102,11 @@ let
       find ${secretsDir} -type d -exec chmod 700 {} \;
       find ${secretsDir} -type f -exec chmod 600 {} \;
 
+      # The local restic repo (also made by each backup; here so it exists
+      # before the first one).
+      mkdir -p ${cfg.backupDir}
+      chmod 700 ${cfg.backupDir}
+
       # Login passwords in plaintext are for recovery only; they stay in the
       # repo and the password manager, never on the server (deploy.sh skips them).
       rm -f ${secretsDir}/users/*/plaintext
@@ -163,9 +169,6 @@ in
     };
     optimise.automatic = true;
   };
-  systemd.services.nix-gc.preStart = ''
-    ${config.nix.package}/bin/nix-env -p /nix/var/nix/profiles/system --delete-generations +5
-  '';
 
   boot.loader = {
     systemd-boot = {
@@ -245,13 +248,53 @@ in
     # Before the first deploy, which streams the secrets into it.
     tmpfiles.rules = [ "d ${secretsDir} 0700 root root -" ];
 
-    services.create-dirs = {
-      description = "Create directories";
-      after = [ "local-fs.target" ];
-      requires = [ "local-fs.target" ];
-      serviceConfig.ExecStart = lib.getExe createDirsScript;
-      wantedBy = [ "multi-user.target" ];
-    };
+    # The data pools are mounted nofail (storage.nix), so these never start
+    # on an unmounted pool and fill the boot disk; they stay down instead.
+    services = lib.mkMerge [
+      (lib.genAttrs
+        [
+          "create-dirs"
+          "plex"
+          "sonarr"
+          "radarr"
+          "bazarr"
+          "transmission"
+          "sabnzbd"
+          "audiobookshelf"
+        ]
+        (_: {
+          unitConfig.RequiresMountsFor = [
+            storageDir
+            cacheDir
+          ];
+        })
+      )
+      {
+        nix-gc.preStart = ''
+          ${config.nix.package}/bin/nix-env -p /nix/var/nix/profiles/system --delete-generations +5
+        '';
+
+        create-dirs = {
+          description = "Create directories";
+          # Ordering only: Requires= would stop it whenever a switch restarts
+          # local-fs.target, and nothing would start it again. The pools it
+          # writes to come from RequiresMountsFor above.
+          after = [ "local-fs.target" ];
+          # Their download and library dirs must exist when they start (on a
+          # fresh install, Transmission's sandbox refuses to start without them).
+          before = [
+            "transmission.service"
+            "sabnzbd.service"
+            "sonarr.service"
+            "radarr.service"
+            "plex.service"
+            "audiobookshelf.service"
+          ];
+          serviceConfig.ExecStart = lib.getExe createDirsScript;
+          wantedBy = [ "multi-user.target" ];
+        };
+      }
+    ];
   };
 
   spudbox.passwordServices = passwordServices;

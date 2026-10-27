@@ -13,7 +13,12 @@ source ./deploy.env
 : "${HOST:?set HOST in deploy.env}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 SPUDBOX_SRC="${SPUDBOX_SRC:-}"
-SSH="ssh -i $SSH_KEY $HOST"
+# Extra ssh options for both the server and the installer, e.g. "-p 2222".
+SSH_OPTS="${SSH_OPTS:-}"
+# The server's host key is trusted on first use.
+SSH="ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new $SSH_OPTS $HOST"
+# The installer makes a new host key every boot, so it isn't remembered.
+INSTALLER_SSH="ssh -i $SSH_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $SSH_OPTS"
 NIX="nix --extra-experimental-features 'nix-command flakes'"
 
 usage() {
@@ -28,6 +33,7 @@ Commands:
   update              Move flake.lock to the newest spudbox (built on the server)
   lint                Lint the SPUDBOX_SRC checkout on the server
   ssh                 Shell on the server
+  secret NAME         Type a secret into secrets/NAME (input hidden), e.g. usenet/password
   hardware ROOT@IP    Write hardware.nix from a machine booted into the installer
   install ROOT@IP     Install onto a machine booted into the NixOS installer,
                       its disks mounted at /mnt (see the spudbox README)
@@ -63,13 +69,19 @@ secrets_tar() {
     COPYFILE_DISABLE=1 tar --format ustar -cf - -T -)
 }
 
+# revision DIR: its commit (-dirty: with uncommitted changes), or
+# "uncommitted" in a repo without commits yet.
+revision() {
+  git -C "$1" describe --always --dirty 2>/dev/null || echo uncommitted
+}
+
 # copy_tree SRC SSH_CMD DEST: SRC's files (no .git, no secrets) to DEST, and
 # its commit to DEST/.revision (-dirty: with uncommitted changes).
 copy_tree() {
   local src=$1 ssh=$2 dest=$3
   (cd "$src" && COPYFILE_DISABLE=1 tar --exclude=./.git --exclude=./secrets --exclude=./result -cf - .) |
     $ssh "rm -rf $dest && mkdir -p $dest && tar -xf - -C $dest"
-  git -C "$src" describe --always --dirty 2>/dev/null | $ssh "cat > $dest/.revision" || true
+  revision "$src" | $ssh "cat > $dest/.revision"
 }
 
 sync_files() {
@@ -84,13 +96,13 @@ sync_files() {
   # Secrets never land in ~/deploy: the flake there isn't a git checkout, so
   # nixos-rebuild copies the whole directory into the world-readable store.
   rsync -az --delete --delete-excluded --exclude='/.git' --exclude='/secrets/' --exclude='/result' \
-    -e "ssh -i $SSH_KEY" "$SCRIPT_DIR/" "$HOST:~/deploy/"
-  git describe --always --dirty | $SSH "cat > ~/deploy/.revision"
+    -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new $SSH_OPTS" "$SCRIPT_DIR/" "$HOST:~/deploy/"
+  revision . | $SSH "cat > ~/deploy/.revision"
   if [ -n "$SPUDBOX_SRC" ]; then
     echo "Syncing the spudbox module from $SPUDBOX_SRC..."
     rsync -az --delete --exclude='/.git' --exclude='/result' \
-      -e "ssh -i $SSH_KEY" "$SPUDBOX_SRC/" "$HOST:~/deploy-spudbox/"
-    git -C "$SPUDBOX_SRC" describe --always --dirty | $SSH "cat > ~/deploy-spudbox/.revision"
+      -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new $SSH_OPTS" "$SPUDBOX_SRC/" "$HOST:~/deploy-spudbox/"
+    revision "$SPUDBOX_SRC" | $SSH "cat > ~/deploy-spudbox/.revision"
   fi
 
   echo "Installing secrets..."
@@ -162,9 +174,22 @@ update_lock() {
 
 write_hardware() {
   local target=${1:?usage: ./deploy.sh hardware root@<ip>}
-  ssh "$target" nixos-generate-config --root /mnt --show-hardware-config > hardware.nix.new
+  $INSTALLER_SSH "$target" nixos-generate-config --root /mnt --show-hardware-config > hardware.nix.new
   mv hardware.nix.new hardware.nix
   echo "Wrote hardware.nix; commit it."
+}
+
+# secret NAME: read a secret without echoing it (nor putting it in shell
+# history or on a command line) into secrets/NAME, without a trailing newline.
+write_secret() {
+  local name=${1:?usage: ./deploy.sh secret <name>, e.g. usenet/password}
+  local value
+  case $name in /* | *..*) echo "ERROR: give a path inside secrets/" >&2; exit 1 ;; esac
+  read -rsp "secrets/$name: " value
+  echo
+  [ -n "$value" ] || { echo "Empty; nothing written." >&2; exit 1; }
+  (umask 077 && mkdir -p "secrets/$(dirname "$name")" && printf '%s' "$value" > "secrets/$name")
+  echo "Wrote secrets/$name"
 }
 
 # From the NixOS installer, booted with the disks partitioned and mounted at
@@ -173,7 +198,7 @@ write_hardware() {
 # in afterwards as one of spudbox.users, with your SSH key.
 install_system() {
   local target=${1:?usage: ./deploy.sh install root@<ip>}
-  local ssh="ssh $target"
+  local ssh="$INSTALLER_SSH $target"
   check_unlocked
   check_hardware
   $ssh 'mountpoint -q /mnt && mountpoint -q /mnt/boot' ||
@@ -199,7 +224,7 @@ install_system() {
     echo "Wrote flake.lock; commit it."
   fi
   echo
-  echo "Done. Reboot the server (ssh $target reboot), then log in as one of"
+  echo "Done. Reboot the server (ssh root@${target#*@} reboot), then log in as one of"
   echo "spudbox.users with your SSH key; from then on use ./deploy.sh."
 }
 
@@ -220,7 +245,8 @@ case "$CMD" in
     run_tests
     ;;
   update) update_lock ;;
-  ssh) exec ssh -i "$SSH_KEY" "$HOST" ;;
+  ssh) exec $SSH ;;
+  secret) write_secret "$@" ;;
   hardware) write_hardware "$@" ;;
   install) install_system "$@" ;;
   *) usage ;;

@@ -35,4 +35,4 @@ the values yourself. `sudo spudbox-passwords` on the server prints the logins.
 | `sonarr/api-key`, `radarr/api-key`, `sabnzbd/api-key`, `sabnzbd/nzb-key` | API keys |
 | `restic/password` | Encrypts the backups. **Copy it into your password manager**: without it no backup can be restored. |
 | `users/<name>/hashed` | A password hash for a login user (`mkpasswd -m yescrypt`); without one, SSH keys only |
-| `users/<name>/plaintext` | That user's password in plaintext, so Audiobookshelf's first setup can create their account. Never copied to the server by deploy. |
+| `users/<name>/plaintext` | Your own recovery copy of that password. Never copied to the server. |

@@ -1,9 +1,11 @@
-# One-off setup for a fresh Audiobookshelf install (not started on boot):
-# replaces the users table with a root account whose password is
-# audiobookshelf/password, then creates the Audiobooks library and the login
-# users. It refuses to run on a database that already has users, because the
-# DELETE would wipe them and their listening progress; set ABS_FORCE=1 to
-# override (systemctl set-environment, or edit the unit).
+# First-time setup of a fresh Audiobookshelf install: replaces the users
+# table with a root account whose password is audiobookshelf/password, then
+# creates the Audiobooks library and the login users. It refuses to run on a
+# database that already has users, because the DELETE would wipe them and
+# their listening progress; set ABS_FORCE=1 to override (systemctl
+# set-environment, or edit the unit). With ABS_IF_EMPTY=1 (how
+# audiobookshelf-access runs it on every boot) it waits for Audiobookshelf
+# and quietly does nothing once there are users.
 import json
 import os
 import socket
@@ -167,6 +169,12 @@ def create_users(headers):
 
 
 def main():
+    if os.getenv("ABS_IF_EMPTY") == "1":
+        # Audiobookshelf creates its database on first start.
+        wait_for_port(HOST, PORT, timeout=300)
+        if user_count():
+            print("Audiobookshelf is set up already; nothing to do.")
+            return
     existing = user_count()
     if existing and os.getenv("ABS_FORCE") != "1":
         sys.exit(

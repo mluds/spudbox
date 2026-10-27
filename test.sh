@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# No set -e: a probe that fails (an app that's down, no backup yet) is a
+# failed check to report, not a reason to stop the run.
+set -uo pipefail
 
 # ─── Configuration ──────────────────────────────────────────────
 # Dirs, domain, every *_PORT, REVISION, the enabled FEATURES, and the
@@ -32,7 +34,9 @@ check_eq() {
   if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (got '$2', expected '$3')"; fi
 }
 
-read_secret() { sudo cat "$SECRETS_DIR/$1" 2>/dev/null | tr -d '\n'; }
+# Empty if missing (check_secret reports that), rather than ending the run
+# under set -e before any check: a fresh install has no Plex token yet.
+read_secret() { sudo cat "$SECRETS_DIR/$1" 2>/dev/null | tr -d '\n' || true; }
 
 # Secrets reach curl and grep through files in this private dir, never as
 # arguments, which any local user could read from /proc/<pid>/cmdline.
@@ -56,6 +60,15 @@ auth_file tautulli 'apikey=%s' tautulli/api-key
 auth_file sabnzbd 'apikey=%s' sabnzbd/api-key
 auth_file transmission 'user = "%s:%s"\n' admin/username transmission/password
 if has tls-cloudflare; then auth_file cloudflare '%s\n' cloudflare/api-token; fi
+
+# Requests through Caddy: with tls = "internal" its certificates come from its
+# own CA, which curl must be told to trust.
+CADDY_TLS=()
+if ! has tls-cloudflare; then
+  # shellcheck disable=SC2024 # root reads it; $AUTH is ours to write
+  sudo cat /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt > "$AUTH/caddy-root.crt" 2>/dev/null || true
+  CADDY_TLS=(--cacert "$AUTH/caddy-root.crt")
+fi
 
 http_code() {
   local url="$1"; shift
@@ -232,7 +245,7 @@ test_api_auth() {
     port=${svc^^}_PORT
     check_http "http://localhost:${!port}$path" "$codes" "$svc rejects anonymous"
     check_http "https://$svc.$DOMAIN$path" "$codes" "$svc via caddy rejects anonymous" \
-      --resolve "$svc.$DOMAIN:443:127.0.0.1"
+      --resolve "$svc.$DOMAIN:443:127.0.0.1" "${CADDY_TLS[@]}"
   done
 }
 
@@ -330,8 +343,10 @@ test_downloads() {
   queue=$(sabnzbd "mode=queue&output=json")
   check_eq "sabnzbd queue active" "$(jq -r '.queue.paused' <<< "$queue")" false
   check_json "sabnzbd queue accessible" '.queue.status != null' echo "$queue"
-  check_json "sabnzbd usenet server configured" '[.config.servers[] | select(.enable == 1)] | length > 0' \
-    sabnzbd "mode=get_config&section=servers&output=json"
+  if [ "${#USENET_SERVERS[@]}" -gt 0 ]; then
+    check_json "sabnzbd usenet server configured" '[.config.servers[] | select(.enable == 1)] | length > 0' \
+      sabnzbd "mode=get_config&section=servers&output=json"
+  fi
   check_json "sabnzbd categories (movies, tv)" '[.config.categories[].name] | index("movies") and index("tv")' \
     sabnzbd "mode=get_config&section=categories&output=json"
 
@@ -350,7 +365,7 @@ test_caddy() {
 
   local svc code
   for svc in "${CADDY_HOSTS[@]}"; do
-    code=$(http_code "https://${svc}.${DOMAIN}" --resolve "${svc}.${DOMAIN}:443:127.0.0.1")
+    code=$(http_code "https://${svc}.${DOMAIN}" --resolve "${svc}.${DOMAIN}:443:127.0.0.1" "${CADDY_TLS[@]}")
     if [ "$code" != "502" ] && [ "$code" != "503" ] && [ "$code" != "000" ]; then
       pass "${svc}.${DOMAIN} (HTTP $code)"
     else
@@ -468,8 +483,10 @@ test_security() {
 
   # SABnzbd: verifies usenet server certificates (3 = Strict); built-in
   # HTTPS off (Caddy terminates TLS); ini private
-  check_json "sabnzbd usenet servers ssl_verify strict" 'all(.config.servers[]; .ssl_verify == 3)' \
-    sabnzbd "mode=get_config&section=servers&output=json"
+  if [ "${#USENET_SERVERS[@]}" -gt 0 ]; then
+    check_json "sabnzbd usenet servers ssl_verify strict" 'all(.config.servers[]; .ssl_verify == 3)' \
+      sabnzbd "mode=get_config&section=servers&output=json"
+  fi
   check "sabnzbd https port 8090 closed" not grep -q ":8090 " <<< "$(ss -tln)"
   check_eq "sabnzbd.ini owner and mode" \
     "$(sudo stat -c "%U:%G %a" /var/lib/sabnzbd/sabnzbd.ini 2>/dev/null)" "sabnzbd:media 600"

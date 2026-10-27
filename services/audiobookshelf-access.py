@@ -114,7 +114,11 @@ def main():
     os.replace(KEY_FILE + ".tmp", KEY_FILE)
     print("Issued a new homepage API key; restarting homepage to load it")
     # homepage reads its keys via LoadCredential at start
-    subprocess.run(["systemctl", "try-restart", "homepage-dashboard.service"], check=False)
+    # --no-block: homepage starts after this unit, so on first boot its start
+    # job waits for us; a blocking restart would wait for it in turn.
+    subprocess.run(
+        ["systemctl", "--no-block", "try-restart", "homepage-dashboard.service"], check=False
+    )
 
 
 main()

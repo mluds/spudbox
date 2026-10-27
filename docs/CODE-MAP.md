@@ -42,7 +42,7 @@ enables them.
 | `services/sabnzbd.nix` | SABnzbd via NixOS `settings` + `secretValues`; servers from `usenet.*`. Hourly `sabnzbd-resume` (no `Requires=`; exits 0 if SABnzbd is down). |
 | `services/transmission.nix` | Transmission 4 + Flood UI. RPC credentials built in `ExecStartPre`. |
 | `services/audiobookshelf.nix` + `audiobookshelf-access.py` | Every boot: checks the root password, issues homepage's read-only API key. |
-| `services/audiobookshelf-config.py` | One-off, started by hand: seeds the root user in SQLite, library, users. Refuses if users exist, unless `ABS_FORCE=1`. |
+| `services/audiobookshelf-config.py` | First-time setup (run by `audiobookshelf-access` while the DB has no users): seeds the root user in SQLite, library, users. By hand it refuses if users exist, unless `ABS_FORCE=1`. |
 | `services/homepage.nix` | Dashboard, built with `tile`/`widget`/`bookmark` helpers; title and bookmarks from `homepage.*`. Keys come through `LoadCredential`. |
 | `services/homebridge.nix` | `homebridge.enable`: Homebridge in Docker (pinned digest; Docker only for this). `homebridge-config` does first setup (pinned `homebridge-dummy` for `dummySwitches`) and checks the password. Avahi. |
 | `services/backup.nix` | restic: nightly `/var/lib` backup to the data disks; with `offsiteBackup`, `restic copy` to an S3 bucket, prune, check. Skips caches, poster art, logs and app-internal backups. |
@@ -58,7 +58,9 @@ enables them.
 | `services/servarr/jellyseerr.nix` | seerr under a fixed user, sandboxed, config always in `/var/lib/jellyseerr/config`. First-run setup, Plex/arr links, Pushover. |
 | `test.sh` | About 260 server checks, gated on `FEATURES`. Installed as `spudbox-test`. |
 | `lint.sh` + `ruff.toml`, `_typos.toml`, `.gitleaks.toml` | statix, deadnix, nixfmt, shellcheck, ruff check/format, gitleaks, typos (`nix develop -c ./lint.sh`). |
-| `template/` | A new instance: `flake.nix`, example `spudbox.nix`, placeholder `hardware.nix`, `deploy.sh` (+ `install`, `hardware`, `update`), `deploy.env`, `secrets/README.md`. |
+| `template/` | A new instance: `flake.nix`, example `spudbox.nix`, placeholder `hardware.nix`, `deploy.sh` (+ `install`, `hardware`, `update`, `secret NAME`; `SSH_OPTS`), `deploy.env`, `secrets/README.md`. |
+| `scripts/partition-boot-disk.sh` | Erases and partitions the boot disk on the NixOS installer (ESP + ext4, mounted at `/mnt`). Refuses off the installer (`/iso`), on a disk with anything mounted, or without `CONFIRM=<disk name>`. Mounts with explicit types (the installer may not have ext4 loaded). |
+| `.claude/skills/install-spudbox/` | The `/install-spudbox` Claude Code skill: settings → instance repo → secrets (typed by the person, never through the chat) → installer → partition (typed confirmation) → `deploy.sh install` → first-run steps. Resumable. Keep it in step with the README and `deploy.sh`. |
 
 ## Notes and gotchas
 
@@ -91,8 +93,13 @@ enables them.
   exist fail, and the script skips them on purpose.
 - `tautulli-config` and `bazarr-config` stop their app, edit its files, then
   start it again. Bazarr's language profiles are deleted and re-inserted each run.
-- `audiobookshelf-config` is **not** started automatically. It runs
-  `DELETE FROM users`, so running it on a live install wipes every user.
+- `audiobookshelf-config` runs as `audiobookshelf-access`'s `ExecStartPre`
+  with `ABS_IF_EMPTY=1`: it waits for Audiobookshelf and does nothing once
+  the database has users. Started by hand it runs `DELETE FROM users`, so it
+  refuses on a live install unless `ABS_FORCE=1`.
+- A setup unit must never block on restarting a unit ordered after it
+  (`homepage-dashboard` is after the units that export its keys): use
+  `systemctl --no-block`, or the first boot deadlocks.
 
 **Networking**
 
@@ -154,7 +161,6 @@ enables them.
 | 2 | Medium | Declare the wired NetworkManager profile (`networking.networkmanager.ensureProfiles`) with `ipv6.method=disabled`. | `module.nix` | Removes the manual `nmcli` step; the interface name differs per machine, so it needs an option. | Open |
 | 3 | Medium | A `nixosTest` VM test of the template config with dummy secrets, run in CI. | `flake.nix` | `nix flake check` only evaluates; a VM boot would catch broken setup units before a release. | Open |
 | 4 | Low | Declarative boot-disk partitioning (disko) in place of the README's `parted` commands. | `template/`, README | One less manual step in an install; needs care not to touch existing installs. | Open |
-| 5 | Low | Run `audiobookshelf-config` automatically when the DB has no users. | `services/audiobookshelf.nix` | Another manual first-run step; its guard already refuses on a live install. | Open |
 | 6 | Low | `deploy.sh` restore helper: stop the apps, `restic restore` `/var/lib`, reboot. | `template/deploy.sh` | Restoring after a reinstall is documented but manual. | Open |
 
 Ideas considered and not done (2026-10-23):
@@ -170,6 +176,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-10-27 | (next) | `/install-spudbox` skill and `scripts/partition-boot-disk.sh`; `deploy.sh secret`, `SSH_OPTS`, installer-safe SSH. Tested end to end in a QEMU VM (UEFI, NVMe boot disk, blank virtio data disk) from the real 26.05 minimal ISO; that found and fixed: partition mount without `-t ext4`; `ensure-partition`'s blank check (blkid reports partition entries; now wipefs) and its double re-read that sent the first boot to emergency mode; mergerfs pools now `nofail` and the apps `RequiresMountsFor` them; Sonarr/Radarr config before their `config.xml` exists; Transmission before its dirs (`create-dirs` ordered first, `videos` dir added, no `Requires=local-fs.target`); a first-boot deadlock (blocking homepage restart in `audiobookshelf-access`); Audiobookshelf setup now automatic while the DB is empty; Tautulli locked down (login, loopback) and kept running before Plex has a token; `test.sh` without `set -e`, Caddy-CA aware, usenet-gated; backup dir created up front. Not testable without a real plex.tv account: the Plex sign-in chain. |
 | 2026-10-26 | initial | Split out of the single-server repo as a shareable module: `spudbox.*` options with defaults, personal values moved to the instance's `spudbox.nix`; optional `pushover`, `offsiteBackup`, `hddSpindown`, `mediaFixup`, `homebridge`, `claudeCode`, `tls = "internal"`; `indexers`, `usenet.*`, `subtitleProviders`, `bazarr.languageProfiles`, `homepage.*` options; `spudbox-secrets` generates internal secrets; `spudbox-test`; `ensure-partition` runs before each mount; drive-check resolves by-id paths; seerr config dir pinned; template + `deploy.sh install/hardware/update`. Evaluated config diffed against the single-server one: only the intended changes. |
 
 ## Won't fix

@@ -48,12 +48,19 @@ repository to the server and the server builds.
 
 ## Setting up a server
 
+**The easy way:** clone this repository, run [Claude Code](https://claude.com/claude-code)
+in it and type `/install-spudbox`. It asks for your settings, makes your
+instance repository, has you type in the secrets, partitions the boot disk
+(after you confirm which one), installs, and walks you through the first-run
+steps. You'll still boot the machine from a USB stick and click through
+Plex's setup yourself. The steps it automates are below.
+
 ### 1. Make your instance repository
 
 ```bash
 git clone https://github.com/mluds/spudbox
-cp -r spudbox/template my-spudbox      # or, with Nix: nix flake init -t github:mluds/spudbox
-cd my-spudbox && git init
+cp -r spudbox/template ~/spudbox-home   # or, with Nix: nix flake init -t github:mluds/spudbox
+cd ~/spudbox-home && git init
 git-crypt init                          # secrets/ is encrypted from the first commit
 git-crypt export-key - | base64         # save this in your password manager
 ```
@@ -63,39 +70,39 @@ Keep it private. Then:
 - **`spudbox.nix`**: your domain, login user and SSH key, data disks (by
   `/dev/disk/by-id/...`), usenet servers, indexers, which extras you want.
   Every option is described in [`common/options.nix`](common/options.nix).
-- **`deploy.env`**: the server's address once installed (`HOST=you@192.168.1.10`)
-  and your SSH key.
-- **`secrets/`**: one file per secret. [`secrets/README.md`](template/secrets/README.md)
-  lists which ones your settings need. Everything internal (web UI passwords,
+- **`deploy.env`**: your SSH key, and the server's address once installed
+  (`HOST=you@192.168.1.10`).
+- **`secrets/`**: [`secrets/README.md`](template/secrets/README.md) lists
+  which ones your settings need. Type each in with `./deploy.sh secret
+  usenet/password` (input hidden). Everything internal (web UI passwords,
   API keys, the backup password) is generated on the server.
 
 ### 2. Boot the installer and partition the boot disk
 
-Boot the [NixOS minimal ISO](https://nixos.org/download/#nixos-iso) from a
-USB stick. On its console, set a temporary root password and find the address:
+Boot the [NixOS minimal ISO](https://nixos.org/download/#nixos-iso) (the
+release in this repo's `flake.nix`) from a USB stick, in UEFI mode. On its
+console, set a temporary root password and find the address:
 
 ```bash
 sudo passwd
-ip a
+ip -4 addr
 ```
 
-From your computer, `ssh root@<ip>` and partition the **boot disk** (this
-erases it; data disks are formatted automatically on first boot if they're
-blank, and left alone if they aren't):
+From your computer, authorize your key, look at the disks, and erase and
+partition the **boot disk** with [`scripts/partition-boot-disk.sh`](scripts/partition-boot-disk.sh).
+`CONFIRM` must repeat the disk's name; the script refuses to run anywhere but
+the installer, or on a disk with anything mounted:
 
 ```bash
-BOOT_DEV=/dev/nvme0n1                    # check with lsblk
-wipefs --all --force ${BOOT_DEV}
-parted -s $BOOT_DEV -- mklabel gpt
-parted -s -a optimal $BOOT_DEV -- mkpart root ext4 512MB 100%
-parted -s $BOOT_DEV -- mkpart ESP fat32 1MB 512MB
-parted -s $BOOT_DEV -- set 2 esp on
-mkfs.ext4 -L nixos ${BOOT_DEV}p1         # sda1/sda2 for a SATA disk
-mkfs.fat -F 32 -n boot ${BOOT_DEV}p2
-mount /dev/disk/by-label/nixos /mnt
-mkdir -p /mnt/boot
-mount -o umask=077 /dev/disk/by-label/boot /mnt/boot
+SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+ssh-copy-id -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@<ip>
+$SSH root@<ip> lsblk -o NAME,SIZE,MODEL,SERIAL,FSTYPE
+$SSH root@<ip> CONFIRM=nvme0n1 bash -s -- /dev/nvme0n1 < spudbox/scripts/partition-boot-disk.sh
 ```
+
+Data disks aren't touched here: on first boot, spudbox gives each **blank**
+one an XFS partition, mounts one that already has a single XFS partition as
+it is, and leaves anything else alone.
 
 ### 3. Install
 
@@ -105,7 +112,7 @@ From your instance repository (unlocked, if you use git-crypt):
 ./deploy.sh hardware root@<ip>   # writes hardware.nix from the machine
 ./deploy.sh install root@<ip>    # copies config + secrets, runs nixos-install
 git add -A && git commit -m "Install"   # hardware.nix and flake.lock
-ssh root@<ip> reboot
+ssh root@<ip> reboot             # and remove the USB stick
 ```
 
 Root's password stays locked. Log in as your user with your SSH key; from
@@ -127,11 +134,8 @@ The few things that can't be automated:
   tunnel, `ssh -L 32400:localhost:32400 you@<server>`, visit
   http://localhost:32400/web and follow the setup. Then
   `sudo systemctl restart plex-config tautulli-config jellyseerr-config`.
-- **Audiobookshelf** (once, on a fresh install): `sudo systemctl start
-  audiobookshelf-config` creates the root account, the Audiobooks library and
-  your users. It refuses to run once there are users. A login user gets an
-  account only if `/var/lib/secrets/users/<name>/plaintext` holds their
-  password at that moment; copy it there by hand (the next boot deletes it).
+- **Audiobookshelf** sets itself up on first boot (root account, Audiobooks
+  library). Add other people as users in its web UI.
 - **IPv6** (with `disableIPv6`, the default): NetworkManager re-enables IPv6
   per connection profile, so turn it off on the wired one once:
   ```bash

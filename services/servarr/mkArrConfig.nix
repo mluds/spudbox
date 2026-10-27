@@ -158,6 +158,13 @@ let
           '$body | (.fields[] | select(.name == "apiKey")).value = ($key | rtrimstr("\n"))'
       }
 
+      # A fresh install has no config.xml until the app's first start.
+      echo "Waiting for ${name} to write its config..."
+      for _ in $(seq 1 150); do
+        [ -f "${dataDir}/config.xml" ] && break
+        sleep 2
+      done
+
       if [ -f "${dataDir}/${name}.db" ]; then
         sqlite3 "${dataDir}/${name}.db" 'DELETE FROM "Users";'
       fi
