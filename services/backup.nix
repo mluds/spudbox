@@ -1,18 +1,25 @@
-{ config, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 # Nightly restic backup of /var/lib (app configs + databases; media is not
 # backed up, it's re-downloadable and the *arr DBs record what we had).
 #
 #   restic-backups-local  02:30, services stopped, -> ${backupDir}/restic (HDD)
-#   restic-backups-r2     on local success, `restic copy` -> Cloudflare R2
+#   restic-backups-r2     on local success, `restic copy` -> an S3 bucket such
+#                         as Cloudflare R2 (spudbox.offsiteBackup)
 #
-# Both repos share secrets/restic/password — keep it in the password manager
-# too; without it the backups can't be decrypted. Restores: see CLAUDE.md.
+# Both repos share secrets/restic/password (generated on first boot unless
+# supplied) — keep a copy in a password manager; without it the backups can't
+# be decrypted. Restores: see the README.
 let
-  inherit (config.my) backupDir secretsDir;
+  cfg = config.spudbox;
+  inherit (cfg) backupDir secretsDir;
   localRepo = "${backupDir}/restic";
   passwordFile = "${secretsDir}/restic/password";
-  r2Repo = "s3:https://8b37a4bbd0f5e7e52c56476fd07bc4f8.r2.cloudflarestorage.com/spudbox-backups";
   restic = "${pkgs.restic}/bin/restic";
 
   # Stopped for a consistent copy of their SQLite DBs.
@@ -80,11 +87,12 @@ in
         Persistent = true;
       };
     };
-
+  }
+  // lib.optionalAttrs cfg.offsiteBackup.enable {
     # No paths: the module's "prepare" hook copies the local snapshots up,
     # then the unit prunes and checks the R2 repo. Services stay up.
     r2 = {
-      repository = r2Repo;
+      inherit (cfg.offsiteBackup) repository;
       inherit passwordFile pruneOpts;
       environmentFile = "${secretsDir}/r2/s3-credentials.env";
       createWrapper = true;
@@ -104,8 +112,10 @@ in
     restic-backups-local = {
       # /mnt/storage is mounted nofail; never back up onto the NVMe by accident.
       unitConfig.RequiresMountsFor = [ backupDir ];
-      onSuccess = [ "restic-backups-r2.service" ];
+      onSuccess = lib.optional cfg.offsiteBackup.enable "restic-backups-r2.service";
     };
-    restic-backups-r2.unitConfig.RequiresMountsFor = [ backupDir ];
+    restic-backups-r2 = lib.mkIf cfg.offsiteBackup.enable {
+      unitConfig.RequiresMountsFor = [ backupDir ];
+    };
   };
 }

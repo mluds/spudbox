@@ -2,11 +2,12 @@
   config,
   lib,
   pkgs,
+  utils,
   ...
 }:
 
 let
-  inherit (config.my)
+  inherit (config.spudbox)
     backupDir
     backupDrives
     cacheDir
@@ -27,6 +28,12 @@ let
     text = ''
       DEVICE="$1"
       PARTITION="$2"
+
+      # In use already (e.g. started by a switch, not at boot): nothing to do.
+      if [ -e "$PARTITION" ] && findmnt -rn -S "$(readlink -f "$PARTITION")" >/dev/null; then
+        echo "$PARTITION is mounted; nothing to do"
+        exit 0
+      fi
 
       echo "Waiting for base device $DEVICE..."
       COUNT=0
@@ -69,21 +76,25 @@ let
         fi
       fi
 
-      if ! xfs_admin -l "$PARTITION" >/dev/null 2>&1; then
-        if blkid -p "$PARTITION" >/dev/null 2>&1; then
-          echo "ERROR: $PARTITION has a signature but isn't readable XFS; refusing to format it"
-          exit 1
-        fi
+      # blkid -p reads signatures only, so a dirty XFS log doesn't matter.
+      # Exit 2: no signature at all. Anything else (another filesystem, or
+      # conflicting signatures) is left alone; mkfs.xfs without -f would
+      # refuse to overwrite one too.
+      RC=0
+      TYPE=$(blkid -p -s TYPE -o value "$PARTITION") || RC=$?
+      if [ "$RC" -eq 0 ] && [ "$TYPE" = xfs ]; then
+        echo "XFS filesystem already exists"
+      elif [ "$RC" -ne 2 ]; then
+        echo "ERROR: $PARTITION isn't blank XFS (blkid: ''${TYPE:-exit $RC}); refusing to format it"
+        exit 1
+      else
         echo "Creating XFS filesystem on blank partition $PARTITION"
         mkfs.xfs "$PARTITION"
-        if ! xfs_admin -l "$PARTITION" >/dev/null 2>&1; then
+        if [ "$(blkid -p -s TYPE -o value "$PARTITION" || true)" != xfs ]; then
           echo "ERROR: XFS creation failed!"
           exit 1
-        else
-          echo "XFS filesystem verified"
         fi
-      else
-        echo "XFS filesystem already exists"
+        echo "XFS filesystem verified"
       fi
     '';
   };
@@ -106,13 +117,25 @@ in
   systemd.services = lib.listToAttrs (
     map (drive: {
       name = "ensure-partition-${lib.replaceStrings [ "/" ] [ "-" ] drive.device}";
-      value = {
-        description = "Ensure partition and filesystem for ${drive.device}";
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = "${lib.getExe ensurePartitionScript} ${drive.device} ${drive.partition}";
+      # Runs just before the drive's mount, so a new blank disk is
+      # partitioned and formatted on the first boot that sees it. Disks with
+      # anything on them are left alone (see the script).
+      value =
+        let
+          mount = "${utils.escapeSystemdPath drive.mount}.mount";
+        in
+        {
+          description = "Ensure partition and filesystem for ${drive.device}";
+          wantedBy = [ mount ];
+          before = [ mount ];
+          # Mounts come before sysinit.target, which ordinary services wait for.
+          unitConfig.DefaultDependencies = false;
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            ExecStart = "${lib.getExe ensurePartitionScript} ${drive.device} ${drive.partition}";
+          };
         };
-      };
     }) allDrives
   );
 

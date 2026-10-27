@@ -6,9 +6,10 @@
 }:
 
 # The oneshots and timer jobs nobody watches:
-#  - a Pushover alert when one fails, so a broken nightly backup or *-config
-#    run doesn't go unnoticed until someone runs test.sh. Units opt in with
-#      onFailure = [ "notify-failure@%n.service" ];
+#  - with spudbox.pushover.enable, a Pushover alert when one fails, so a
+#    broken nightly backup or *-config run doesn't go unnoticed until someone
+#    runs test.sh. Units opt in with
+#      onFailure = config.spudbox.onFailure;
 #    (media-fixup.nix does); the ones below are attached here. The message is
 #    the unit name plus the tail of its journal.
 #  - the setup oneshots stay active after they succeed (RemainAfterExit), so a
@@ -17,7 +18,8 @@
 #    libraries on each deploy. They still run on every boot; deploy.sh
 #    restarts them all when a secret changed.
 let
-  inherit (config.my) secretsDir;
+  cfg = config.spudbox;
+  inherit (cfg) secretsDir;
 
   notifyScript = pkgs.writeShellApplication {
     name = "notify-failure";
@@ -49,7 +51,9 @@ let
   # Type=oneshot is set here, with RemainAfterExit.
   setupUnits = [
     "create-dirs"
-    "caddy-config"
+  ]
+  ++ lib.optional (cfg.tls == "cloudflare") "caddy-config"
+  ++ [
     "plex-config"
     "tautulli-config"
     "sonarr-config"
@@ -57,50 +61,63 @@ let
     "bazarr-config"
     "jellyseerr-config"
     "audiobookshelf-access"
-    "homebridge-config"
-  ];
+  ]
+  ++ lib.optional cfg.homebridge.enable "homebridge-config";
 
   # Run by timers.
   jobUnits = [
     "restic-backups-local"
-    "restic-backups-r2"
-    "check-drive-status"
+  ]
+  ++ lib.optional cfg.offsiteBackup.enable "restic-backups-r2"
+  ++ lib.optional cfg.hddSpindown.enable "check-drive-status"
+  ++ [
     "sabnzbd-resume"
     "radarr-auto-import"
   ];
 in
 {
-  systemd.services = {
-    "notify-failure@" = {
-      description = "Pushover alert: %i failed";
-      serviceConfig = import ./hardening.nix // {
-        Type = "oneshot";
-        ExecStart = "${lib.getExe notifyScript} %i";
-        DynamicUser = true;
-        SupplementaryGroups = [ "systemd-journal" ]; # read the failed unit's log
-        RuntimeDirectory = "notify-failure/%i";
-        LoadCredential = [
-          "pushover-app-token:${secretsDir}/pushover/app-token"
-          "pushover-user-key:${secretsDir}/pushover/user-key"
-        ];
-      };
-    };
-  }
-  // lib.genAttrs jobUnits (_: {
-    onFailure = [ "notify-failure@%n.service" ];
-  })
-  // lib.genAttrs setupUnits (_: {
-    onFailure = [ "notify-failure@%n.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-    };
-  });
+  options.spudbox.onFailure = lib.mkOption {
+    type = lib.types.listOf lib.types.str;
+    internal = true;
+    readOnly = true;
+    description = "onFailure for units that should alert when they fail (empty without Pushover).";
+  };
 
-  # For test.sh (none may be failed) and deploy.sh (restarts SETUP_UNITS
-  # after a secret changed).
-  environment.etc."spudbox/env".text = lib.concatLines [
-    (lib.toShellVar "ALERT_UNITS" (setupUnits ++ jobUnits))
-    (lib.toShellVar "SETUP_UNITS" setupUnits)
-  ];
+  config = {
+    spudbox.onFailure = lib.optional cfg.pushover.enable "notify-failure@%n.service";
+
+    systemd.services = {
+      "notify-failure@" = lib.mkIf cfg.pushover.enable {
+        description = "Pushover alert: %i failed";
+        serviceConfig = import ./hardening.nix // {
+          Type = "oneshot";
+          ExecStart = "${lib.getExe notifyScript} %i";
+          DynamicUser = true;
+          SupplementaryGroups = [ "systemd-journal" ]; # read the failed unit's log
+          RuntimeDirectory = "notify-failure/%i";
+          LoadCredential = [
+            "pushover-app-token:${secretsDir}/pushover/app-token"
+            "pushover-user-key:${secretsDir}/pushover/user-key"
+          ];
+        };
+      };
+    }
+    // lib.genAttrs jobUnits (_: {
+      inherit (cfg) onFailure;
+    })
+    // lib.genAttrs setupUnits (_: {
+      inherit (cfg) onFailure;
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+    });
+
+    # For test.sh (none may be failed) and deploy.sh (restarts SETUP_UNITS
+    # after a secret changed).
+    environment.etc."spudbox/env".text = lib.concatLines [
+      (lib.toShellVar "ALERT_UNITS" (setupUnits ++ jobUnits))
+      (lib.toShellVar "SETUP_UNITS" setupUnits)
+    ];
+  };
 }

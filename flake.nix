@@ -1,4 +1,6 @@
 {
+  description = "spudbox: a self-hosted NixOS media server (Plex, Sonarr, Radarr, Bazarr, Jellyseerr, SABnzbd, Transmission, Audiobookshelf) behind Caddy";
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   };
@@ -6,63 +8,103 @@
   outputs =
     { self, nixpkgs, ... }:
     let
-      # Plex is pinned by hand; see "Hand-pinned versions" in CLAUDE.md.
-      plexOverlay = final: prev: {
-        plexRaw = prev.plexRaw.overrideAttrs (_: rec {
-          version = "1.43.4.10903-e5521bd8c";
-          src =
-            let
-              debs = {
-                x86_64-linux = {
-                  arch = "amd64";
-                  hash = "sha256-b2ocgzbXeeHyAVGmk0NJiEutb2pmsYorGJuW5Vw7Pts=";
-                };
-                aarch64-linux = {
-                  arch = "arm64";
-                  hash = "sha256-lF6G0FFPYUkrUWm76sbpGJKzNvaJXXhjK+wBe1kI5as=";
-                };
-              };
-              deb = debs.${final.stdenv.hostPlatform.system};
-            in
-            prev.fetchurl {
-              url = "https://downloads.plex.tv/plex-media-server-new/${version}/debian/plexmediaserver_${version}_${deb.arch}.deb";
-              inherit (deb) hash;
-            };
-        });
-      };
+      inherit (nixpkgs) lib;
 
-      # Which commit is deployed: the flake's own rev in a git checkout, else
-      # the .revision file deploy.sh writes into ~/deploy (not a git checkout).
-      revision =
-        self.rev or self.dirtyRev or (
-          if builtins.pathExists ./.revision then
-            nixpkgs.lib.removeSuffix "\n" (builtins.readFile ./.revision)
+      # A checkout's commit: the flake's own rev in a git checkout, else the
+      # .revision file deploy.sh writes into a copied tree (not a git
+      # checkout), else null.
+      revisionOf =
+        src:
+        src.rev or src.dirtyRev or (
+          if builtins.pathExists "${src}/.revision" then
+            lib.removeSuffix "\n" (builtins.readFile "${src}/.revision")
           else
             null
         );
 
-      mkHost =
-        system: hardware: environment:
-        nixpkgs.lib.nixosSystem {
-          inherit system;
-          modules = [
-            {
-              nixpkgs.overlays = [ plexOverlay ];
-              system.configurationRevision = revision;
-            }
-            hardware
-            environment
-            ./configuration.nix
-          ];
-        };
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      forAllSystems = lib.genAttrs systems;
     in
     {
-      nixosConfigurations = {
-        # Dev's hardware config isn't in the repo, so dev still needs --impure.
-        spudbox-dev = mkHost "aarch64-linux" /etc/nixos/hardware-configuration.nix ./environments/dev.nix;
-        # From nixos-generate-config on prod; regenerate it there after
-        # hardware changes (see CLAUDE.md).
-        spudbox-prod = mkHost "x86_64-linux" ./hosts/prod-hardware.nix ./environments/prod.nix;
+      nixosModules.default = ./module.nix;
+
+      lib = {
+        # The NixOS system for an instance: `instance` is the instance flake
+        # (for its revision), `modules` its settings and hardware config. The
+        # architecture comes from the hardware config (nixpkgs.hostPlatform).
+        mkSystem =
+          {
+            instance,
+            modules,
+            specialArgs ? { },
+          }:
+          lib.nixosSystem {
+            inherit specialArgs;
+            modules = [
+              self.nixosModules.default
+              {
+                system.configurationRevision = revisionOf instance;
+                spudbox.revision = revisionOf self;
+              }
+            ]
+            ++ modules;
+          };
       };
+
+      templates.default = {
+        path = ./template;
+        description = "A spudbox instance: your settings, hardware config and secrets";
+      };
+
+      # Tools for lint.sh: nix develop -c ./lint.sh
+      devShells = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          default = pkgs.mkShell {
+            packages = with pkgs; [
+              statix
+              deadnix
+              nixfmt
+              shellcheck
+              ruff
+              gitleaks
+              typos
+            ];
+          };
+        }
+      );
+
+      # The template's example settings evaluate to a full system (only
+      # evaluated, not built: nix flake check stays quick).
+      checks = forAllSystems (
+        system:
+        let
+          example = lib.nixosSystem {
+            modules = [
+              ./module.nix
+              ./template/spudbox.nix
+              {
+                nixpkgs.hostPlatform = system;
+                fileSystems."/" = {
+                  device = "/dev/disk/by-label/nixos";
+                  fsType = "ext4";
+                };
+                boot.loader.grub.enable = false;
+              }
+            ];
+          };
+        in
+        {
+          template = nixpkgs.legacyPackages.${system}.writeText "spudbox-template-eval" (
+            builtins.unsafeDiscardStringContext example.config.system.build.toplevel.drvPath
+          );
+        }
+      );
     };
 }

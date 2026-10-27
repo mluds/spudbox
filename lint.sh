@@ -10,7 +10,7 @@ pass() { PASS_COUNT=$((PASS_COUNT + 1)); printf "  \033[32mPASS\033[0m  %s\n" "$
 fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); printf "  \033[31mFAIL\033[0m  %s\n" "$1"; }
 
 # check LABEL CMD...: pass if CMD succeeds and prints nothing, else show its output.
-# The tools are in environment.systemPackages (configuration.nix).
+# The tools come from the flake's devShell: nix develop -c ./lint.sh
 check() {
   local label=$1 output
   shift
@@ -24,22 +24,20 @@ check() {
   fi
 }
 
-# hosts/*-hardware.nix come from nixos-generate-config; keep them as generated.
-mapfile -t generated < <(find hosts -name '*-hardware.nix' 2>/dev/null)
 # find, not ./**: bash has globstar off, so ** only matches one level deep
 mapfile -t nix_files < <(find . -name '*.nix' -not -path './.git/*' | sort)
 mapfile -t sh_files < <(find . -name '*.sh' -not -path './.git/*' | sort)
 
 printf "\n\033[1m── Nix ──\033[0m\n"
-check "statix (anti-patterns)" statix check . --ignore "${generated[@]}"
-check "deadnix (unused code)" deadnix -f --exclude "${generated[@]}" -- .
+check "statix (anti-patterns)" statix check .
+check "deadnix (unused code)" deadnix -f -- .
 # --quiet: nixfmt --check prints nothing when all is well
 check "nixfmt (${#nix_files[@]} files; fix: nixfmt \$(find . -name '*.nix'))" \
   nixfmt --check --quiet "${nix_files[@]}"
 
 printf "\n\033[1m── Shell ──\033[0m\n"
 # Scripts built with writeShellApplication are also checked at build time;
-# these run as-is (deploy.sh, test.sh, ...). media-fixup.sh has no shebang.
+# these run as-is (template/deploy.sh, test.sh, ...). media-fixup.sh has no shebang.
 check "shellcheck (${#sh_files[@]} files)" shellcheck --shell=bash "${sh_files[@]}"
 
 printf "\n\033[1m── Python ──\033[0m\n"

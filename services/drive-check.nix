@@ -6,16 +6,17 @@
 }:
 
 let
-  inherit (config.my)
+  cfg = config.spudbox;
+  inherit (cfg)
     driveStatusPort
     storageDrives
     ;
 
   statusDir = "/var/lib/drive-status";
   uniqueDevices = lib.unique (map (drive: drive.device) storageDrives);
-  # Idle time before forcing the drive to standby via hdparm -y.
-  # The drive's own spindown timer (hdparm -S) doesn't work on this
-  # enterprise drive (WD Ultrastar), so we manage spindown ourselves.
+  # Idle time before forcing the drive to standby via hdparm -y. Some drives
+  # (e.g. the WD Ultrastar this was written for) ignore their own spindown
+  # timer (hdparm -S), so this manages spindown itself.
   spindownSeconds = 300;
 
   checkScript = pkgs.writeShellApplication {
@@ -29,7 +30,10 @@ let
 
       # check-drive-status DEVICE...
       for DEVICE in "$@"; do
+        # Files are named after the configured path (sda, or a by-id name);
+        # the kernel's stats are under the device it points to.
         BLOCK_NAME=$(basename "$DEVICE")
+        SYS_NAME=$(basename "$(readlink -f "$DEVICE")")
         STATUS_FILE="${statusDir}/status_$BLOCK_NAME.json"
 
         # Detect I/O activity by comparing block device stats.
@@ -37,7 +41,7 @@ let
         # command resets the drive's idle timer on some drives.
         STAT_FILE="${statusDir}/prev_stat_$BLOCK_NAME"
         TIMESTAMP_FILE="${statusDir}/last_access_$BLOCK_NAME"
-        CURRENT_STAT=$(tr -s ' ' 2>/dev/null < "/sys/block/$BLOCK_NAME/stat" || true)
+        CURRENT_STAT=$(tr -s ' ' 2>/dev/null < "/sys/block/$SYS_NAME/stat" || true)
         if [ ! -f "$TIMESTAMP_FILE" ] || [ "$CURRENT_STAT" != "$(cat "$STAT_FILE" 2>/dev/null)" ]; then
           date -u +%Y-%m-%dT%H:%M:%SZ > "$TIMESTAMP_FILE"
         fi
@@ -71,7 +75,7 @@ let
     '';
   };
 in
-{
+lib.mkIf cfg.hddSpindown.enable {
   systemd = {
     tmpfiles.rules = [
       "d ${statusDir} 0755 root root -"

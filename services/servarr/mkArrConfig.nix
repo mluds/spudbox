@@ -14,7 +14,7 @@
   port,
   rootFolder, # { name, path }
   sabCategory, # SABnzbd category for its downloads
-  indexerFields, # extra NZBGeek fields (categories, ...)
+  indexerFields, # extra Newznab fields for every indexer (categories, ...)
   priority ? null, # indexer and download client priority, if not the app's default
   qualityProfile, # PUT to /qualityprofile/1
   # Adding existing folders found on disk:
@@ -27,7 +27,7 @@
 
 let
   inherit (config.services.${name}) dataDir;
-  inherit (config.my) secretsDir sabnzbdPort;
+  inherit (config.spudbox) secretsDir sabnzbdPort indexers;
   inherit (import ./qualityDefinitions.nix) qualitySettings;
   setConfigXml = import ./set-config-xml.nix { inherit pkgs; };
   json = value: lib.escapeShellArg (builtins.toJSON value);
@@ -62,26 +62,29 @@ let
     enableMediaInfo = true;
   };
 
-  # The apiKey fields are filled in from secret files at runtime (with_key).
-  indexer = withPriority {
-    name = "NZBGeek";
-    implementationName = "Newznab";
-    implementation = "Newznab";
-    configContract = "NewznabSettings";
-    enable = true;
-    protocol = "usenet";
-    enableRss = true;
-    enableAutomaticSearch = true;
-    enableInteractiveSearch = true;
-    supportsRss = true;
-    supportsSearch = true;
-    fields = [
-      (field "baseUrl" "https://api.nzbgeek.info/")
-      (field "apiPath" "/api")
-      (field "apiKey" "")
-    ]
-    ++ indexerFields;
-  };
+  # Newznab indexers (spudbox.indexers). The apiKey fields are filled in from
+  # secret files at runtime (with_key).
+  newznab =
+    indexer:
+    withPriority {
+      inherit (indexer) name;
+      implementationName = "Newznab";
+      implementation = "Newznab";
+      configContract = "NewznabSettings";
+      enable = true;
+      protocol = "usenet";
+      enableRss = true;
+      enableAutomaticSearch = true;
+      enableInteractiveSearch = true;
+      supportsRss = true;
+      supportsSearch = true;
+      fields = [
+        (field "baseUrl" indexer.url)
+        (field "apiPath" indexer.apiPath)
+        (field "apiKey" "")
+      ]
+      ++ indexerFields;
+    };
 
   # Dolby Vision releases without an HDR10 layer (profile 5, typical of
   # streaming WEB-DLs) only play on DV-capable clients; anything else shows
@@ -178,10 +181,11 @@ let
       api PUT config/mediamanagement/1 -d ${json mediaManagement} >/dev/null \
         || echo "Media management may already be configured"
 
-      echo "Configuring NZBGeek..."
-      with_key ${json indexer} nzbgeek/api-key | api POST indexer -d @- >/dev/null \
-        || echo "NZBGeek may already be configured"
-
+      ${lib.concatMapStrings (indexer: ''
+        echo "Configuring ${indexer.name}..."
+        with_key ${json (newznab indexer)} ${indexer.apiKeySecret} | api POST indexer -d @- >/dev/null \
+          || echo "${indexer.name} may already be configured"
+      '') indexers}
       echo "Configuring SABnzbd..."
       with_key ${json downloadClient} sabnzbd/api-key | api POST downloadclient -d @- >/dev/null \
         || echo "SABnzbd may already be configured"

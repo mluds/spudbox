@@ -1,4 +1,3 @@
-# nix build output
 result
 result-*
 .revision

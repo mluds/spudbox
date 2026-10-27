@@ -9,7 +9,7 @@
       # read-secret NAME: print a secret from secretsDir, e.g. plex/token.
       (pkgs.writeShellApplication {
         name = "read-secret";
-        text = ''exec cat "${config.my.secretsDir}/$1"'';
+        text = ''exec cat "${config.spudbox.secretsDir}/$1"'';
       })
       # wait-for-http URL [INTERVAL]: block until URL answers without an HTTP error.
       (pkgs.writeShellApplication {

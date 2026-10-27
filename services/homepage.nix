@@ -1,7 +1,8 @@
 { config, lib, ... }:
 
 let
-  inherit (config.my)
+  cfg = config.spudbox;
+  inherit (cfg)
     storageDrives
     storageDir
     domain
@@ -12,8 +13,8 @@ let
 
   # homepage substitutes the contents of credential NAME (see credentials).
   file = name: "{{HOMEPAGE_FILE_${name}}}";
-  local = name: "http://localhost:${toString config.my."${name}Port"}";
-  # homepage's <name> widget, talking to localhost:my.<name>Port.
+  local = name: "http://localhost:${toString config.spudbox."${name}Port"}";
+  # homepage's <name> widget, talking to localhost:spudbox.<name>Port.
   widget =
     name: attrs:
     {
@@ -34,46 +35,49 @@ let
   bookmark = title: href: description: icon: { ${title} = [ { inherit href description icon; } ]; };
 
   uniqueDevices = lib.unique (map (drive: drive.device) storageDrives);
-  driveWidgets = lib.imap1 (
-    i: dev:
-    let
-      blockName = builtins.baseNameOf dev;
-      label = if builtins.length uniqueDevices == 1 then "HDD" else "HDD ${toString i}";
-    in
-    {
-      "${label}" = {
-        icon = "mdi-harddisk";
-        description = "Storage Drive (${dev})";
-        widget = {
-          type = "customapi";
-          url = "http://localhost:${toString driveStatusPort}/status_${blockName}.json";
-          refreshInterval = 30000;
-          mappings = [
-            {
-              field = "state";
-              label = "State";
-              format = "text";
-              remap = [
-                {
-                  value = "active/idle";
-                  to = "Spinning";
-                }
-                {
-                  value = "standby";
-                  to = "Standby";
-                }
-              ];
-            }
-            {
-              field = "lastAccess";
-              label = "Last I/O";
-              format = "relativeDate";
-            }
-          ];
+  # From drive-check.nix (spudbox.hddSpindown).
+  driveWidgets = lib.optionals cfg.hddSpindown.enable (
+    lib.imap1 (
+      i: dev:
+      let
+        blockName = builtins.baseNameOf dev;
+        label = if builtins.length uniqueDevices == 1 then "HDD" else "HDD ${toString i}";
+      in
+      {
+        "${label}" = {
+          icon = "mdi-harddisk";
+          description = "Storage Drive (${dev})";
+          widget = {
+            type = "customapi";
+            url = "http://localhost:${toString driveStatusPort}/status_${blockName}.json";
+            refreshInterval = 30000;
+            mappings = [
+              {
+                field = "state";
+                label = "State";
+                format = "text";
+                remap = [
+                  {
+                    value = "active/idle";
+                    to = "Spinning";
+                  }
+                  {
+                    value = "standby";
+                    to = "Standby";
+                  }
+                ];
+              }
+              {
+                field = "lastAccess";
+                label = "Last I/O";
+                format = "relativeDate";
+              }
+            ];
+          };
         };
-      };
-    }
-  ) uniqueDevices;
+      }
+    ) uniqueDevices
+  );
 in
 
 {
@@ -120,8 +124,7 @@ in
     listenPort = homepagePort;
     openFirewall = false;
     settings = {
-      title = "SpudBox";
-      description = "Mike's Home Server";
+      inherit (cfg.homepage) title description;
       language = "en";
       theme = "dark";
       headerStyle = "underlined";
@@ -148,7 +151,7 @@ in
       {
         "greeting" = {
           textSize = "2xl";
-          text = "SpudBox";
+          text = cfg.homepage.title;
         };
       }
       {
@@ -248,8 +251,8 @@ in
           })
         ]
         ++ driveWidgets
+        ++ lib.optional cfg.homebridge.enable (tile "homebridge" "Homebridge" "Apple Home Integration" null)
         ++ [
-          (tile "homebridge" "Homebridge" "Apple Home Integration" null)
           (tile "tautulli" "Tautulli" "Plex Monitoring" null)
           {
             Caddy = {
@@ -269,21 +272,8 @@ in
         ];
       }
     ];
-    bookmarks = [
-      {
-        Bookmarks = [
-          (bookmark "Cloudflare" "https://dash.cloudflare.com/" "DNS Provider" "cloudflare")
-          (bookmark "Namecheap" "https://ap.www.namecheap.com/" "Domain Registrar" "namecheap")
-          (bookmark "NZBGeek" "https://nzbgeek.info/dashboard.php?myaccount" "Usenet Indexer"
-            "mdi-multimedia"
-          )
-          (bookmark "Frugal" "https://billing.frugalusenet.com/member" "Usenet Provider" "mdi-multimedia")
-          (bookmark "Letterboxd" "https://letterboxd.com/official/story/official-lists-hq-directory/"
-            "Movie Lists"
-            "si-letterboxd"
-          )
-        ];
-      }
-    ];
+    bookmarks = lib.optional (cfg.homepage.bookmarks != [ ]) {
+      Bookmarks = map (b: bookmark b.title b.href b.description b.icon) cfg.homepage.bookmarks;
+    };
   };
 }

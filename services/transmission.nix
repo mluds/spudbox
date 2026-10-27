@@ -6,7 +6,7 @@
 }:
 
 let
-  inherit (config.my)
+  inherit (config.spudbox)
     cacheDir
     secretsDir
     storageDir

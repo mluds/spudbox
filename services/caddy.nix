@@ -6,7 +6,9 @@
 }:
 
 let
-  inherit (config.my) secretsDir domain caddyAdminPort;
+  cfg = config.spudbox;
+  inherit (cfg) secretsDir domain caddyAdminPort;
+  cloudflare = cfg.tls == "cloudflare";
 
   # The Cloudflare token reaches Caddy only through its environment, so it
   # isn't in the Caddyfile or in the config served by the admin API (which
@@ -21,26 +23,30 @@ let
     '';
   };
 
-  # Each one is served at https://<name>.${domain} -> localhost:my.<name>Port.
+  # Each one is served at https://<name>.${domain} -> localhost:spudbox.<name>Port.
   # Caddy passes request headers (X-Plex-*) through and sets
   # X-Forwarded-For/-Proto itself; Plex only needs X-Real-IP added.
   proxyExtras = {
     audiobookshelf.extraConfig = "encode gzip zstd";
     plex.proxyConfig = "header_up X-Real-IP {http.request.remote.host}";
   };
-  proxies = lib.genAttrs [
-    "audiobookshelf"
-    "bazarr"
-    "homebridge"
-    "homepage"
-    "jellyseerr"
-    "plex"
-    "radarr"
-    "sabnzbd"
-    "sonarr"
-    "tautulli"
-    "transmission"
-  ] (name: { port = config.my."${name}Port"; } // proxyExtras.${name} or { });
+  proxies = lib.genAttrs (
+    [
+      "audiobookshelf"
+      "bazarr"
+    ]
+    ++ lib.optional cfg.homebridge.enable "homebridge"
+    ++ [
+      "homepage"
+      "jellyseerr"
+      "plex"
+      "radarr"
+      "sabnzbd"
+      "sonarr"
+      "tautulli"
+      "transmission"
+    ]
+  ) (name: { port = cfg."${name}Port"; } // proxyExtras.${name} or { });
 
   virtualHost =
     {
@@ -66,7 +72,7 @@ let
 in
 {
   systemd.services = {
-    caddy-config = {
+    caddy-config = lib.mkIf cloudflare {
       description = "Caddy configuration";
       wantedBy = [ "caddy.service" ];
       before = [ "caddy.service" ];
@@ -113,21 +119,25 @@ in
 
     # caddy-config only runs before caddy starts (wantedBy), so restart caddy
     # when the script changes. Caddyfile changes reload Caddy on their own.
-    caddy.restartTriggers = [ configScript ];
+    caddy.restartTriggers = lib.mkIf cloudflare [ configScript ];
   };
 
   services.caddy = {
     enable = true;
-    package = pkgs.caddy.withPlugins {
-      plugins = [ "github.com/caddy-dns/cloudflare@v0.2.4" ];
-      hash = "sha256-xRJ5evsAJ2akg47j3Bt6YDXJOgX88B/rKNP50KSVyNY=";
-    };
-    environmentFile = envFile;
-    globalConfig = "admin localhost:${toString caddyAdminPort}";
+    package = lib.mkIf cloudflare (
+      pkgs.caddy.withPlugins {
+        plugins = [ "github.com/caddy-dns/cloudflare@v0.2.4" ];
+        hash = "sha256-xRJ5evsAJ2akg47j3Bt6YDXJOgX88B/rKNP50KSVyNY=";
+      }
+    );
+    environmentFile = lib.mkIf cloudflare envFile;
+    # local_certs: every site gets a certificate from Caddy's own CA.
+    globalConfig =
+      "admin localhost:${toString caddyAdminPort}" + lib.optionalString (!cloudflare) "\nlocal_certs";
     # Keep Caddy's own default (INFO, e.g. certificate renewals) in the journal.
     logFormat = "level INFO";
     # One wildcard certificate (DNS challenge) covers every subdomain.
-    extraConfig = ''
+    extraConfig = lib.mkIf cloudflare ''
       *.${domain} {
         tls {
           issuer acme {

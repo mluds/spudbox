@@ -8,15 +8,16 @@
 
 # Every 15 minutes, checks video files added to the library since the last run
 # and rewrites the ones some Plex clients can't play (see media-fixup.sh).
-# Dolby Vision profile 5 is re-encoded on the Intel iGPU, so this is
-# x86_64 (prod) only.
+# Dolby Vision profile 5 is re-encoded on the Intel iGPU, so this needs one
+# (spudbox.mediaFixup.enable; x86_64 only).
 #
 # ffmpeg parses downloaded (untrusted) files, so the timer runs it sandboxed
 # as its own user: only the media pool's data dir is writable, API keys
 # arrive via LoadCredential, and CAP_CHOWN alone lets it give a rewritten
 # file its original owner. `sudo media-fixup FILE` still runs as root.
 let
-  inherit (config.my)
+  cfg = config.spudbox;
+  inherit (cfg)
     plexPort
     radarrPort
     secretsDir
@@ -76,7 +77,14 @@ let
       + builtins.readFile ./media-fixup.sh;
   };
 in
-lib.mkIf pkgs.stdenv.hostPlatform.isx86_64 {
+lib.mkIf cfg.mediaFixup.enable {
+  assertions = [
+    {
+      assertion = pkgs.stdenv.hostPlatform.isx86_64;
+      message = "spudbox.mediaFixup needs an Intel iGPU (x86_64).";
+    }
+  ];
+
   environment.systemPackages = [ mediaFixup ];
 
   users.users.media-fixup = {
@@ -99,7 +107,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isx86_64 {
         "radarr.service"
       ];
       unitConfig.RequiresMountsFor = [ storageDir ];
-      onFailure = [ "notify-failure@%n.service" ];
+      inherit (cfg) onFailure;
       serviceConfig = import ./hardening.nix // {
         Type = "oneshot";
         User = "media-fixup";

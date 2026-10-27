@@ -6,7 +6,8 @@
 }:
 
 let
-  inherit (config.my) storageDir cacheDir secretsDir;
+  cfg = config.spudbox;
+  inherit (cfg) storageDir cacheDir secretsDir;
 
   mediaDirs = [
     "${storageDir}/data/media/movies"
@@ -35,9 +36,9 @@ let
     "${cacheDir}/data/usenet/incomplete/tv"
   ];
 
-  # Each has its own web login password in secrets/<name>/password (finding
-  # #5). Exported for test.sh; scripts/generate-service-passwords.sh keeps its
-  # own copy because it runs on the Mac.
+  # Each has its own web login password in secrets/<name>/password, generated
+  # on the server unless the instance supplies one (secrets.nix). Exported
+  # for test.sh.
   passwordServices = [
     "sonarr"
     "radarr"
@@ -45,9 +46,35 @@ let
     "sabnzbd"
     "transmission"
     "tautulli"
-    "homebridge"
-    "audiobookshelf"
-  ];
+  ]
+  ++ lib.optional cfg.homebridge.enable "homebridge"
+  ++ [ "audiobookshelf" ];
+
+  # Plex is pinned by hand, ahead of nixpkgs; see "Hand-pinned versions" in
+  # CLAUDE.md.
+  plexOverlay = final: prev: {
+    plexRaw = prev.plexRaw.overrideAttrs (_: rec {
+      version = "1.43.4.10903-e5521bd8c";
+      src =
+        let
+          debs = {
+            x86_64-linux = {
+              arch = "amd64";
+              hash = "sha256-b2ocgzbXeeHyAVGmk0NJiEutb2pmsYorGJuW5Vw7Pts=";
+            };
+            aarch64-linux = {
+              arch = "arm64";
+              hash = "sha256-lF6G0FFPYUkrUWm76sbpGJKzNvaJXXhjK+wBe1kI5as=";
+            };
+          };
+          deb = debs.${final.stdenv.hostPlatform.system};
+        in
+        prev.fetchurl {
+          url = "https://downloads.plex.tv/plex-media-server-new/${version}/debian/plexmediaserver_${version}_${deb.arch}.deb";
+          inherit (deb) hash;
+        };
+    });
+  };
 
   createDirsScript = pkgs.writeShellApplication {
     name = "create-dirs";
@@ -83,10 +110,10 @@ in
 {
   imports = [
     ./storage.nix
-    ./common/vars.nix
+    ./common/options.nix
     ./common/env.nix
     ./common/helpers.nix
-    ./environments/default.nix
+    ./common/secrets.nix
     ./services/caddy.nix
     ./services/homepage.nix
     ./services/sabnzbd.nix
@@ -100,7 +127,6 @@ in
     ./services/audiobookshelf.nix
     ./services/backup.nix
     ./services/drive-check.nix
-    ./services/docker.nix
     ./services/homebridge.nix
     ./services/claude-code.nix
     ./services/media-fixup.nix
@@ -108,6 +134,8 @@ in
   ];
 
   environment.systemPackages = with pkgs; [
+    # The checks a deploy runs (deploy.sh test): sudo spudbox-test [CATEGORY...]
+    (writeShellScriptBin "spudbox-test" (builtins.readFile ./test.sh))
     vim
     xmlstarlet
     ed
@@ -118,17 +146,7 @@ in
     curl
     hdparm
     lsof
-    # lint.sh
-    statix
-    deadnix
-    nixfmt
-    shellcheck
-    ruff
-    gitleaks
-    typos
     git
-    gh
-    tmux
   ];
 
   nix = {
@@ -170,18 +188,20 @@ in
     wheelNeedsPassword = false;
   };
 
-  time.timeZone = "America/New_York";
-  i18n.defaultLocale = "en_US.UTF-8";
-  system.stateVersion = "25.05";
-  nixpkgs.config.allowUnfree = true;
+  i18n.defaultLocale = lib.mkDefault "en_US.UTF-8";
+  nixpkgs = {
+    overlays = [ plexOverlay ];
+    config.allowUnfree = true;
+  };
 
   networking = {
-    # IPv6 off: the ISP hands out a global address (announced to torrent
-    # peers), and nothing here needs IPv6. enableIPv6 sets disable_ipv6 via
-    # sysctl, but NetworkManager re-enables it when it activates a profile
-    # with ipv6.method=auto, so the wired profile must say "disabled" too
-    # (NetworkManager.conf can't default it). See "IPv6" in CLAUDE.md.
-    enableIPv6 = false;
+    # IPv6 off (spudbox.disableIPv6): an ISP's global address would be
+    # announced to torrent peers, and nothing here needs IPv6. enableIPv6
+    # sets disable_ipv6 via sysctl, but NetworkManager re-enables it when it
+    # activates a profile with ipv6.method=auto, so the wired profile must say
+    # "disabled" too (NetworkManager.conf can't default it). See "IPv6" in
+    # the README.
+    enableIPv6 = !cfg.disableIPv6;
     networkmanager.enable = true;
     firewall = {
       enable = true;
@@ -196,7 +216,7 @@ in
     groups.media = { };
     users = lib.mkMerge [
       (lib.listToAttrs (
-        lib.forEach config.my.users (user: {
+        lib.forEach config.spudbox.users (user: {
           name = user.username;
           value = {
             isNormalUser = true;
@@ -234,5 +254,6 @@ in
     };
   };
 
+  spudbox.passwordServices = passwordServices;
   environment.etc."spudbox/env".text = lib.toShellVar "PASSWORD_SERVICES" passwordServices;
 }

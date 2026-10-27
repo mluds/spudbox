@@ -1,180 +1,231 @@
-### Installation
+# spudbox
 
-Install the NixOS minimal ISO on a USB drive using a tool like balenaEtcher.
+A self-hosted media server on NixOS, configured end to end from one settings
+file:
 
-Boot from the USB drive and run these commands to get an initial SSH connection.
+- **Plex** (hardware transcoding) and **Tautulli**
+- **Sonarr**, **Radarr** and **Bazarr**, wired to **SABnzbd** (usenet), your
+  indexers and each other
+- **Jellyseerr** for requests, **Transmission** (with the Flood UI),
+  **Audiobookshelf**
+- **Caddy** in front of every web UI at `https://<service>.<your domain>`,
+  LAN only, and a **homepage** dashboard
+- Nightly **restic** backups of all app state, optionally copied off-site
+- Optional extras: Pushover failure alerts, HDD spin-down, Homebridge,
+  media-fixup (Dolby Vision fixes for picky Plex clients), Claude Code
+
+Every app is set up through its own API on boot: logins, API keys, download
+clients, indexers, quality profiles, libraries. Each web UI gets its own
+generated password. A fresh install comes up ready to use, apart from the few
+manual steps in [First run](#first-run).
+
+## How it fits together
+
+Two repositories:
+
+- **This one** is the code: a NixOS module (`spudbox.*` options), a test
+  suite, and a template.
+- **Yours**, made from [`template/`](template), holds only what's specific to
+  your server: `spudbox.nix` (settings), `hardware.nix`, `secrets/`
+  (encrypted), and `deploy.sh`. Its `flake.lock` pins a version of this
+  repository; `./deploy.sh update` moves it.
+
+`deploy.sh` runs on your own computer, which doesn't need Nix. It copies your
+repository to the server and the server builds.
+
+## Requirements
+
+- An x86_64 machine for the server: a boot SSD, and one or more data disks
+  for the library. An Intel iGPU is needed for hardware transcoding and
+  media-fixup.
+- A domain, with a wildcard record `*.yourdomain` pointing at the server's
+  LAN address. For trusted certificates the domain's DNS must be on
+  Cloudflare (`tls = "cloudflare"`); otherwise Caddy's own CA is used.
+- A usenet provider and a Newznab indexer (e.g. NZBGeek) for SABnzbd, Sonarr
+  and Radarr; a plex.tv account.
+- On your computer: `git`, `ssh`, `rsync`, and [git-crypt](https://github.com/AGWA/git-crypt)
+  to keep your secrets encrypted in git.
+
+## Setting up a server
+
+### 1. Make your instance repository
+
+```bash
+git clone https://github.com/mluds/spudbox
+cp -r spudbox/template my-spudbox      # or, with Nix: nix flake init -t github:mluds/spudbox
+cd my-spudbox && git init
+git-crypt init                          # secrets/ is encrypted from the first commit
+git-crypt export-key - | base64         # save this in your password manager
+```
+
+Keep it private. Then:
+
+- **`spudbox.nix`**: your domain, login user and SSH key, data disks (by
+  `/dev/disk/by-id/...`), usenet servers, indexers, which extras you want.
+  Every option is described in [`common/options.nix`](common/options.nix).
+- **`deploy.env`**: the server's address once installed (`HOST=you@192.168.1.10`)
+  and your SSH key.
+- **`secrets/`**: one file per secret. [`secrets/README.md`](template/secrets/README.md)
+  lists which ones your settings need. Everything internal (web UI passwords,
+  API keys, the backup password) is generated on the server.
+
+### 2. Boot the installer and partition the boot disk
+
+Boot the [NixOS minimal ISO](https://nixos.org/download/#nixos-iso) from a
+USB stick. On its console, set a temporary root password and find the address:
+
 ```bash
 sudo passwd
 ip a
 ```
 
-Run this from the deployment host.
-
-Dev:
-```bash
-export HOST_IP="192.168.42.130"
-export FLAKE=spudbox-dev
-```
-
-Prod:
-```bash
-export HOST_IP="192.168.1.42"
-export FLAKE=spudbox-prod
-```
+From your computer, `ssh root@<ip>` and partition the **boot disk** (this
+erases it; data disks are formatted automatically on first boot if they're
+blank, and left alone if they aren't):
 
 ```bash
-ssh-keygen -R ${HOST_IP}  # forget only this host's old key
-ssh -o StrictHostKeyChecking=accept-new root@${HOST_IP}
-```
-
-Run these commands. You will be prompted for a password.
-Just use a simple password to SSH in again, as it will be disabled in the next step.
-
-Dev:
-```bash
-export BOOT_DEV=/dev/nvme0n1
-export BOOT_PART_1=${BOOT_DEV}p1
-export BOOT_PART_2=${BOOT_DEV}p2
-```
-
-Prod:
-```bash
-export BOOT_DEV=/dev/nvme0n1
-export BOOT_PART_1=${BOOT_DEV}p1
-export BOOT_PART_2=${BOOT_DEV}p2
-```
-
-```bash
-wipefs --all --force $BOOT_PART_1
-wipefs --all --force $BOOT_PART_2
-partprobe $BOOT_DEV
-sgdisk --zap-all $BOOT_DEV
-parted $BOOT_DEV -- mklabel gpt
+BOOT_DEV=/dev/nvme0n1                    # check with lsblk
+wipefs --all --force ${BOOT_DEV}
+parted -s $BOOT_DEV -- mklabel gpt
 parted -s -a optimal $BOOT_DEV -- mkpart root ext4 512MB 100%
 parted -s $BOOT_DEV -- mkpart ESP fat32 1MB 512MB
 parted -s $BOOT_DEV -- set 2 esp on
-mkfs.ext4 -L nixos ${BOOT_PART_1}
-mkfs.fat -F 32 -n boot ${BOOT_PART_2}
+mkfs.ext4 -L nixos ${BOOT_DEV}p1         # sda1/sda2 for a SATA disk
+mkfs.fat -F 32 -n boot ${BOOT_DEV}p2
 mount /dev/disk/by-label/nixos /mnt
 mkdir -p /mnt/boot
 mount -o umask=077 /dev/disk/by-label/boot /mnt/boot
-nixos-generate-config --root /mnt
-cat > /mnt/etc/nixos/configuration.nix <<EOF
-{ config, lib, pkgs, ... }:
-{
-  imports = [ ./hardware-configuration.nix ];
-  system.stateVersion = "25.05"; # match configuration.nix
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-  services.openssh.enable = true;
-  services.openssh.settings.PasswordAuthentication = true;
-  services.openssh.settings.PermitRootLogin = "yes";
-}
-EOF
-nixos-install --root /mnt
-reboot
 ```
 
-Prod's flake reads its hardware config from `hosts/prod-hardware.nix`, and a
-reinstall gets new disk UUIDs. So for prod, first replace that file with the
-new install's config, then commit it:
+### 3. Install
+
+From your instance repository (unlocked, if you use git-crypt):
+
 ```bash
-ssh root@${HOST_IP} nixos-generate-config --show-hardware-config > hosts/prod-hardware.nix
+./deploy.sh hardware root@<ip>   # writes hardware.nix from the machine
+./deploy.sh install root@<ip>    # copies config + secrets, runs nixos-install
+git add -A && git commit -m "Install"   # hardware.nix and flake.lock
+ssh root@<ip> reboot
 ```
 
-Now run these commands from the deployment host to install the full system. They
-do what `deploy.sh` does, as root (`luds` doesn't exist yet). The checkout must be
-git-crypt unlocked (see "Secrets"). The secrets go straight into the root-only
-`/var/lib/secrets`, never into `~/deploy`: that directory isn't a git checkout, so
-`nixos-rebuild` copies all of it into the world-readable Nix store. The users'
-password hashes are read from `/var/lib/secrets` too.
+Root's password stays locked. Log in as your user with your SSH key; from
+now on everything goes through `./deploy.sh`.
+
+### 4. First run
+
+After the reboot, give the apps a few minutes to configure each other, then:
+
 ```bash
-ssh-keygen -R ${HOST_IP}
-ssh -o StrictHostKeyChecking=accept-new root@${HOST_IP} 'mkdir -p ~/deploy && install -d -m 700 /var/lib/secrets'
-COPYFILE_DISABLE=1 tar --exclude=./.git --exclude=./secrets -cf - . | ssh root@${HOST_IP} 'tar -xf - -C ~/deploy'
-git describe --always --dirty | ssh root@${HOST_IP} 'cat > ~/deploy/.revision'
-(cd secrets && find . -type f ! -path './users/*/plaintext' -print | COPYFILE_DISABLE=1 tar --format ustar -cf - -T -) |
-  ssh root@${HOST_IP} 'cd /var/lib/secrets && umask 077 && tar --no-same-owner --no-same-permissions -xf -'
-ssh root@${HOST_IP} "cd ~/deploy && nixos-rebuild switch --flake .#${FLAKE}"  # dev: add --impure
+./deploy.sh test          # all checks should pass, apart from what's below
+./deploy.sh ssh
+sudo spudbox-passwords    # the web UI logins (save them)
 ```
 
-After this, root login will be disabled and you must log in as one of the users in `my.users` (`environments/default.nix`), with its SSH key. From then on, use `./deploy.sh`.
+The few things that can't be automated:
 
-The backup secrets aren't in `secrets/`. Copy them from the password manager into
-`/var/lib/secrets` (root-only, 600) before the first nightly backup at 02:30:
-`restic/password`, `r2/s3-credentials.env`, `r2/account-id` and `r2/api-token`
-(see "Backups" in `CLAUDE.md`).
+- **Plex**: claim the server, which Plex only allows from localhost. Open a
+  tunnel, `ssh -L 32400:localhost:32400 you@<server>`, visit
+  http://localhost:32400/web and follow the setup. Then
+  `sudo systemctl restart plex-config tautulli-config jellyseerr-config`.
+- **Audiobookshelf** (once, on a fresh install): `sudo systemctl start
+  audiobookshelf-config` creates the root account, the Audiobooks library and
+  your users. It refuses to run once there are users. A login user gets an
+  account only if `/var/lib/secrets/users/<name>/plaintext` holds their
+  password at that moment; copy it there by hand (the next boot deletes it).
+- **IPv6** (with `disableIPv6`, the default): NetworkManager re-enables IPv6
+  per connection profile, so turn it off on the wired one once:
+  ```bash
+  sudo nmcli connection modify "Wired connection 1" ipv6.method disabled
+  sudo nmcli device reapply eno1      # your interface, from `ip a`
+  ```
+- **Sonarr/Radarr**: existing folders on the data disks are imported
+  automatically. Any they couldn't match are listed as `Not found:` in
+  `journalctl -u sonarr-config` (or `radarr-config`); add those by hand
+  under Library Import.
+- **Claude Code** (with `claudeCode.enable`): as that user, `curl -fsSL
+  https://claude.ai/install.sh | bash`, `claude auth login`, then `cd
+  ~/workspace && claude remote-control` once to accept the prompts (Ctrl+C),
+  and `sudo systemctl start claude-remote-control`.
 
-Turn IPv6 off on the wired NetworkManager profile once (see "IPv6" in `CLAUDE.md`).
+## Day to day
 
-### Manual Steps
-
-#### Plex
-
-Claim the Plex server by opening an SSH tunnel.
-```
-ssh -i ~/.ssh/spudbox -L 32400:localhost:32400 luds@192.168.1.42
-```
-
-Then visit http://localhost:32400/web in a browser and follow the setup. (Plex _requires_ claiming from localhost)
-
-Then re-run the setup units that use Plex:
-`sudo systemctl restart plex-config tautulli-config jellyseerr-config`.
-
-#### Sonarr and Radarr
-
-Nothing to do: `sonarr-config` and `radarr-config` add the existing folders on
-disk. Any they couldn't match show up as `Not found:` in
-`journalctl -u sonarr-config` (or `radarr-config`). Import those by hand under
-Library Import.
-
-#### Jellyseerr
-
-Nothing to do: `jellyseerr-config` signs in with the Plex token, finishes the setup
-wizard, and adds Plex, Sonarr and Radarr.
-
-#### Audiobookshelf
-
-On a fresh install only, run the one-off setup (root account, Audiobooks library,
-login users). It refuses to run once the database has users:
-```
-sudo systemctl start audiobookshelf-config
-```
-It creates a login user only if a copy of its plaintext password is at
-`/var/lib/secrets/users/<name>/plaintext` (the deploy never copies these, and
-`create-dirs` deletes them the next time it runs).
-
-#### Claude Code
-
-Lets you drive Claude Code on the server from the Claude mobile app (Code tab)
-or claude.ai/code. Requires a Pro/Max claude.ai subscription. Over SSH as `luds`:
-
-```
-curl -fsSL https://claude.ai/install.sh | bash   # native install to ~/.local/bin, self-updating
-claude auth login                                # pick the claude.ai option; open the URL on any device
-cd ~/workspace && claude remote-control          # answer y to trust + enable prompts, then Ctrl+C
-sudo systemctl start claude-remote-control
-```
-
-The `spudbox` session then appears in the app's session list. The service skips
-startup until `~/.claude/.credentials.json` exists.
-
-### Deploy Updates
-
-See "Deploying" in `CLAUDE.md`.
-
-### Secrets
-
-#### Initial setup
 ```bash
-brew install git-crypt
-git-crypt init
-# Save this to password manager
-git-crypt export-key - | base64
+./deploy.sh            # copy, rebuild, wait for the apps, run the checks
+./deploy.sh switch     # copy and rebuild, no checks
+./deploy.sh test       # the checks only (spudbox-test on the server)
+./deploy.sh update     # move flake.lock to the newest spudbox, then deploy
+./deploy.sh ssh
 ```
 
-#### Unlocking
+A deploy copies your working tree (uncommitted changes included) and streams
+`secrets/` into `/var/lib/secrets` (root-only), never into the Nix store. If a
+secret changed, the setup units re-run so the apps pick it up.
+
+To undo a bad deploy: `ssh you@server sudo nixos-rebuild switch --rollback`,
+or revert and deploy again.
+
+## Backups and restores
+
+`restic-backups-local` runs nightly at 02:30: it stops the apps, backs up
+`/var/lib` (app configs and databases, minus caches and logs) to
+`<storageDir>/backups/restic` on the data disks, and starts them again. With
+`offsiteBackup`, the snapshots are then copied to your S3/R2 bucket, pruned
+and checked. Media isn't backed up.
+
+Both repositories are encrypted with `/var/lib/secrets/restic/password`.
+**Copy it into your password manager**: without it nothing can be restored.
+
 ```bash
-echo -n "<GIT CRYPT KEY>" | base64 -d > ~/git-crypt-key
-git-crypt unlock ~/git-crypt-key
+sudo restic-local snapshots
+sudo restic-local restore latest --target /tmp/restore --include /var/lib/sonarr
+# stop the service, copy the files back into /var/lib/<app>, fix ownership, start it
 ```
+
+(`restic-r2` is the same for the off-site copy.) After reinstalling a server,
+restore `/var/lib` from the local repository on the data disks before the
+apps build fresh state: deploy once, `sudo systemctl stop` the apps listed in
+`services/backup.nix`, restore, then reboot.
+
+## Settings reference
+
+All options are in [`common/options.nix`](common/options.nix), with
+descriptions and defaults. The main ones:
+
+| Option | Default | |
+| --- | --- | --- |
+| `domain` | (required) | `https://<service>.<domain>` |
+| `users` | (required) | Login users and SSH keys; `superuser` gets passwordless sudo |
+| `tls` | `"internal"` | `"cloudflare"` for a Let's Encrypt wildcard certificate |
+| `storageDrives`, `cacheDrives` | `[ ]` | Data disks, pooled with mergerfs at `/mnt/storage`, `/mnt/cache` |
+| `usenet.servers` | `[ ]` | Usenet servers in priority order |
+| `indexers` | `[ ]` | Newznab indexers for Sonarr and Radarr |
+| `subtitleProviders` | `[ ]` | `opensubtitlescom`, `assrt` |
+| `bazarr.languageProfiles` | English | Subtitle languages |
+| `disableIPv6` | `true` | |
+| `pushover.enable` | off | Alerts when a setup unit, backup or timer job fails |
+| `offsiteBackup.enable` | off | Copy backups to an S3 bucket |
+| `hddSpindown.enable` | off | Spin idle data HDDs down, show their state on the dashboard |
+| `mediaFixup.enable` | off | Fix Dolby Vision profile 5 and hybrid DV files (Intel iGPU) |
+| `homebridge.enable` | off | HomeKit bridge in Docker |
+| `claudeCode.enable` | off | Claude Code Remote Control as a service (see its security note) |
+| `homepage.*` | | Dashboard title and bookmarks |
+| `*Port` | | Each app's (loopback) port |
+
+`spudbox.nix` is an ordinary NixOS module, so any other NixOS option can go
+there too (`time.timeZone`, extra packages, ...).
+
+## Security model
+
+- Web UIs listen on 127.0.0.1 only; Caddy serves them over HTTPS and refuses
+  anything outside private address ranges. Plex's port 32400 is open (and can
+  be port-forwarded) for remote streaming.
+- Secrets are root-only in `/var/lib/secrets`, never in the Nix store or on a
+  command line; services that need one get it through systemd's
+  `LoadCredential`.
+- Apps that handle downloaded files run sandboxed (`systemd-analyze security`).
+- `spudbox-test` checks all of the above on every deploy.
+
+## Working on spudbox
+
+See [CLAUDE.md](CLAUDE.md) for the layout, conventions and how to test a
+change against a real server before it's released.

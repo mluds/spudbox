@@ -6,12 +6,11 @@
 }:
 
 let
-  inherit (config.my)
+  inherit (config.spudbox)
     cacheDir
     sabnzbdPort
     secretsDir
-    usenetServerHosts
-    usenetServerPort
+    usenet
     ;
 
   # Placeholder in settings -> secret file. systemd copies each file into the
@@ -22,6 +21,8 @@ let
     web_password = "sabnzbd/password";
     api_key = "sabnzbd/api-key";
     nzb_key = "sabnzbd/nzb-key";
+  }
+  // lib.optionalAttrs (usenet.servers != [ ]) {
     usenet_username = "usenet/username";
     usenet_password = "usenet/password";
   };
@@ -80,13 +81,12 @@ in
             name = host;
             displayname = host;
             inherit host priority;
-            port = usenetServerPort;
+            inherit (usenet) port connections;
             username = secret "usenet_username";
             password = secret "usenet_password";
-            connections = 20;
             ssl_verify = "strict";
           }
-        ) usenetServerHosts
+        ) usenet.servers
       );
       categories = {
         "*" = {

@@ -7,7 +7,8 @@
 }:
 
 let
-  inherit (config.my)
+  cfg = config.spudbox;
+  inherit (cfg)
     secretsDir
     storageDir
     domain
@@ -135,16 +136,17 @@ let
       api POST settings/jobs/plex-recently-added-scan/schedule \
         -d '{"schedule": "0 0 6 * * *"}' >/dev/null
 
-      echo "Configuring Pushover notifications..."
-      jq -n --rawfile token ${secretsDir}/pushover/app-token \
-        --rawfile user ${secretsDir}/pushover/user-key \
-        '{enabled: true, types: 24, options: {
-          accessToken: ($token | rtrimstr("\n")),
-          userToken: ($user | rtrimstr("\n")),
-          sound: "pushover"
-        }}' \
-        | api POST settings/notifications/pushover -d @- >/dev/null
-
+      ${lib.optionalString cfg.pushover.enable ''
+        echo "Configuring Pushover notifications..."
+        jq -n --rawfile token ${secretsDir}/pushover/app-token \
+          --rawfile user ${secretsDir}/pushover/user-key \
+          '{enabled: true, types: 24, options: {
+            accessToken: ($token | rtrimstr("\n")),
+            userToken: ($user | rtrimstr("\n")),
+            sound: "pushover"
+          }}' \
+          | api POST settings/notifications/pushover -d @- >/dev/null
+      ''}
       if [ "$FRESH" = true ]; then
         echo "Restarting Jellyseerr..."
         systemctl restart seerr
@@ -166,6 +168,9 @@ in
   services.seerr = {
     enable = true;
     openFirewall = false;
+    # The pre-26.05 location on every install (upstream moves it to
+    # /var/lib/seerr for stateVersion >= 26.05), so scripts and tests have one path.
+    configDir = "/var/lib/jellyseerr/config";
   };
 
   systemd.services.seerr = {
@@ -175,7 +180,7 @@ in
       DynamicUser = lib.mkForce false;
       User = "jellyseerr";
       Group = "jellyseerr";
-      StateDirectory = "jellyseerr";
+      StateDirectory = lib.mkForce "jellyseerr";
       # settings.json holds the Plex token and API keys
       StateDirectoryMode = "0700";
       # On top of the module's ProtectSystem=strict etc. Node's JIT rules

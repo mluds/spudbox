@@ -1,18 +1,27 @@
-_:
+{ config, lib, ... }:
 
 # Claude Code Remote Control server, reachable from the Claude mobile app and
-# claude.ai/code. The binary is the native install at ~/.local/bin/claude
-# (self-updating; runs via nix-ld) rather than pkgs.claude-code, which lags.
-# One-time setup is in README.md ("Claude Code").
+# claude.ai/code (spudbox.claudeCode). The binary is the native install at
+# ~/.local/bin/claude (self-updating; runs via nix-ld) rather than
+# pkgs.claude-code, which lags. One-time setup is in the README ("Claude Code").
 #
-# Runs as luds, who has passwordless sudo, so sessions have root on prod.
-# That's an accepted risk; see "Accepted risks" in CLAUDE.md before changing.
+# Runs as spudbox.claudeCode.user. If that user is a superuser (passwordless
+# sudo), Claude sessions have root on the server: anyone controlling the
+# claude.ai account, or a prompt injection reaching a session, does too.
 let
-  user = "luds";
-  home = "/home/${user}";
+  cfg = config.spudbox.claudeCode;
+  inherit (cfg) user;
+  home = config.users.users.${user}.home;
   workDir = "${home}/workspace";
 in
-{
+lib.mkIf cfg.enable {
+  assertions = [
+    {
+      assertion = lib.any (u: u.username == user) config.spudbox.users;
+      message = "spudbox.claudeCode.user (${user}) must be one of spudbox.users.";
+    }
+  ];
+
   environment.localBinInPath = true;
 
   systemd.tmpfiles.rules = [ "d ${workDir} 0755 ${user} users -" ];
@@ -37,7 +46,7 @@ in
     serviceConfig = {
       User = user;
       WorkingDirectory = workDir;
-      ExecStart = "${home}/.local/bin/claude remote-control --name spudbox";
+      ExecStart = "${home}/.local/bin/claude remote-control --name ${cfg.name}";
       Restart = "always";
       RestartSec = 30;
       # It redraws its status screen (QR hint, connection, capacity) about

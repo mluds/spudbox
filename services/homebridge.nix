@@ -7,22 +7,22 @@
 }:
 
 let
-  inherit (config.my)
+  cfg = config.spudbox;
+  inherit (cfg)
     domain
     homebridgePort
     secretsDir
     ;
 
+  # spudbox.homebridge.dummySwitches, added on first setup
   dummySwitch = {
     platform = "HomebridgeDummy";
     name = "HomebridgeDummy";
-    accessories = [
-      {
-        type = "Switch";
-        name = "Dummy Door Switch";
-        stateful = true;
-      }
-    ];
+    accessories = map (name: {
+      type = "Switch";
+      inherit name;
+      stateful = true;
+    }) cfg.homebridge.dummySwitches;
   };
 
   configScript = pkgs.writeShellApplication {
@@ -98,13 +98,14 @@ let
       echo "Logging in..."
       login "$TMP/login.json"
 
-      echo "Installing homebridge-dummy plugin..."
-      docker exec homebridge npm install homebridge-dummy@1.6.1
+      ${lib.optionalString (cfg.homebridge.dummySwitches != [ ]) ''
+        echo "Installing homebridge-dummy plugin..."
+        docker exec homebridge npm install homebridge-dummy@1.6.1
 
-      echo "Adding dummy switch to config..."
-      api GET config-editor | jq --argjson dummy ${lib.escapeShellArg (builtins.toJSON dummySwitch)} \
-        '.platforms += [$dummy]' | api POST config-editor -d @- >/dev/null
-
+        echo "Adding dummy switches to config..."
+        api GET config-editor | jq --argjson dummy ${lib.escapeShellArg (builtins.toJSON dummySwitch)} \
+          '.platforms += [$dummy]' | api POST config-editor -d @- >/dev/null
+      ''}
       echo "Restarting Homebridge..."
       api PUT server/restart >/dev/null
 
@@ -122,7 +123,14 @@ let
     '';
   };
 in
-{
+lib.mkIf cfg.homebridge.enable {
+  # Docker runs only Homebridge.
+  virtualisation.docker = {
+    enable = true;
+    autoPrune.enable = true;
+  };
+  environment.systemPackages = [ pkgs.docker-compose ];
+
   systemd = {
     tmpfiles.rules = [
       # Private: volumes/ holds auth.json and config.json (container runs as root)
@@ -182,7 +190,7 @@ in
   };
 
   # Image pinned by date tag + digest so a container restart can't silently
-  # upgrade Homebridge. To bump, see "Hand-pinned versions" in CLAUDE.md.
+  # upgrade Homebridge. To bump, see "Hand-pinned versions" in the README.
   environment.etc."homebridge/docker-compose.yml" = {
     text = ''
       services:

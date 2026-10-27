@@ -7,7 +7,7 @@
 }:
 
 let
-  inherit (config.my)
+  inherit (config.spudbox)
     sonarrPort
     storageDir
     ;

@@ -37,24 +37,29 @@ def language(id_, code):
     return {"id": id_, "language": code, "audio_exclude": "False", "hi": "False", "forced": "False"}
 
 
+# spudbox.bazarr.languageProfiles, as JSON: [{name, languages}, ...]
+with open(os.environ["LANGUAGE_PROFILES"]) as f:
+    profiles = json.load(f)
 # profileId -> (name, languages)
 LANGUAGE_PROFILES = {
-    1: ("Default", [language(1, "en")]),
-    2: ("English and Chinese", [language(1, "en"), language(2, "zh")]),
+    id_: (profile["name"], [language(i, code) for i, code in enumerate(profile["languages"], 1)])
+    for id_, profile in enumerate(profiles, 1)
 }
+LANGUAGES = sorted({code for profile in profiles for code in profile["languages"]})
 
 with open(os.environ["CONFIG_TEMPLATE"]) as f:
     new_config = yaml.safe_load(f)
 new_config["radarr"]["apikey"] = read_secret("radarr/api-key")
 new_config["sonarr"]["apikey"] = read_secret("sonarr/api-key")
-new_config["opensubtitlescom"]["username"] = read_secret("opensubtitles/username")
-new_config["opensubtitlescom"]["password"] = read_secret("opensubtitles/password")
+if "opensubtitlescom" in new_config:
+    new_config["opensubtitlescom"]["username"] = read_secret("opensubtitles/username")
+    new_config["opensubtitlescom"]["password"] = read_secret("opensubtitles/password")
 new_config["auth"]["username"] = read_secret("admin/username")
 # Bazarr stores and checks an unsalted MD5; its format, not our choice
 new_config["auth"]["password"] = hashlib.md5(  # noqa: S324
     read_secret("bazarr/password").encode()
 ).hexdigest()
-if os.path.exists(f"{SECRETS_DIR}/assrt/api-token"):
+if "assrt" in new_config:
     new_config["assrt"]["token"] = read_secret("assrt/api-token")
 
 wait_for_file(CONFIG_PATH)
@@ -67,7 +72,10 @@ with open(CONFIG_PATH, "w") as f:
     yaml.dump(config, f, sort_keys=False)
 
 with sqlite3.connect(DB_PATH) as conn:
-    conn.execute("UPDATE table_settings_languages SET enabled = 1 WHERE code2 IN ('en', 'zh');")
+    conn.executemany(
+        "UPDATE table_settings_languages SET enabled = 1 WHERE code2 = ?;",
+        [(code,) for code in LANGUAGES],
+    )
     conn.execute("DELETE FROM table_languages_profiles;")
     conn.executemany(
         """
