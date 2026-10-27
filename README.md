@@ -233,3 +233,7 @@ there too (`time.timeZone`, extra packages, ...).
 
 See [CLAUDE.md](CLAUDE.md) for the layout, conventions and how to test a
 change against a real server before it's released.
+
+## License
+
+MIT; see [LICENSE](LICENSE).
