@@ -65,8 +65,10 @@ let
           @seen[cgroup] = (nsecs, comm, ((struct fuse_args *)arg2)->opcode);
         }
       }
+      // rwbs "N...": a drive command without data, such as check-drive-status's
+      // own hdparm -y; not I/O that wakes or keeps the disk spinning.
       tracepoint:block:block_rq_issue
-      / $(join "''${disks[@]}") /
+      / ($(join "''${disks[@]}")) && args.rwbs[0] != 78 /
       {
         \$prev = @last[args.dev];
         @last[args.dev] = nsecs;
