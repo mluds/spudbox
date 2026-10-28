@@ -15,8 +15,22 @@
 
 umask 077
 STAMP=$STATE_DIR/last-run
-TMP=$(mktemp -d "$WORK_DIR/run.XXXX")
-trap 'rm -rf "$TMP"' EXIT
+# Bookkeeping (the run's start stamp, API keys for curl) lives in the state
+# dir on the boot disk: touching the media pool on every 15-minute run woke
+# the HDD each time. Scratch space for rewriting a video is on the pool (so
+# the result is moved into place, not copied), made only when one needs it.
+RUN=$(mktemp -d "$STATE_DIR/run.XXXX")
+trap 'if [ -s "$RUN/scratch" ]; then rm -rf "$(cat "$RUN/scratch")"; fi; rm -rf "$RUN"' EXIT
+
+# scratch: print the pool scratch dir, creating it on first use
+scratch() {
+  local dir=$WORK_DIR/run.$$
+  if [ ! -s "$RUN/scratch" ]; then
+    mkdir -p "$dir"
+    echo "$dir" > "$RUN/scratch"
+  fi
+  echo "$dir"
+}
 
 probe() { ffprobe -v error "$@" 2>/dev/null; }
 duration() { probe -show_entries format=duration -of csv=p=0 "$1" | cut -d. -f1; }
@@ -78,7 +92,9 @@ replace() {
 }
 
 convert_dv5() {
-  local out=$TMP/convert.mkv
+  local tmp out
+  tmp=$(scratch)
+  out=$tmp/convert.mkv
   say "Dolby Vision profile 5: re-encoding to HDR10 on the GPU"
   ffmpeg -hide_banner -nostdin -y -v error \
     -init_hw_device vaapi=va:/dev/dri/renderD128 -init_hw_device vulkan=vk@va -filter_hw_device vk \
@@ -94,7 +110,9 @@ convert_dv5() {
 }
 
 strip_dv() {
-  local out=$TMP/strip.mkv
+  local tmp out
+  tmp=$(scratch)
+  out=$tmp/strip.mkv
   say "Hybrid Dolby Vision: stripping the DV layer (lossless)"
   ffmpeg -hide_banner -nostdin -y -v error -i "$FILE" -map 0 -c copy -bsf:v dovi_rpu=strip=1 "$out"
   if ! same_media "$FILE" "$out" || [ -n "$(dv_profile "$out")" ]; then
@@ -108,6 +126,8 @@ strip_dv() {
 # are copied untouched). Also clears the default flag when every subtitle
 # track has it (an mp4 quirk that makes Plex switch subtitles on by itself).
 fix_subs() {
+  local tmp
+  tmp=$(scratch)
   local n i k found=0 ndef=0 d t a b
   local -a codecs sample=() extract=() inputs=() maps=() meta=()
   mapfile -t codecs < <(probe -select_streams s -show_entries stream=codec_name -of csv=p=0 "$FILE")
@@ -116,12 +136,12 @@ fix_subs() {
 
   # Cheap check first: the tags appear on every line, so 10 minutes is enough.
   for ((i = 0; i < n; i++)); do
-    [ "${codecs[$i]}" = subrip ] && sample+=(-map "0:s:$i" -c copy -f srt "$TMP/sample$i.srt")
+    [ "${codecs[$i]}" = subrip ] && sample+=(-map "0:s:$i" -c copy -f srt "$tmp/sample$i.srt")
   done
   if [ ${#sample[@]} -gt 0 ]; then
     ffmpeg -v error -nostdin -t 600 -i "$FILE" "${sample[@]}" || true
-    cat "$TMP"/sample*.srt 2>/dev/null | grep -q '<font' && found=1
-    rm -f "$TMP"/sample*.srt
+    cat "$tmp"/sample*.srt 2>/dev/null | grep -q '<font' && found=1
+    rm -f "$tmp"/sample*.srt
   fi
   for ((i = 0; i < n; i++)); do
     probe -select_streams "s:$i" -show_entries stream_disposition=default -of csv=p=0 "$FILE" | grep -q 1 \
@@ -131,15 +151,15 @@ fix_subs() {
 
   say "Cleaning subtitle tracks"
   for ((i = 0; i < n; i++)); do
-    [ "${codecs[$i]}" = subrip ] && extract+=(-map "0:s:$i" -c copy -f srt "$TMP/$i.srt")
+    [ "${codecs[$i]}" = subrip ] && extract+=(-map "0:s:$i" -c copy -f srt "$tmp/$i.srt")
   done
   [ ${#extract[@]} -eq 0 ] || ffmpeg -v error -nostdin -i "$FILE" "${extract[@]}"
   k=0
   for ((i = 0; i < n; i++)); do
     if [ "${codecs[$i]}" = subrip ]; then
-      sed -E -i 's#</?font[^>]*>##g' "$TMP/$i.srt"
+      sed -E -i 's#</?font[^>]*>##g' "$tmp/$i.srt"
       k=$((k + 1))
-      inputs+=(-i "$TMP/$i.srt")
+      inputs+=(-i "$tmp/$i.srt")
       maps+=(-map "$k:0")
     else
       maps+=(-map "0:s:$i")
@@ -156,16 +176,16 @@ fix_subs() {
     for ((i = 0; i < a; i++)); do meta+=("-map_metadata:s:$t:$i" "0:s:$t:$i"); done
   done
   ffmpeg -v error -nostdin -y -i "$FILE" "${inputs[@]}" -map 0:v -map '0:a?' "${maps[@]}" -map '0:t?' \
-    -map_metadata 0 "${meta[@]}" -c copy "$TMP/subs.mkv"
+    -map_metadata 0 "${meta[@]}" -c copy "$tmp/subs.mkv"
   a=$(stream_tags "$FILE")
-  b=$(stream_tags "$TMP/subs.mkv")
-  if ! same_media "$FILE" "$TMP/subs.mkv" || [ "$a" != "$b" ]; then
+  b=$(stream_tags "$tmp/subs.mkv")
+  if ! same_media "$FILE" "$tmp/subs.mkv" || [ "$a" != "$b" ]; then
     say "Verification failed, leaving subtitles unchanged"
     return 1
   fi
-  chmod --reference="$FILE" "$TMP/subs.mkv"
-  chown --reference="$FILE" "$TMP/subs.mkv"
-  mv -f "$TMP/subs.mkv" "$FILE"
+  chmod --reference="$FILE" "$tmp/subs.mkv"
+  chown --reference="$FILE" "$tmp/subs.mkv"
+  mv -f "$tmp/subs.mkv" "$FILE"
 }
 
 # rescan: have Sonarr/Radarr pick up the new file and Plex refresh its folder.
@@ -174,33 +194,33 @@ rescan() {
   local dir id
   dir=$(dirname "$FILE")
   if [[ $FILE == "$TV_DIR"/* ]]; then
-    printf 'X-Api-Key: %s\n' "$(secret sonarr/api-key)" > "$TMP/arr-key"
-    id=$(curl -sf -H @"$TMP/arr-key" "http://localhost:$SONARR_PORT/api/v3/series" \
+    printf 'X-Api-Key: %s\n' "$(secret sonarr/api-key)" > "$RUN/arr-key"
+    id=$(curl -sf -H @"$RUN/arr-key" "http://localhost:$SONARR_PORT/api/v3/series" \
       | jq --arg f "$FILE" '[.[] | select(.path as $p | $f | startswith($p + "/"))][0].id // empty') || true
-    [ -z "$id" ] || curl -sf -o /dev/null -H @"$TMP/arr-key" -H "Content-Type: application/json" \
+    [ -z "$id" ] || curl -sf -o /dev/null -H @"$RUN/arr-key" -H "Content-Type: application/json" \
       -d "{\"name\":\"RescanSeries\",\"seriesId\":$id}" "http://localhost:$SONARR_PORT/api/v3/command" || true
   else
-    printf 'X-Api-Key: %s\n' "$(secret radarr/api-key)" > "$TMP/arr-key"
-    id=$(curl -sf -H @"$TMP/arr-key" "http://localhost:$RADARR_PORT/api/v3/movie" \
+    printf 'X-Api-Key: %s\n' "$(secret radarr/api-key)" > "$RUN/arr-key"
+    id=$(curl -sf -H @"$RUN/arr-key" "http://localhost:$RADARR_PORT/api/v3/movie" \
       | jq --arg d "$dir" '[.[] | select(.path == $d)][0].id // empty') || true
-    [ -z "$id" ] || curl -sf -o /dev/null -H @"$TMP/arr-key" -H "Content-Type: application/json" \
+    [ -z "$id" ] || curl -sf -o /dev/null -H @"$RUN/arr-key" -H "Content-Type: application/json" \
       -d "{\"name\":\"RescanMovie\",\"movieId\":$id}" "http://localhost:$RADARR_PORT/api/v3/command" || true
   fi
-  printf 'X-Plex-Token: %s\n' "$(secret plex/token)" > "$TMP/plex-key"
-  curl -sf -H @"$TMP/plex-key" "http://localhost:$PLEX_PORT/library/sections" \
+  printf 'X-Plex-Token: %s\n' "$(secret plex/token)" > "$RUN/plex-key"
+  curl -sf -H @"$RUN/plex-key" "http://localhost:$PLEX_PORT/library/sections" \
     | xmlstarlet sel -t -v '//Directory/@key' -n \
     | while read -r s; do
-      curl -sf -o /dev/null -G -H @"$TMP/plex-key" "http://localhost:$PLEX_PORT/library/sections/$s/refresh" \
+      curl -sf -o /dev/null -G -H @"$RUN/plex-key" "http://localhost:$PLEX_PORT/library/sections/$s/refresh" \
         --data-urlencode "path=$dir" || true
     done
-  rm -f "$TMP/arr-key" "$TMP/plex-key"
+  rm -f "$RUN/arr-key" "$RUN/plex-key"
 }
 
 process() {
   local profile changed=0
   FILE=$1
   [ -f "$FILE" ] || return 0
-  echo "$FILE" > "$TMP/current" # printed only once there's something to do
+  echo "$FILE" > "$RUN/current" # printed only once there's something to do
   profile=$(dv_profile "$FILE")
   if [ "$profile" = 5 ]; then
     convert_dv5 && changed=1
@@ -215,9 +235,9 @@ process() {
 
 # say MESSAGE: log an action, preceded by the file name the first time.
 say() {
-  if [ -s "$TMP/current" ]; then
-    cat "$TMP/current"
-    : > "$TMP/current"
+  if [ -s "$RUN/current" ]; then
+    cat "$RUN/current"
+    : > "$RUN/current"
   fi
   echo "  $*"
 }
@@ -234,10 +254,10 @@ if [ ! -e "$STAMP" ]; then
 fi
 
 # Files that land while this run is busy are picked up by the next one.
-touch "$TMP/started"
+touch "$RUN/started"
 read -ra dirs <<< "$MEDIA_DIRS"
 find "${dirs[@]}" -type f \( -iname '*.mkv' -o -iname '*.mp4' -o -iname '*.m4v' \) -newer "$STAMP" -print0 \
   | while IFS= read -r -d '' f; do
     process "$f" || echo "  Failed: $f"
   done
-mv "$TMP/started" "$STAMP"
+mv "$RUN/started" "$STAMP"
