@@ -31,6 +31,8 @@ Commands:
   sync                Copy this checkout and the secrets to the server, no rebuild
   test [CATEGORY...]  Run the checks on the server (spudbox-test)
   update              Move flake.lock to the newest spudbox (built on the server)
+  restore [local|r2] [SNAPSHOT]
+                      Put a backup's app state back (asks before changing anything)
   lint                Lint the SPUDBOX_SRC checkout on the server
   ssh                 Shell on the server
   secret NAME         Type a secret into secrets/NAME (input hidden), e.g. usenet/password
@@ -255,6 +257,13 @@ case "$CMD" in
     ;;
   update) update_lock ;;
   ssh) exec $SSH ;;
+  restore)
+    # -t: spudbox-restore asks for confirmation on the terminal. SSH_OPTS
+    # is meant to split into words.
+    # shellcheck disable=SC2086
+    exec ssh -t -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new $SSH_OPTS "$HOST" \
+      sudo spudbox-restore --from "${1:-local}" "${2:-latest}"
+    ;;
   secret) write_secret "$@" ;;
   hardware) write_hardware "$@" ;;
   install) install_system "$@" ;;

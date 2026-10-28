@@ -1,6 +1,8 @@
 import os
+import time
 from os import getenv
 from urllib.parse import urlencode
+from xml.etree import ElementTree
 
 import requests
 from plexapi.exceptions import NotFound
@@ -34,6 +36,44 @@ def get_token(plex_url, token_path, username_file, password_file):
     with open(token_path, "w") as f:
         f.write(token)
     return token
+
+
+def identity(plex_url):
+    r = requests.get(f"{plex_url}/identity", timeout=30)
+    r.raise_for_status()
+    return ElementTree.fromstring(r.text)  # noqa: S314 (the local Plex's own XML)
+
+
+def claim_server(plex_url, token):
+    """Claim a fresh server for the plex.tv account, as Plex's setup page does.
+
+    Until it's claimed, Plex can only be managed from localhost, and its own
+    sign-in, remote access, Tautulli and Jellyseerr don't work. Claiming uses
+    a short-lived, single-use claim token from plex.tv.
+    """
+    server = identity(plex_url)
+    if server.get("claimed") == "1":
+        return
+    print("Claiming the Plex server for the plex.tv account...")
+    r = requests.get(
+        "https://plex.tv/api/claim/token.json",
+        headers={"X-Plex-Token": token, "Accept": "application/json"},
+        timeout=30,
+    )
+    r.raise_for_status()
+    r = requests.post(
+        f"{plex_url}/myplex/claim",
+        params={"token": r.json()["token"]},
+        headers={"X-Plex-Client-Identifier": server.get("machineIdentifier", "")},
+        timeout=60,
+    )
+    r.raise_for_status()
+    deadline = time.time() + 60
+    while identity(plex_url).get("claimed") != "1":
+        if time.time() > deadline:
+            raise SystemExit("Plex didn't report itself claimed within a minute")
+        time.sleep(2)
+    print("Plex server claimed.")
 
 
 def main():
@@ -71,6 +111,7 @@ def main():
     token = get_token(
         plex_url, token_path, getenv("PLEX_USERNAME_FILE"), getenv("PLEX_PASSWORD_FILE")
     )
+    claim_server(plex_url, token)
     plex = PlexServer(plex_url, token)
 
     def add_library(section):

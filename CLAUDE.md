@@ -47,6 +47,7 @@ before any cleanup, hardening, or review, and keep it current:
   `*-config` oneshot that configures the app through its API, config file or
   DB on boot (and on a switch that changes it). Sonarr and Radarr share
   `services/servarr/mkArrConfig.nix`.
+- `tests/vm.nix`: the VM test of a fresh install (see "Verifying a change").
 - `template/`: a new instance (flake, example `spudbox.nix`, placeholder
   `hardware.nix`, `deploy.sh`, `deploy.env`, `secrets/README.md`). Instances
   copy `deploy.sh`; changes to it reach them only when they copy it again.
@@ -78,8 +79,11 @@ before any cleanup, hardening, or review, and keep it current:
    ruff, gitleaks, typos). Fix formatting with `nixfmt $(find . -name '*.nix')`
    and `ruff format .`. Allowlist a deliberate finding in that tool's config,
    or `# noqa: <code>` with a reason, rather than switching a rule off.
-2. **Evaluate**: `nix flake check` (the template's settings must still
-   evaluate; it covers the all-defaults, extras-off path).
+2. **Evaluate and test**: `nix flake check` evaluates the template with
+   every feature off and with every feature on, and runs the VM test
+   (`tests/vm.nix`: a fresh install, offline; several minutes; on its own:
+   `nix build -L .#checks.x86_64-linux.vm`). CI runs all of it on every
+   push (`.github/workflows/check.yml`).
 3. **Against a real instance**, without deploying: from the instance checkout,
    ```bash
    nix build --no-link "path:$PWD#nixosConfigurations.default.config.system.build.toplevel" \

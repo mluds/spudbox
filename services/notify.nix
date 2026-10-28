@@ -52,6 +52,7 @@ let
   setupUnits = [
     "create-dirs"
   ]
+  ++ lib.optional cfg.disableIPv6 "networkmanager-ipv6-off"
   ++ lib.optional (cfg.tls == "cloudflare") "caddy-config"
   ++ [
     "plex-config"

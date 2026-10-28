@@ -77,6 +77,29 @@ let
     });
   };
 
+  # NetworkManager turns IPv6 back on for any profile with ipv6.method=auto,
+  # and that can't be made a global default; so every ethernet profile gets
+  # ipv6.method=disabled here (once; then it's saved in the profile).
+  ipv6OffScript = pkgs.writeShellApplication {
+    name = "networkmanager-ipv6-off";
+    runtimeInputs = with pkgs; [
+      networkmanager
+      gawk
+    ];
+    text = ''
+      nmcli -t -f UUID,TYPE connection show | awk -F: '$2 == "802-3-ethernet" {print $1}' |
+        while read -r uuid; do
+          [ "$(nmcli -g ipv6.method connection show "$uuid")" = disabled ] && continue
+          echo "Disabling IPv6 on '$(nmcli -g connection.id connection show "$uuid")'"
+          nmcli connection modify "$uuid" ipv6.method disabled
+          device=$(nmcli -g GENERAL.DEVICES connection show "$uuid")
+          if [ -n "$device" ] && ! nmcli device reapply "$device"; then
+            echo "Couldn't reapply it to $device; it applies on the next connect"
+          fi
+        done
+    '';
+  };
+
   createDirsScript = pkgs.writeShellApplication {
     name = "create-dirs";
     text = ''
@@ -202,9 +225,8 @@ in
     # IPv6 off (spudbox.disableIPv6): an ISP's global address would be
     # announced to torrent peers, and nothing here needs IPv6. enableIPv6
     # sets disable_ipv6 via sysctl, but NetworkManager re-enables it when it
-    # activates a profile with ipv6.method=auto, so the wired profile must say
-    # "disabled" too (NetworkManager.conf can't default it). See the README,
-    # "First run".
+    # activates a profile with ipv6.method=auto, so networkmanager-ipv6-off
+    # sets every wired profile to "disabled" too.
     enableIPv6 = !cfg.disableIPv6;
     networkmanager.enable = true;
     firewall = {
@@ -271,6 +293,17 @@ in
         })
       )
       {
+        networkmanager-ipv6-off = lib.mkIf cfg.disableIPv6 {
+          description = "Turn IPv6 off in NetworkManager's wired profiles";
+          after = [
+            "NetworkManager.service"
+            "network-online.target"
+          ];
+          wants = [ "network-online.target" ];
+          wantedBy = [ "multi-user.target" ];
+          serviceConfig.ExecStart = lib.getExe ipv6OffScript;
+        };
+
         nix-gc.preStart = ''
           ${config.nix.package}/bin/nix-env -p /nix/var/nix/profiles/system --delete-generations +5
         '';

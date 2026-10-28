@@ -128,20 +128,18 @@ After the reboot, give the apps a few minutes to configure each other, then:
 sudo spudbox-passwords    # the web UI logins (save them)
 ```
 
-The few things that can't be automated:
+Set up by themselves on first boot: Plex is claimed for your plex.tv
+account (from `plex/username` + `plex/password`, or `plex/token`) and gets
+its libraries; Audiobookshelf gets its root account and library; IPv6 is
+turned off in NetworkManager's wired profiles. What's left:
 
-- **Plex**: claim the server, which Plex only allows from localhost. Open a
-  tunnel, `ssh -L 32400:localhost:32400 you@<server>`, visit
-  http://localhost:32400/web and follow the setup. Then
+- **Plex, if it didn't claim itself** (`journalctl -u plex-config`; e.g. a
+  wrong password, or two-factor auth without `plex/token`): fix the secret
+  and deploy, or claim it by hand through a tunnel,
+  `ssh -L 32400:localhost:32400 you@<server>`, at
+  http://localhost:32400/web. Then
   `sudo systemctl restart plex-config tautulli-config jellyseerr-config`.
-- **Audiobookshelf** sets itself up on first boot (root account, Audiobooks
-  library). Add other people as users in its web UI.
-- **IPv6** (with `disableIPv6`, the default): NetworkManager re-enables IPv6
-  per connection profile, so turn it off on the wired one once:
-  ```bash
-  sudo nmcli connection modify "Wired connection 1" ipv6.method disabled
-  sudo nmcli device reapply eno1      # your interface, from `ip a`
-  ```
+- **Audiobookshelf**: add other people as users in its web UI.
 - **Sonarr/Radarr**: existing folders on the data disks are imported
   automatically. Any they couldn't match are listed as `Not found:` in
   `journalctl -u sonarr-config` (or `radarr-config`); add those by hand
@@ -179,16 +177,21 @@ and checked. Media isn't backed up.
 Both repositories are encrypted with `/var/lib/secrets/restic/password`.
 **Copy it into your password manager**: without it nothing can be restored.
 
+To put the apps' state back (after a reinstall, or a bad day):
+
 ```bash
-sudo restic-local snapshots
-sudo restic-local restore latest --target /tmp/restore --include /var/lib/sonarr
-# stop the service, copy the files back into /var/lib/<app>, fix ownership, start it
+./deploy.sh restore              # the latest local snapshot; asks first
+./deploy.sh restore r2 4f2a91c0  # a given snapshot from the off-site copy
 ```
 
-(`restic-r2` is the same for the off-site copy.) After reinstalling a server,
-restore `/var/lib` from the local repository on the data disks before the
-apps build fresh state: deploy once, `sudo systemctl stop` the apps listed in
-`services/backup.nix`, restore, then reboot.
+That runs `sudo spudbox-restore` on the server: it stops the apps, restores
+each app's state directory and the snapshot's secrets (the apps match the
+secrets they were backed up with), re-owns the files to the current service
+users, starts the apps and re-runs the setup units. The local repository is on
+the data disks, so it survives reinstalling the boot disk; restore it after
+the first deploy. For single files, `sudo restic-local snapshots` and
+`sudo restic-local restore latest --target /tmp/restore --include <path>`
+(`restic-r2` for the off-site copy).
 
 ## Settings reference
 
@@ -232,7 +235,9 @@ there too (`time.timeZone`, extra packages, ...).
 ## Working on spudbox
 
 See [CLAUDE.md](CLAUDE.md) for the layout, conventions and how to test a
-change against a real server before it's released.
+change against a real server before it's released. CI runs the lint, both
+evaluation checks and a VM test of a fresh install (`tests/vm.nix`) on every
+push.
 
 ## License
 

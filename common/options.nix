@@ -275,6 +275,13 @@ in
       };
     };
 
+    dataMounts = mkOption {
+      type = types.attrsOf types.anything;
+      internal = true;
+      readOnly = true;
+      description = "The fileSystems entries for the data drives and their pools (storage.nix); a VM test mounts them too.";
+    };
+
     features = mkOption {
       type = types.listOf types.str;
       internal = true;

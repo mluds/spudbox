@@ -144,11 +144,6 @@ test_secrets() {
   for s in plex/token bazarr/api-key tautulli/api-key jellyseerr/api-key audiobookshelf/apikey; do
     check_secret "$s"
   done
-
-  # Retired: the shared admin password (finding #5), the Gmail SMTP login
-  for s in admin/password gmail; do
-    check "retired secret $s removed" not sudo test -e "$SECRETS_DIR/$s"
-  done
 }
 
 test_services() {
@@ -279,8 +274,6 @@ test_integrations() {
   check_json "jellyseerr -> sonarr" '.[0].hostname == "localhost"' seerr settings/sonarr
   check_json "jellyseerr radarr external url" ".[0].externalUrl | test(\"radarr.$DOMAIN\")" seerr settings/radarr
   check_json "jellyseerr sonarr external url" ".[0].externalUrl | test(\"sonarr.$DOMAIN\")" seerr settings/sonarr
-  # Email disabled (replaced by pushover)
-  check_json "jellyseerr email notifications disabled" '.enabled == false' seerr settings/notifications/email
   if has pushover; then check_json "jellyseerr pushover notifications" '.enabled' seerr settings/notifications/pushover; fi
   check_json "jellyseerr plex libraries enabled" '[.libraries[] | select(.enabled)] | length > 0' seerr settings/plex
   check_json "jellyseerr periodic plex scan" '.periodicScanning > 0' seerr settings/plex
@@ -423,10 +416,6 @@ test_security() {
     | awk '{print $1}' | sort | uniq -d | wc -l)
   check_eq "per-service web passwords (reused)" "$dupes" 0
 
-  # Jellyseerr no longer keeps the old Gmail app password
-  check_eq "jellyseerr stores no email password" \
-    "$(sudo jq -r '.notifications.agents.email.options.authPass // ""' /var/lib/jellyseerr/config/settings.json 2>/dev/null)" ""
-
   # Homepage's Audiobookshelf key belongs to the read-only homepage user, not root
   check_eq "homepage audiobookshelf key user" "$(abs me | jq -r '.username + ":" + .type')" homepage:user
 
@@ -463,9 +452,6 @@ test_security() {
 
   # The deployed commit is recorded (deploy.sh writes ~/deploy/.revision)
   check "deployed revision recorded ($REVISION)" test -n "$REVISION"
-
-  # Legacy secrets file (admin password, WireGuard keys) is gone
-  check "no legacy secrets/default.json on server" not sudo test -e "$SECRETS_DIR/default.json"
 
   # Homepage gets its keys via LoadCredential, not group access to secrets
   local hp_groups

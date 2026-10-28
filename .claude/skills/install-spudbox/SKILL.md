@@ -226,9 +226,10 @@ remove the USB stick.
 - The apps configure each other on first boot; give it ~5 minutes, then
   look: `systemctl --failed` and `journalctl -u spudbox-secrets` on the
   server (any `MISSING:` line → back to Step 3, then `./deploy.sh`).
-  Expected until Step 8: `plex-config` and the units after it
-  (`tautulli-config`, `jellyseerr-config`) fail, and `homepage-dashboard`
-  keeps restarting, because Plex isn't claimed yet (no Plex token).
+- Plex claims itself for their plex.tv account: `journalctl -u plex-config`
+  should say "Plex server claimed." If `plex-config` failed instead, so do
+  the units that need its token (`tautulli-config`, `jellyseerr-config`) and
+  homepage keeps restarting; see Step 8.
 - DNS: a wildcard `A` record `*.<domain>` → the server's LAN IP (at
   Cloudflare: "DNS only", not proxied), or the same in their router/Pi-hole.
   With `tls = "internal"`, they can trust Caddy's root certificate from
@@ -238,22 +239,22 @@ remove the USB stick.
 
 Do these with them (README "First run" has the details):
 
-1. **Claim Plex.** Start a tunnel in the background:
-   `ssh -i <key> <SSH_OPTS> -N -L 32400:localhost:32400 <user>@<ip>`. They open
+1. **Plex, only if it didn't claim itself.** Read `journalctl -u
+   plex-config`. A sign-in failure usually means a wrong `plex/password` or
+   two-factor auth: fix the secret (or supply `plex/token`) with
+   `./deploy.sh secret ...` and `./deploy.sh`. Otherwise claim it by hand:
+   start a tunnel in the background,
+   `ssh -i <key> <SSH_OPTS> -N -L 32400:localhost:32400 <user>@<ip>`; they open
    http://localhost:32400/web, sign in and finish the setup. Then stop the
    tunnel and run, on the server:
    `sudo systemctl restart plex-config tautulli-config jellyseerr-config`.
-2. **IPv6** (with the default `disableIPv6`): find the wired connection and
-   device (`nmcli -t -f NAME,DEVICE,TYPE connection show --active`), then
-   `sudo nmcli connection modify "<name>" ipv6.method disabled` and
-   `sudo nmcli device reapply <device>` (the connection may blip).
-3. **First backup** (optional, otherwise it runs at 02:30):
+2. **First backup** (optional, otherwise it runs at 02:30):
    `sudo systemctl start restic-backups-local` (stops the apps for a minute or two).
-4. **Claude Code** if enabled: README "First run" (interactive login: they
+3. **Claude Code** if enabled: README "First run" (interactive login: they
    do it in their own SSH session).
 
 Then `./deploy.sh test`. Everything should pass, except "restic local: no
-snapshots" until the first backup has run. If Plex isn't claimed yet, everything
+snapshots" until the first backup has run. If Plex isn't set up yet, everything
 that needs its token fails too: `plex/token`, `jellyseerr/api-key`, the
 `plex-config`/`tautulli-config`/`jellyseerr-config` units, homepage, the
 Jellyseerr and Plex library checks, and "plex rejects anonymous" (an
@@ -286,5 +287,9 @@ Day to day it's `./deploy.sh` after editing `spudbox.nix`, and
 - A setup unit failed: `journalctl -u <unit> -n 50` on the server; fix the
   cause (often a missing or wrong secret), then
   `sudo systemctl restart <unit>`. A secret fix needs `./deploy.sh` first.
+- Reinstalling a server that had spudbox before: after the first boot,
+  `./deploy.sh restore` puts the apps' state back from the local backup on
+  the data disks (it asks before changing anything; README "Backups and
+  restores").
 - A data disk didn't mount: `journalctl -u ensure-partition-<...>` says why
   (usually "isn't blank XFS").

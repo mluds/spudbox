@@ -166,7 +166,8 @@ let
       done
 
       if [ -f "${dataDir}/${name}.db" ]; then
-        sqlite3 "${dataDir}/${name}.db" 'DELETE FROM "Users";'
+        # The app may be writing (just started, migrating): wait for its lock.
+        sqlite3 -cmd ".timeout 30000" "${dataDir}/${name}.db" 'DELETE FROM "Users";'
       fi
       xmlstarlet ed -L -u "/Config/AuthenticationMethod" -v "Forms" "${dataDir}/config.xml"
       set-config-xml "${dataDir}/config.xml" \

@@ -1,0 +1,32 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Lint
+        run: nix develop -c ./lint.sh
+      - name: Evaluate the template, and with every feature on
+        run: nix build -L .#checks.x86_64-linux.template .#checks.x86_64-linux.all-features
+
+  vm-test:
+    # A fresh install booted in a VM (tests/vm.nix).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Let Nix use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: system-features = nixos-test benchmark big-parallel kvm
+      - name: VM test
+        run: nix build -L .#checks.x86_64-linux.vm

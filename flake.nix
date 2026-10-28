@@ -105,8 +105,14 @@
             builtins.unsafeDiscardStringContext example.config.system.build.toplevel.drvPath
           );
         }
-        # And with every optional feature on (media-fixup is x86_64 only).
+        # And with every optional feature on (media-fixup is x86_64 only),
+        # and a fresh install booted in a VM (tests/vm.nix; several minutes).
         // lib.optionalAttrs (system == "x86_64-linux") {
+          vm = import ./tests/vm.nix {
+            pkgs = nixpkgs.legacyPackages.${system};
+            module = self.nixosModules.default;
+          };
+
           all-features = nixpkgs.legacyPackages.${system}.writeText "spudbox-all-features-eval" (
             builtins.unsafeDiscardStringContext
               (example.extendModules {

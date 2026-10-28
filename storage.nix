@@ -101,6 +101,46 @@ let
   };
 
   allDrives = cacheDrives ++ storageDrives ++ backupDrives;
+
+  # The data drives and their mergerfs pools.
+  dataMounts =
+    let
+      commonMount = drive: {
+        name = drive.mount;
+        value = {
+          device = drive.partition;
+          fsType = "xfs";
+          options = [
+            "defaults"
+            "nofail"
+          ];
+        };
+      };
+      mergerfsMount =
+        dir: drives:
+        lib.optionalAttrs (drives != [ ]) {
+          "${dir}" = {
+            device = lib.concatStringsSep ":" (map (d: d.mount) drives);
+            fsType = "fuse.mergerfs";
+            options = [
+              "defaults"
+              "allow_other"
+              "use_ino"
+              "cache.files=partial"
+              # Like the drives under it: a missing disk must not stop the
+              # boot in emergency mode, where a headless server (root locked)
+              # can't be reached. The apps that use the pools wait for them
+              # (RequiresMountsFor, in module.nix) instead.
+              "nofail"
+            ];
+            depends = map (d: d.mount) drives;
+          };
+        };
+    in
+    lib.listToAttrs (map commonMount allDrives)
+    // mergerfsMount cacheDir cacheDrives
+    // mergerfsMount storageDir storageDrives
+    // mergerfsMount backupDir backupDrives;
 in
 {
   boot.supportedFilesystems = [
@@ -140,44 +180,8 @@ in
     }) allDrives
   );
 
-  fileSystems =
-    let
-      commonMount = drive: {
-        name = drive.mount;
-        value = {
-          device = drive.partition;
-          fsType = "xfs";
-          options = [
-            "defaults"
-            "nofail"
-          ];
-        };
-      };
-      mergerfsMount =
-        dir: drives:
-        lib.optionalAttrs (drives != [ ]) {
-          "${dir}" = {
-            device = lib.concatStringsSep ":" (map (d: d.mount) drives);
-            fsType = "fuse.mergerfs";
-            options = [
-              "defaults"
-              "allow_other"
-              "use_ino"
-              "cache.files=partial"
-              # Like the drives under it: a missing disk must not stop the
-              # boot in emergency mode, where a headless server (root locked)
-              # can't be reached. The apps that use the pools wait for them
-              # (RequiresMountsFor, in module.nix) instead.
-              "nofail"
-            ];
-            depends = map (d: d.mount) drives;
-          };
-        };
-    in
-    lib.listToAttrs (map commonMount allDrives)
-    // mergerfsMount cacheDir cacheDrives
-    // mergerfsMount storageDir storageDrives
-    // mergerfsMount backupDir backupDrives;
+  spudbox.dataMounts = dataMounts;
+  fileSystems = dataMounts;
 
   # Spindown after 5 min (-S 60) and moderate APM (-B 127) for rotating SATA
   # disks. The current WD Ultrastar ignores -S, so drive-check.nix also spins

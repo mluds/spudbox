@@ -29,7 +29,7 @@ enables them.
 | Path | What it does |
 | --- | --- |
 | `flake.nix` | `nixosModules.default`, `lib.mkSystem`, `templates.default`, lint `devShell`, `checks.*.template`. One `nixpkgs` input. |
-| `module.nix` | Imports, base packages, nix GC (5 generations), SSH (keys only), sudo, firewall, users, IPv6 off. Plex overlay. `create-dirs` oneshot: media dirs (non-recursive), secrets perms. `spudbox-test`. Exports `PASSWORD_SERVICES`. |
+| `module.nix` | Imports, base packages, nix GC (5 generations), SSH (keys only), sudo, firewall, users, IPv6 off (`networkmanager-ipv6-off` sets every wired NetworkManager profile to `ipv6.method=disabled`). Plex overlay. `create-dirs` oneshot: media dirs (non-recursive), secrets perms, backup dir. Apps that use the pools get `RequiresMountsFor`. `spudbox-test`. Exports `PASSWORD_SERVICES`. |
 | `storage.nix` | Mounts the XFS data disks (`nofail`), pools them with mergerfs. `ensure-partition-*` formats a blank disk before its mount. hdparm udev rule. |
 | `common/options.nix` | Every `spudbox.*` option and its default; `spudbox.features`. |
 | `common/env.nix` | `/etc/spudbox/env` for `test.sh` and `deploy.sh`. |
@@ -37,7 +37,7 @@ enables them.
 | `common/helpers.nix` | The `helpers` module arg: `read-secret`, `wait-for-http`. |
 | `services/caddy.nix` | Reverse proxy per subdomain (`<name>` to `spudbox.<name>Port`), LAN-only (`remote_ip private_ranges`). `tls`: Cloudflare DNS-challenge wildcard cert (`caddy-config` writes the token env file) or `local_certs`. Sandboxed: only `CAP_NET_BIND_SERVICE`. |
 | `services/hardening.nix` | Shared systemd sandbox settings, merged into units that handle untrusted input. |
-| `services/plex.nix` + `plex-config.py` | Plex (GPU-only device access, no capabilities), plus libraries, token sign-in and remote-access settings. `ExecStop` signals Plex itself, not the FHS env's `bwrap`, so it stops cleanly. |
+| `services/plex.nix` + `plex-config.py` | Plex (GPU-only device access, no capabilities), plus token sign-in, claiming an unclaimed server for the account (a plex.tv claim token posted to the local `/myplex/claim`), libraries and remote-access settings. `ExecStop` signals Plex itself, not the FHS env's `bwrap`, so it stops cleanly. |
 | `services/tautulli.nix` + `tautulli-config.py` | Rewrites `config.ini` (login hash, Plex link). Exports the API key. |
 | `services/sabnzbd.nix` | SABnzbd via NixOS `settings` + `secretValues`; servers from `usenet.*`. Hourly `sabnzbd-resume` (no `Requires=`; exits 0 if SABnzbd is down). |
 | `services/transmission.nix` | Transmission 4 + Flood UI. RPC credentials built in `ExecStartPre`. |
@@ -45,7 +45,7 @@ enables them.
 | `services/audiobookshelf-config.py` | First-time setup (run by `audiobookshelf-access` while the DB has no users): seeds the root user in SQLite, library, users. By hand it refuses if users exist, unless `ABS_FORCE=1`. |
 | `services/homepage.nix` | Dashboard, built with `tile`/`widget`/`bookmark` helpers; title and bookmarks from `homepage.*`. Keys come through `LoadCredential`. |
 | `services/homebridge.nix` | `homebridge.enable`: Homebridge in Docker (pinned digest; Docker only for this). `homebridge-config` does first setup (pinned `homebridge-dummy` for `dummySwitches`) and checks the password. Avahi. |
-| `services/backup.nix` | restic: nightly `/var/lib` backup to the data disks; with `offsiteBackup`, `restic copy` to an S3 bucket, prune, check. Skips caches, poster art, logs and app-internal backups. |
+| `services/backup.nix` | restic: nightly `/var/lib` backup to the data disks; with `offsiteBackup`, `restic copy` to an S3 bucket, prune, check. Skips caches, poster art, logs and app-internal backups. `spudbox-restore`: stops the apps, restores their state dirs (rsync `--delete`, re-owned to today's owners) and the secrets (never deleting newer ones), restarts them and the setup units. |
 | `services/drive-check.nix` | `hddSpindown`: 5-minute timer that forces idle data HDDs into standby, logging each spin-down and wake. `drive-status-http` serves JSON for homepage. Resolves by-id paths for `/sys/block`. |
 | `services/media-fixup.{nix,sh}` | `mediaFixup`: 15-minute timer, DV5 to HDR10, hybrid DV8 strip, SRT `<font>` cleanup. x86_64 + Intel iGPU. Sandboxed as user `media-fixup` (CAP_CHOWN only, writes only `<storageDir>/data`). |
 | `services/notify.nix` | Lists the setup oneshots and timer jobs. With `pushover`, `notify-failure@` sends a Pushover alert with the journal tail when one fails (`spudbox.onFailure`). Setup oneshots get `Type=oneshot` and `RemainAfterExit` here. Exports `ALERT_UNITS` and `SETUP_UNITS`. |
@@ -56,7 +56,9 @@ enables them.
 | `services/servarr/set-config-xml.nix` | Writes secret files into `config.xml` without putting them on argv. |
 | `services/servarr/bazarr.nix` + `bazarr-config.py` | Merges a YAML template into the config (providers from `subtitleProviders`; Bazarr keeps its own API key). Rewrites language profiles from `bazarr.languageProfiles`. |
 | `services/servarr/jellyseerr.nix` | seerr under a fixed user, sandboxed, config always in `/var/lib/jellyseerr/config`. First-run setup, Plex/arr links, Pushover. |
-| `test.sh` | About 260 server checks, gated on `FEATURES`. Installed as `spudbox-test`. |
+| `test.sh` | About 250 server checks, gated on `FEATURES`. Installed as `spudbox-test`. |
+| `tests/vm.nix` | `checks.x86_64-linux.vm`: a fresh install of the template's settings in a VM, offline, with a blank data disk: secrets, disk format + pool, setup units, IPv6, Caddy with its CA, anonymous API refused, backup then `spudbox-restore`. Several minutes. |
+| `.github/workflows/check.yml` | CI on every push: lint, the two evaluation checks, the VM test (KVM). |
 | `lint.sh` + `ruff.toml`, `_typos.toml`, `.gitleaks.toml` | statix, deadnix, nixfmt, shellcheck, ruff check/format, gitleaks, typos (`nix develop -c ./lint.sh`). |
 | `template/` | A new instance: `flake.nix`, example `spudbox.nix`, placeholder `hardware.nix`, `deploy.sh` (+ `install`, `hardware`, `update`, `secret NAME`; `SSH_OPTS`), `deploy.env`, `secrets/README.md`. |
 | `scripts/partition-boot-disk.sh` | Erases and partitions the boot disk on the NixOS installer (ESP + ext4, mounted at `/mnt`). Refuses off the installer (`/iso`), on a disk with anything mounted, or without `CONFIRM=<disk name>`. Mounts with explicit types (the installer may not have ext4 loaded). |
@@ -89,7 +91,8 @@ enables them.
   stay active afterwards (`RemainAfterExit`), so a switch re-runs only those
   whose unit changed. `deploy.sh` re-runs all of them when a secret changed.
   To re-apply one by hand: `sudo systemctl restart sonarr-config`.
-- `sonarr-config` and `radarr-config` empty the app's `Users` table, rewrite
+- `sonarr-config` and `radarr-config` empty the app's `Users` table (with a
+  30 s SQLite busy timeout: a just-started app holds the lock), rewrite
   `config.xml` and restart the app every time. POSTs for things that already
   exist fail, and the script skips them on purpose.
 - `tautulli-config` and `bazarr-config` stop their app, edit its files, then
@@ -106,8 +109,10 @@ enables them.
 
 - Every web UI binds 127.0.0.1. sonarr and radarr do this through
   `settings.server.bindaddress`, an env var that overrides `config.xml`.
-- IPv6 is off by default (`disableIPv6`). The NetworkManager profile is set by
-  hand (README "First run").
+- IPv6 is off by default (`disableIPv6`): sysctl, plus
+  `networkmanager-ipv6-off` for NetworkManager's wired profiles (it re-enables
+  IPv6 per profile, and that can't be a global default). A new NIC's profile
+  is handled on the next boot.
 - Homebridge uses host networking. `homebridge-config` keeps its UI on loopback.
 
 **Storage**
@@ -128,6 +133,9 @@ enables them.
   mid-run (a `notify-failure@` alert) and can start the app again mid-backup:
   use `after` alone and exit 0 when the app doesn't answer. A setup oneshot is
   deactivated until the next switch: use `after` + `wants` (`plex-config`).
+- `spudbox-restore` re-owns each restored dir to its service's `User=`/`Group=`,
+  not to the dir's current owner: `/var/lib/radarr` is root's while Radarr's
+  files under it aren't (the VM test caught Radarr crash-looping on that).
 - Mounts are `nofail`. The local backup has `RequiresMountsFor`, so it never
   writes to the NVMe by mistake.
 - Some drives (the WD Ultrastar this was written for) ignore `hdparm -S`, so
@@ -156,13 +164,10 @@ enables them.
 
 ## Open improvements
 
+None open. Add new findings here as rows:
+
 | # | Priority | Recommendation | Where | Why | Status |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Medium | Claim Plex automatically: with the plex.tv token `plex-config` already has, get a claim token (`plex.tv/api/claim/token.json`) and `POST /myplex/claim` on localhost. | `services/plex-config.py` | The SSH-tunnel claim is the main manual step left on a fresh install. | Open |
-| 2 | Medium | Declare the wired NetworkManager profile (`networking.networkmanager.ensureProfiles`) with `ipv6.method=disabled`. | `module.nix` | Removes the manual `nmcli` step; the interface name differs per machine, so it needs an option. | Open |
-| 3 | Medium | A `nixosTest` VM test of the template config with dummy secrets, run in CI. | `flake.nix` | `nix flake check` only evaluates; a VM boot would catch broken setup units before a release. | Open |
-| 4 | Low | Declarative boot-disk partitioning (disko) in place of the README's `parted` commands. | `template/`, README | One less manual step in an install; needs care not to touch existing installs. | Open |
-| 6 | Low | `deploy.sh` restore helper: stop the apps, `restic restore` `/var/lib`, reboot. | `template/deploy.sh` | Restoring after a reinstall is documented but manual. | Open |
 
 Ideas considered and not done (2026-10-23):
 
@@ -177,6 +182,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-10-27 | (larger items) | Plex claims itself for the account; `networkmanager-ipv6-off` replaces the manual `nmcli` step; `spudbox-restore` / `./deploy.sh restore`; VM test (`tests/vm.nix`, all six subtests pass) and CI (`.github/workflows/check.yml`); history-specific checks dropped from `test.sh` (retired Gmail/admin secrets, `default.json`, seerr email). The VM test found and fixed: restore re-owning to the wrong user (Radarr crash loop), restore stopping when one app doesn't start, `*arr-config`'s SQLite "database is locked" after the app (re)starts; data mounts exposed as `spudbox.dataMounts` for the test. disko declined (Won't fix). |
 | 2026-10-27 | `08f1aa5` | Review pass: `deploy.sh` carries on after a switch that only had failed units (exit 4) instead of skipping the setup re-runs, wait and tests; `checks.x86_64-linux.all-features` evaluates every optional feature; Audiobookshelf's never-reachable user creation from plaintext files removed; stale comments fixed. |
 | 2026-10-27 | `7b01503` | `/install-spudbox` skill and `scripts/partition-boot-disk.sh`; `deploy.sh secret`, `SSH_OPTS`, installer-safe SSH. Tested end to end in a QEMU VM (UEFI, NVMe boot disk, blank virtio data disk) from the real 26.05 minimal ISO; that found and fixed: partition mount without `-t ext4`; `ensure-partition`'s blank check (blkid reports partition entries; now wipefs) and its double re-read that sent the first boot to emergency mode; mergerfs pools now `nofail` and the apps `RequiresMountsFor` them; Sonarr/Radarr config before their `config.xml` exists; Transmission before its dirs (`create-dirs` ordered first, `videos` dir added, no `Requires=local-fs.target`); a first-boot deadlock (blocking homepage restart in `audiobookshelf-access`); Audiobookshelf setup now automatic while the DB is empty; Tautulli locked down (login, loopback) and kept running before Plex has a token; `test.sh` without `set -e`, Caddy-CA aware, usenet-gated; backup dir created up front. Not testable without a real plex.tv account: the Plex sign-in chain. |
 | 2026-10-26 | `3a991ca` | Split out of the single-server repo as a shareable module: `spudbox.*` options with defaults, personal values moved to the instance's `spudbox.nix`; optional `pushover`, `offsiteBackup`, `hddSpindown`, `mediaFixup`, `homebridge`, `claudeCode`, `tls = "internal"`; `indexers`, `usenet.*`, `subtitleProviders`, `bazarr.languageProfiles`, `homepage.*` options; `spudbox-secrets` generates internal secrets; `spudbox-test`; `ensure-partition` runs before each mount; drive-check resolves by-id paths; seerr config dir pinned; template + `deploy.sh install/hardware/update`. Evaluated config diffed against the single-server one: only the intended changes. |
@@ -192,3 +198,4 @@ Don't re-raise these unless the setup changes.
 | Bazarr stores an unsalted MD5 password | It's Bazarr's own format. |
 | No scheduled Sonarr/Radarr library rescan (2026-10-23) | Spares the HDD; manual Refresh when files change outside the apps. |
 | `claudeCode` as a superuser gives Claude root | Documented on the option; it's the instance owner's call. |
+| Declarative boot-disk partitioning with disko (2026-10-27) | The step it would remove is already automated (`scripts/partition-boot-disk.sh`, run by the install skill, tested in a VM). disko would add a second, untested path and a flake input, and conflict with existing installs' generated `fileSystems`. |
