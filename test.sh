@@ -157,6 +157,7 @@ test_services() {
   done
   if has homebridge; then check_service homebridge.service; fi
   if has hdd-spindown; then check_service drive-status-http.service; fi
+  if has hdd-spindown; then check_service drive-wake-trace.service; fi
   check_oneshot spudbox-secrets.service
 
   # Oneshots and timer jobs (services/notify.nix alerts on these)

@@ -46,7 +46,7 @@ enables them.
 | `services/homepage.nix` | Dashboard, built with `tile`/`widget`/`bookmark` helpers; title and bookmarks from `homepage.*`. Keys come through `LoadCredential`. |
 | `services/homebridge.nix` | `homebridge.enable`: Homebridge in Docker (pinned digest; Docker only for this). `homebridge-config` does first setup (pinned `homebridge-dummy` for `dummySwitches`) and checks the password. Avahi. |
 | `services/backup.nix` | restic: nightly `/var/lib` backup to the data disks; with `offsiteBackup`, `restic copy` to an S3 bucket, prune, check. Skips caches, poster art, logs and app-internal backups. `spudbox-restore`: stops the apps, restores their state dirs (rsync `--delete`, re-owned to today's owners) and the secrets (never deleting newer ones), restarts them and the setup units. |
-| `services/drive-check.nix` | `hddSpindown`: 5-minute timer that forces idle data HDDs into standby, logging each spin-down and wake. `drive-status-http` serves JSON for homepage. Resolves by-id paths for `/sys/block`. |
+| `services/drive-check.nix` + `drive-wakes.py` | `hddSpindown`: 5-minute timer that forces idle data HDDs into standby, logging each spin-down and wake. `drive-status-http` serves JSON for homepage. Resolves by-id paths for `/sys/block`. `drive-wake-trace` (bpftrace): every first disk request after 60 s of quiet, with the cgroups that asked a mergerfs pool for something in the 30 s before (a kprobe on `__fuse_simple_request`; the disk itself only sees mergerfs and kernel threads). `sudo drive-wakes [--since WHEN]` turns it into a timeline of wakes and their likely causes. |
 | `services/media-fixup.{nix,sh}` | `mediaFixup`: 15-minute timer, DV5 to HDR10, hybrid DV8 strip, SRT `<font>` cleanup. x86_64 + Intel iGPU. Sandboxed as user `media-fixup` (CAP_CHOWN only, writes only `<storageDir>/data`). |
 | `services/notify.nix` | Lists the setup oneshots and timer jobs. With `pushover`, `notify-failure@` sends a Pushover alert with the journal tail when one fails (`spudbox.onFailure`). Setup oneshots get `Type=oneshot` and `RemainAfterExit` here. Exports `ALERT_UNITS` and `SETUP_UNITS`. |
 | `services/claude-code.nix` | `claudeCode`: Claude Code Remote Control as `claudeCode.user`. Never restarted by a switch (`restartIfChanged = false`). Status-screen redraws filtered from the journal. |
@@ -117,8 +117,11 @@ enables them.
 
 **Storage**
 
-- `journalctl -u check-drive-status` logs every HDD spin-down and wake. Use it
-  before blaming a timer for waking the disk. media-fixup's 15-minute scan was
+- `sudo drive-wakes` (from `drive-wake-trace`) names what woke the disks:
+  the nearest process that asked the pool for something before the disk's
+  first request. A request served from cache can sit closer than the real
+  cause, so read the "also asking" line too. `journalctl -u
+  check-drive-status` has the raw spin-downs and wakes. media-fixup's 15-minute scan was
   measured at 0 disk reads (the directory tree stays cached).
 - Sonarr and Radarr never rescan the library on a schedule
   (`rescanAfterRefresh = "afterManual"`). Files added, renamed or deleted

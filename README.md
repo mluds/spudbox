@@ -211,7 +211,7 @@ descriptions and defaults. The main ones:
 | `disableIPv6` | `true` | |
 | `pushover.enable` | off | Alerts when a setup unit, backup or timer job fails |
 | `offsiteBackup.enable` | off | Copy backups to an S3 bucket |
-| `hddSpindown.enable` | off | Spin idle data HDDs down, show their state on the dashboard |
+| `hddSpindown.enable` | off | Spin idle data HDDs down, show their state on the dashboard, and log what wakes them (`sudo drive-wakes`) |
 | `mediaFixup.enable` | off | Fix Dolby Vision profile 5 and hybrid DV files (Intel iGPU) |
 | `homebridge.enable` | off | HomeKit bridge in Docker |
 | `claudeCode.enable` | off | Claude Code Remote Control as a service (see its security note) |

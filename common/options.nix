@@ -238,8 +238,9 @@ in
 
     hddSpindown.enable = mkEnableOption ''
       spinning the storage drives down after 5 idle minutes (for drives that
-      ignore hdparm -S), logging each spin-down and wake, and their state on
-      the dashboard. For rotating storageDrives only
+      ignore hdparm -S), logging each spin-down and wake and what caused it
+      (`sudo drive-wakes`), and their state on the dashboard. For rotating
+      storageDrives only
     '';
 
     mediaFixup.enable = mkEnableOption ''
