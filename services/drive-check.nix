@@ -56,8 +56,10 @@ let
       join() { local IFS="|"; local all="$*"; echo "''${all//|/ || }"; }
 
       cat > "$RUNTIME_DIRECTORY/wake.bt" <<EOF
+      // Before a disk's first request, the quiet spell counts from here.
+      BEGIN { @start = nsecs; }
       // Nothing to print on exit
-      END { clear(@last); clear(@seen); }
+      END { clear(@last); clear(@seen); clear(@start); }
       kprobe:__fuse_simple_request
       {
         \$s = ((struct fuse_mount *)arg1)->sb->s_dev;
@@ -71,8 +73,9 @@ let
       / ($(join "''${disks[@]}")) && args.rwbs[0] != 78 /
       {
         \$prev = @last[args.dev];
+        if (\$prev == 0) { \$prev = @start; }
         @last[args.dev] = nsecs;
-        if (\$prev != 0 && nsecs - \$prev > (uint64)$QUIET * 1000000000) {
+        if (nsecs - \$prev > (uint64)$QUIET * 1000000000) {
           printf("io-after-quiet dev=%d:%d quiet=%d rw=%s bytes=%d comm=%s cgroup=%s\\n",
             args.dev >> 20, args.dev & 0xfffff, (nsecs - \$prev) / 1000000000,
             args.rwbs, args.bytes, comm, cgroup_path(cgroup));
