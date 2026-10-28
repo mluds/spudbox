@@ -37,6 +37,8 @@ FUSE_OPS = {
     28: "readdir",
     29: "releasedir",
     35: "create",
+    39: "ioctl",
+    40: "poll",
     43: "fallocate",
     44: "readdirplus",
     45: "rename",

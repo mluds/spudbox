@@ -256,7 +256,10 @@ fi
 # Files that land while this run is busy are picked up by the next one.
 touch "$RUN/started"
 read -ra dirs <<< "$MEDIA_DIRS"
-find "${dirs[@]}" -type f \( -iname '*.mkv' -o -iname '*.mp4' -o -iname '*.m4v' \) -newer "$STAMP" -print0 \
+# -cnewer: by change time, which the kernel sets (on import, rename or any
+# edit) and nothing can put in the future. Some releases carry modification
+# times decades ahead, which made -newer pick the same files on every run.
+find "${dirs[@]}" -type f \( -iname '*.mkv' -o -iname '*.mp4' -o -iname '*.m4v' \) -cnewer "$STAMP" -print0 \
   | while IFS= read -r -d '' f; do
     process "$f" || echo "  Failed: $f"
   done
