@@ -1,6 +1,6 @@
 # First-time setup of a fresh Audiobookshelf install: replaces the users
 # table with a root account whose password is audiobookshelf/password, then
-# creates the Audiobooks library and the login users. It refuses to run on a
+# creates the Audiobooks library. Other people are added in its web UI. It refuses to run on a
 # database that already has users, because the DELETE would wipe them and
 # their listening progress; set ABS_FORCE=1 to override (systemctl
 # set-environment, or edit the unit). With ABS_IF_EMPTY=1 (how
@@ -138,36 +138,6 @@ def create_library(headers):
     print("Library created successfully!")
 
 
-def create_users(headers):
-    users = json.loads(os.getenv("AUDIOBOOKSHELF_USERS", "[]"))
-    existing = requests.get(f"{BASE_URL}/api/users", headers=headers, timeout=30).json()["users"]
-    existing_usernames = [user["username"] for user in existing]
-    for user in users:
-        username = user["username"]
-        if username in existing_usernames:
-            print(f"User {username} already exists")
-            continue
-        # Plaintext login passwords aren't deployed to the server (see
-        # deploy.sh); copy one to this path by hand to create the user.
-        password_file = os.path.join(SECRETS_DIR, "users", username, "plaintext")
-        if not os.path.exists(password_file):
-            print(f"Skipping user {username}: no {password_file}")
-            continue
-        with open(password_file) as f:
-            password = f.read().strip()
-        new_user = {
-            "username": username,
-            "password": password,
-            "type": "admin" if user["superuser"] else "user",
-            "isActive": True,
-        }
-        response = requests.post(
-            f"{BASE_URL}/api/users", headers=headers, json=new_user, timeout=30
-        )
-        response.raise_for_status()
-        print(f"Created user {username}")
-
-
 def main():
     if os.getenv("ABS_IF_EMPTY") == "1":
         # Audiobookshelf creates its database on first start.
@@ -192,7 +162,6 @@ def main():
     subprocess.run(["systemctl", "start", "audiobookshelf"], check=True)
     wait_for_port(HOST, PORT)
     create_library(headers)
-    create_users(headers)
 
 
 if __name__ == "__main__":

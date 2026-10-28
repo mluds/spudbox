@@ -204,7 +204,8 @@ From the instance directory:
 ```
 
 `install` refuses if secrets are git-crypt-locked or `hardware.nix` is still
-the placeholder. When it finishes it writes `flake.lock`. Commit:
+the placeholder. "password file ... does not exist" warnings are expected for
+users without a `secrets/users/<name>/hashed` (SSH keys only). When it finishes it writes `flake.lock`. Commit:
 
 ```bash
 git add -A && git commit -m "Install spudbox"
@@ -238,7 +239,7 @@ remove the USB stick.
 Do these with them (README "First run" has the details):
 
 1. **Claim Plex.** Start a tunnel in the background:
-   `ssh -i <key> -N -L 32400:localhost:32400 <user>@<ip>`. They open
+   `ssh -i <key> <SSH_OPTS> -N -L 32400:localhost:32400 <user>@<ip>`. They open
    http://localhost:32400/web, sign in and finish the setup. Then stop the
    tunnel and run, on the server:
    `sudo systemctl restart plex-config tautulli-config jellyseerr-config`.

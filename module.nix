@@ -140,7 +140,8 @@ in
   ];
 
   environment.systemPackages = with pkgs; [
-    # The checks a deploy runs (deploy.sh test): sudo spudbox-test [CATEGORY...]
+    # The checks a deploy runs (deploy.sh test): spudbox-test [CATEGORY...], as
+    # a superuser (it uses sudo itself).
     (writeShellScriptBin "spudbox-test" (builtins.readFile ./test.sh))
     vim
     xmlstarlet
@@ -202,8 +203,8 @@ in
     # announced to torrent peers, and nothing here needs IPv6. enableIPv6
     # sets disable_ipv6 via sysctl, but NetworkManager re-enables it when it
     # activates a profile with ipv6.method=auto, so the wired profile must say
-    # "disabled" too (NetworkManager.conf can't default it). See "IPv6" in
-    # the README.
+    # "disabled" too (NetworkManager.conf can't default it). See the README,
+    # "First run".
     enableIPv6 = !cfg.disableIPv6;
     networkmanager.enable = true;
     firewall = {

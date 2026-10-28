@@ -519,7 +519,7 @@ test_security() {
   check_eq "no global ipv6 addresses" "$(ip -6 -o addr show scope global 2>/dev/null | awk '{print $2": "$4}' | xargs)" ""
 
   # NetworkManager won't re-enable it: every active ethernet profile has
-  # ipv6.method=disabled (set by hand, see "IPv6" in the README)
+  # ipv6.method=disabled (set by hand, see the README, "First run")
   local nm_auto
   nm_auto=$(nmcli -t -f UUID,TYPE con show --active 2>/dev/null | awk -F: '$2 == "802-3-ethernet" {print $1}' \
     | while read -r uuid; do [ "$(nmcli -g ipv6.method con show "$uuid")" = "disabled" ] || nmcli -g connection.id con show "$uuid"; done)

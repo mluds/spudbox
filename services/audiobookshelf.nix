@@ -11,7 +11,6 @@ let
     audiobookshelfPort
     secretsDir
     storageDir
-    users
     ;
 
   # Runs on every boot/switch, after audiobookshelf-config's first-time setup
@@ -41,11 +40,6 @@ let
     ABS_DB = "/var/lib/audiobookshelf/config/absdatabase.sqlite";
     LIBRARY_DIR = "${storageDir}/data/media/audiobooks";
     ADMIN_USER_ID = adminUserId;
-    AUDIOBOOKSHELF_USERS = builtins.toJSON (
-      map (user: {
-        inherit (user) username superuser;
-      }) users
-    );
   };
 in
 {

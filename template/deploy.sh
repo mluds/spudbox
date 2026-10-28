@@ -126,7 +126,16 @@ override_flags() {
 
 rebuild() {
   echo "Rebuilding NixOS configuration..."
-  $SSH "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --flake .#default $(override_flags)"
+  # Exit 4: the new system is active, but some units failed to start (e.g.
+  # the Plex-dependent ones before Plex is set up). Carry on, so the setup
+  # units, the wait and the tests still run and show what's wrong.
+  local rc=0
+  $SSH "cd ~/deploy && sudo env PATH=\$PATH nixos-rebuild switch --flake .#default $(override_flags)" || rc=$?
+  if [ "$rc" -eq 4 ]; then
+    echo "WARNING: switched, but some units failed (see above); continuing" >&2
+  elif [ "$rc" -ne 0 ]; then
+    exit "$rc"
+  fi
   # shellcheck disable=SC2016 # expanded on the server, from its /etc/spudbox/env
   $SSH 'if [ -e /run/spudbox-secrets-changed ]; then
       source /etc/spudbox/env
