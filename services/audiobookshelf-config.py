@@ -53,7 +53,9 @@ def get_token_secret():
     return read_secret("audiobookshelf/token-secret")
 
 
-def wait_for_port(host, port, timeout=30, retry_interval=1):
+# Generous: after the root-user reset, a slow machine (or CI's VM) can take
+# well over 30 s to bring Audiobookshelf back up.
+def wait_for_port(host, port, timeout=300, retry_interval=1):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -141,7 +143,7 @@ def create_library(headers):
 def main():
     if os.getenv("ABS_IF_EMPTY") == "1":
         # Audiobookshelf creates its database on first start.
-        wait_for_port(HOST, PORT, timeout=300)
+        wait_for_port(HOST, PORT)
         if user_count():
             print("Audiobookshelf is set up already; nothing to do.")
             return
