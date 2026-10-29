@@ -19,54 +19,7 @@ You describe the server in one settings file, and spudbox installs and
 connects about a dozen apps on [NixOS](https://nixos.org). You don't need to
 know NixOS: an AI agent such as [Claude Code](https://claude.com/claude-code)
 can do most of the install for you (see
-[the easy way](#the-easy-way-let-an-ai-agent-install-it)).
-
-## Apps
-
-Every app is up, logged in and connected to the others. Each has its own
-page on your home network, at `https://<app>.<your domain>`:
-
-| Address | App | What it's for |
-| --- | --- | --- |
-| `homepage.<domain>` | [Homepage](https://gethomepage.dev) | Your start page: every app, its status, and what's downloading |
-| `plex.<domain>` | [Plex](https://www.plex.tv) | Watch your library. Plex's apps for TVs, phones, Roku, Apple TV and so on find the server through your plex.tv account |
-| `jellyseerr.<domain>` | [Jellyseerr](https://github.com/seerr-team/seerr) | Browse and request movies and shows; share it with your household |
-| `sonarr.<domain>` | [Sonarr](https://sonarr.tv) | Tracks your TV shows: grabs new episodes, upgrades quality, names and files them |
-| `radarr.<domain>` | [Radarr](https://radarr.video) | The same for movies |
-| `sabnzbd.<domain>` | [SABnzbd](https://sabnzbd.org) | Downloads from usenet, for Sonarr and Radarr |
-| `bazarr.<domain>` | [Bazarr](https://www.bazarr.media) | Finds subtitles in your languages |
-| `tautulli.<domain>` | [Tautulli](https://tautulli.com) | Plex statistics: who watched what, and when |
-| `audiobookshelf.<domain>` | [Audiobookshelf](https://www.audiobookshelf.org) | Audiobooks and podcasts, with its own phone apps |
-| `transmission.<domain>` | [Transmission](https://transmissionbt.com) + [Flood](https://flood.js.org) | A torrent client, for downloads you add by hand (it isn't connected to Sonarr or Radarr) |
-| `homebridge.<domain>` | [Homebridge](https://homebridge.io) | Optional: a HomeKit bridge |
-
-**How a request flows:** you ask for a movie in Jellyseerr. Radarr searches
-your usenet indexer for it and hands the best match to SABnzbd. When the
-download is done, Radarr renames it into `Movies` and Plex picks it up.
-Bazarr then fetches subtitles. TV shows go the same way through Sonarr, and
-new episodes keep arriving on their own.
-
-**Behind the scenes:**
-
-- **Already set up.** Logins, API keys, download clients, indexers, quality
-  profiles and the Plex libraries (Movies, TV Shows, Videos) are all done on
-  first boot, through each app's own API. There are no setup wizards to
-  click through, apart from the few steps in [First run](#4-first-run).
-- **One password per app,** generated on the server. `sudo spudbox-passwords`
-  prints them.
-- **Nightly backups** of every app's settings and database, kept on your
-  data disks and optionally copied off-site (S3 or Cloudflare R2), with a
-  one-command restore. Your media files aren't backed up (see
-  [Hardware](#hardware)).
-- **A health check.** `./deploy.sh test` runs about 250 checks: every app
-  answers, logins are enforced, secrets are locked down, the disks are
-  mounted, and the last backup is under two days old.
-- **Updates in one command.** `./deploy.sh update` moves to the newest
-  spudbox and NixOS packages, and a bad update rolls back in one command.
-- **Optional extras:** phone alerts when something fails (Pushover), spinning
-  idle hard drives down, fixing Dolby Vision files that some Plex clients
-  can't play, a HomeKit bridge, and [Claude Code](https://claude.com/claude-code)
-  on the server for maintenance.
+[Setting up a server](#setting-up-a-server)).
 
 ## Requirements
 
@@ -150,7 +103,7 @@ Two repositories are involved:
 `deploy.sh` runs on your own computer. It copies your repository to the
 server over SSH, and the server builds.
 
-### The easy way: let an AI agent install it
+### Install with an AI agent
 
 The install is packaged as a step-by-step guide for AI coding agents,
 [`.claude/skills/install-spudbox/SKILL.md`](.claude/skills/install-spudbox/SKILL.md).
@@ -201,128 +154,62 @@ What the agent does, in order:
 
 If it stops partway, start it again: it works out where it got to.
 
+No agent? The guide is plain step-by-step instructions, so you can follow it
+yourself.
+
 **What you do yourself:** write the USB stick and boot the server from it,
 type a temporary password on the server's console, type in your secrets, and
 check the boot disk before it's erased. You'll also add the DNS record, and
 finish Plex's setup in a browser if it couldn't sign in to your account by
 itself.
 
-### By hand
+## Apps
 
-These are the same steps the agent follows.
+Every app is up, logged in and connected to the others. Each has its own
+page on your home network, at `https://<app>.<your domain>`:
 
-#### 1. Make your instance repository
+| Address | App | What it's for |
+| --- | --- | --- |
+| `homepage.<domain>` | [Homepage](https://gethomepage.dev) | Your start page: every app, its status, and what's downloading |
+| `plex.<domain>` | [Plex](https://www.plex.tv) | Watch your library. Plex's apps for TVs, phones, Roku, Apple TV and so on find the server through your plex.tv account |
+| `jellyseerr.<domain>` | [Jellyseerr](https://github.com/seerr-team/seerr) | Browse and request movies and shows; share it with your household |
+| `sonarr.<domain>` | [Sonarr](https://sonarr.tv) | Tracks your TV shows: grabs new episodes, upgrades quality, names and files them |
+| `radarr.<domain>` | [Radarr](https://radarr.video) | The same for movies |
+| `sabnzbd.<domain>` | [SABnzbd](https://sabnzbd.org) | Downloads from usenet, for Sonarr and Radarr |
+| `bazarr.<domain>` | [Bazarr](https://www.bazarr.media) | Finds subtitles in your languages |
+| `tautulli.<domain>` | [Tautulli](https://tautulli.com) | Plex statistics: who watched what, and when |
+| `audiobookshelf.<domain>` | [Audiobookshelf](https://www.audiobookshelf.org) | Audiobooks and podcasts, with its own phone apps |
+| `transmission.<domain>` | [Transmission](https://transmissionbt.com) + [Flood](https://flood.js.org) | A torrent client, for downloads you add by hand (it isn't connected to Sonarr or Radarr) |
+| `homebridge.<domain>` | [Homebridge](https://homebridge.io) | Optional: a HomeKit bridge |
 
-```bash
-git clone https://github.com/mluds/spudbox
-cp -r spudbox/template ~/spudbox-home   # or, with Nix: nix flake init -t github:mluds/spudbox
-cd ~/spudbox-home && git init
-git-crypt init                          # secrets/ is encrypted from the first commit
-git-crypt export-key - | base64         # save this in your password manager
-```
+**How a request flows:** you ask for a movie in Jellyseerr. Radarr searches
+your usenet indexer for it and hands the best match to SABnzbd. When the
+download is done, Radarr renames it into `Movies` and Plex picks it up.
+Bazarr then fetches subtitles. TV shows go the same way through Sonarr, and
+new episodes keep arriving on their own.
 
-Keep it private. Then:
+**Behind the scenes:**
 
-- **`spudbox.nix`**: your domain, login user and SSH key, data disks (by
-  `/dev/disk/by-id/...`), usenet servers, indexers, which extras you want.
-  Every option is described in [`common/options.nix`](common/options.nix).
-- **`deploy.env`**: your SSH key, and the server's address once installed
-  (`HOST=you@192.168.1.10`).
-- **`secrets/`**: [`secrets/README.md`](template/secrets/README.md) lists
-  which ones your settings need. Type each in with `./deploy.sh secret
-  usenet/password` (input hidden). Everything internal (web UI passwords,
-  API keys, the backup password) is generated on the server.
-
-#### 2. Boot the installer and partition the boot disk
-
-Boot the [NixOS minimal ISO](https://nixos.org/download/#nixos-iso) (the
-release in this repo's `flake.nix`) from a USB stick, in UEFI mode. On its
-console, set a temporary root password and find the address:
-
-```bash
-sudo passwd
-ip -4 addr
-```
-
-From your computer, authorize your key, look at the disks, and erase and
-partition the **boot disk** with [`scripts/partition-boot-disk.sh`](scripts/partition-boot-disk.sh).
-`CONFIRM` must repeat the disk's name; the script refuses to run anywhere but
-the installer, or on a disk with anything mounted:
-
-```bash
-SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-ssh-copy-id -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@<ip>
-$SSH root@<ip> lsblk -o NAME,SIZE,MODEL,SERIAL,FSTYPE
-$SSH root@<ip> CONFIRM=nvme0n1 bash -s -- /dev/nvme0n1 < spudbox/scripts/partition-boot-disk.sh
-```
-
-Data disks aren't touched here: on first boot, spudbox gives each **blank**
-one an XFS partition, mounts one that already has a single XFS partition as
-it is, and leaves anything else alone.
-
-#### 3. Install
-
-From your instance repository (unlocked, if you use git-crypt):
-
-```bash
-./deploy.sh hardware root@<ip>   # writes hardware.nix from the machine
-./deploy.sh install root@<ip>    # copies config + secrets, runs nixos-install
-git add -A && git commit -m "Install"   # hardware.nix and flake.lock
-ssh root@<ip> reboot             # and remove the USB stick
-```
-
-Root's password stays locked. Log in as your user with your SSH key; from
-now on everything goes through `./deploy.sh`.
-
-#### 4. First run
-
-After the reboot, give the apps a few minutes to configure each other, then:
-
-```bash
-./deploy.sh test          # all checks should pass, apart from what's below
-./deploy.sh ssh
-sudo spudbox-passwords    # the web UI logins (save them)
-```
-
-To reach the apps by name:
-
-- Give the server a fixed address (a DHCP reservation in your router).
-- Add a wildcard DNS record, `*.<domain>`, pointing at that address. At
-  Cloudflare, set it to "DNS only", not proxied. A router or Pi-hole that can
-  answer for your domain works too.
-- With `tls = "internal"`, have your devices trust Caddy's root certificate,
-  `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt` on the
-  server. Until then, browsers show a warning.
-
-Then open `https://homepage.<domain>`.
-
-**Already have media?** Copy it into the library folders on the server
-(`/mnt/storage/data/media/movies`, `tv`, `videos` and `audiobooks`) with
-`sudo`, then hand it to the apps' group:
-`sudo chown -R media:media /mnt/storage/data/media`. Plex picks it up by
-itself. Sonarr and Radarr adopt existing folders on their next setup run:
-`sudo systemctl restart sonarr-config radarr-config`.
-
-Set up by themselves on first boot: Plex is claimed for your plex.tv
-account (from `plex/username` + `plex/password`, or `plex/token`) and gets
-its libraries; Audiobookshelf gets its root account and library; IPv6 is
-turned off in NetworkManager's wired profiles. What's left:
-
-- **Plex, if it didn't claim itself** (`journalctl -u plex-config`; e.g. a
-  wrong password, or two-factor auth without `plex/token`): fix the secret
-  and deploy, or claim it by hand through a tunnel,
-  `ssh -L 32400:localhost:32400 you@<server>`, at
-  http://localhost:32400/web. Then
-  `sudo systemctl restart plex-config tautulli-config jellyseerr-config`.
-- **Audiobookshelf**: add other people as users in its web UI.
-- **Sonarr/Radarr**: existing folders on the data disks are imported
-  automatically. Any they couldn't match are listed as `Not found:` in
-  `journalctl -u sonarr-config` (or `radarr-config`); add those by hand
-  under Library Import.
-- **Claude Code** (with `claudeCode.enable`): as that user, `curl -fsSL
-  https://claude.ai/install.sh | bash`, `claude auth login`, then `cd
-  ~/workspace && claude remote-control` once to accept the prompts (Ctrl+C),
-  and `sudo systemctl start claude-remote-control`.
+- **Already set up.** Logins, API keys, download clients, indexers, quality
+  profiles and the Plex libraries (Movies, TV Shows, Videos) are all done on
+  first boot, through each app's own API. There are no setup wizards to
+  click through, apart from the few first-run steps the install walks you
+  through.
+- **One password per app,** generated on the server. `sudo spudbox-passwords`
+  prints them.
+- **Nightly backups** of every app's settings and database, kept on your
+  data disks and optionally copied off-site (S3 or Cloudflare R2), with a
+  one-command restore. Your media files aren't backed up (see
+  [Hardware](#hardware)).
+- **A health check.** `./deploy.sh test` runs about 250 checks: every app
+  answers, logins are enforced, secrets are locked down, the disks are
+  mounted, and the last backup is under two days old.
+- **Updates in one command.** `./deploy.sh update` moves to the newest
+  spudbox and NixOS packages, and a bad update rolls back in one command.
+- **Optional extras:** phone alerts when something fails (Pushover), spinning
+  idle hard drives down, fixing Dolby Vision files that some Plex clients
+  can't play, a HomeKit bridge, and [Claude Code](https://claude.com/claude-code)
+  on the server for maintenance.
 
 ## Day to day
 

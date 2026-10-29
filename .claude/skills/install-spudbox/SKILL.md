@@ -12,9 +12,9 @@ then once it's installed. Some steps need their hands (booting from USB,
 typing passwords, a browser); for those, tell them exactly what to do and
 wait.
 
-Read `README.md` ("Setting up a server", "First run") and
-`template/spudbox.nix` before starting: they are the reference this skill
-automates. Option details are in `common/options.nix`.
+Read `template/spudbox.nix` before starting. Option details are in
+`common/options.nix`; `README.md` has the overview, the day-to-day commands
+and backups.
 
 ## Safety rules (never break these)
 
@@ -237,7 +237,7 @@ remove the USB stick.
 
 ## Step 8: First-run steps
 
-Do these with them (README "First run" has the details):
+Do these with them:
 
 1. **Plex, only if it didn't claim itself.** Read `journalctl -u
    plex-config`. A sign-in failure usually means a wrong `plex/password` or
@@ -250,8 +250,22 @@ Do these with them (README "First run" has the details):
    `sudo systemctl restart plex-config tautulli-config jellyseerr-config`.
 2. **First backup** (optional, otherwise it runs at 02:30):
    `sudo systemctl start restic-backups-local` (stops the apps for a minute or two).
-3. **Claude Code** if enabled: README "First run" (interactive login: they
-   do it in their own SSH session).
+3. **Claude Code**, if enabled. The login is interactive, so they do it in
+   their own SSH session (`./deploy.sh ssh`), as `claudeCode.user`:
+   `curl -fsSL https://claude.ai/install.sh | bash`, `claude auth login`,
+   then `cd ~/workspace && claude remote-control` once to accept the
+   prompts (Ctrl+C), and `sudo systemctl start claude-remote-control`.
+4. **Existing media**, if they have some: copied into
+   `/mnt/storage/data/media/{movies,tv,videos,audiobooks}` with `sudo`, then
+   `sudo chown -R media:media /mnt/storage/data/media` (their login user
+   isn't in the `media` group). Plex picks it up by itself; Sonarr and
+   Radarr adopt existing folders on their next setup run,
+   `sudo systemctl restart sonarr-config radarr-config`. Folders they
+   couldn't match are listed as `Not found:` in `journalctl -u
+   sonarr-config` (or `radarr-config`): those are added by hand under
+   Library Import.
+5. **Audiobookshelf**: only its root account is created. Other people are
+   added as users in its web UI.
 
 Then `./deploy.sh test`. Everything should pass, except "restic local: no
 snapshots" until the first backup has run. If Plex isn't set up yet, everything
