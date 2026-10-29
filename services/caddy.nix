@@ -76,9 +76,7 @@ in
       description = "Caddy configuration";
       wantedBy = [ "caddy.service" ];
       before = [ "caddy.service" ];
-      serviceConfig = {
-        ExecStart = lib.getExe configScript;
-      };
+      serviceConfig.ExecStart = lib.getExe configScript;
     };
 
     # The module sets only NoNewPrivileges, PrivateDevices and ProtectHome.

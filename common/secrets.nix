@@ -19,7 +19,17 @@ let
   cfg = config.spudbox;
   inherit (cfg) secretsDir;
 
-  passwordServices = config.spudbox.passwordServices;
+  # Each has its own web login password in secrets/<name>/password.
+  passwordServices = [
+    "sonarr"
+    "radarr"
+    "bazarr"
+    "sabnzbd"
+    "transmission"
+    "tautulli"
+  ]
+  ++ lib.optional cfg.homebridge.enable "homebridge"
+  ++ [ "audiobookshelf" ];
 
   # file -> how to make it
   generated = {
@@ -100,33 +110,27 @@ let
   };
 in
 {
-  options.spudbox.passwordServices = lib.mkOption {
-    type = lib.types.listOf lib.types.str;
-    internal = true;
-    description = "Services with their own web login (secrets/<name>/password).";
-  };
+  environment.systemPackages = [ passwordsScript ];
 
-  config = {
-    environment.systemPackages = [ passwordsScript ];
-
-    # Before every ordinary service (they all start after basic.target), so
-    # LoadCredential= and the *-config units find their files on first boot.
-    systemd.services.spudbox-secrets = {
-      description = "Generate missing spudbox secrets";
-      wantedBy = [ "basic.target" ];
-      before = [ "basic.target" ];
-      after = [ "local-fs.target" ];
-      unitConfig.DefaultDependencies = false;
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-        ExecStart = lib.getExe generateScript;
-      };
+  # Before every ordinary service (they all start after basic.target), so
+  # LoadCredential= and the *-config units find their files on first boot.
+  systemd.services.spudbox-secrets = {
+    description = "Generate missing spudbox secrets";
+    wantedBy = [ "basic.target" ];
+    before = [ "basic.target" ];
+    after = [ "local-fs.target" ];
+    unitConfig.DefaultDependencies = false;
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = lib.getExe generateScript;
     };
-
-    environment.etc."spudbox/env".text = lib.concatLines [
-      (lib.toShellVar "REQUIRED_SECRETS" required)
-      (lib.toShellVar "GENERATED_SECRETS" (lib.attrNames generated))
-    ];
   };
+
+  # For test.sh.
+  environment.etc."spudbox/env".text = lib.concatLines [
+    (lib.toShellVar "REQUIRED_SECRETS" required)
+    (lib.toShellVar "GENERATED_SECRETS" (lib.attrNames generated))
+    (lib.toShellVar "PASSWORD_SERVICES" passwordServices)
+  ];
 }

@@ -29,6 +29,15 @@ let
       DEVICE="$1"
       PARTITION="$2"
 
+      # wait_for PATH: up to 30 s for a device node to appear
+      wait_for() {
+        for _ in {1..30}; do
+          [ -e "$1" ] && return
+          sleep 1
+        done
+        [ -e "$1" ]
+      }
+
       # In use already (e.g. started by a switch, not at boot): nothing to do.
       if [ -e "$PARTITION" ] && findmnt -rn -S "$(readlink -f "$PARTITION")" >/dev/null; then
         echo "$PARTITION is mounted; nothing to do"
@@ -36,12 +45,7 @@ let
       fi
 
       echo "Waiting for base device $DEVICE..."
-      COUNT=0
-      while [ ! -e "$DEVICE" ] && [ $COUNT -lt 30 ]; do
-        sleep 1
-        COUNT=$((COUNT+1))
-      done
-      if [ ! -e "$DEVICE" ]; then
+      if ! wait_for "$DEVICE"; then
         echo "ERROR: Base device $DEVICE not found!"
         exit 1
       fi
@@ -63,15 +67,8 @@ let
         # reappear, failing the fsck and mount systemd has bound to it.
         udevadm settle -t 5
 
-        # Wait longer for partition device
         echo "Waiting for partition $PARTITION..."
-        COUNT=0
-        while [ ! -e "$PARTITION" ] && [ $COUNT -lt 30 ]; do
-          sleep 1
-          COUNT=$((COUNT+1))
-        done
-
-        if [ ! -e "$PARTITION" ]; then
+        if ! wait_for "$PARTITION"; then
           echo "ERROR: Partition $PARTITION failed to appear!"
           exit 1
         fi

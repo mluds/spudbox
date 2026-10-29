@@ -69,9 +69,8 @@ before any cleanup, hardening, or review, and keep it current:
   `template/secrets/README.md`.
 - A new optional feature: an option in `common/options.nix`, an entry in
   `spudbox.features`, `lib.mkIf` in its module, `has <feature>` guards in
-  `test.sh` (as `if has X; then ...; fi`: a function ending in a failed
-  `has X && ...` stops the run under `set -e`), and a line in the README's
-  settings table.
+  `test.sh` (`if has X; then ...; fi`), and a line in the README's settings
+  table.
 
 ## Verifying a change
 

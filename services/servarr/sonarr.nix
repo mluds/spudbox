@@ -49,7 +49,7 @@ lib.mkMerge [
         value = true;
       }
     ];
-    inherit (import ./qualityDefinitions.nix) qualityProfile;
+    qualityProfile = (import ./qualityDefinitions.nix).sonarrQualityProfile;
     lookupPath = "series/lookup";
     addPath = "series";
     addOptions = {

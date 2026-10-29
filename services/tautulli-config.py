@@ -3,24 +3,28 @@ import subprocess
 import time
 from base64 import b64encode
 from hashlib import pbkdf2_hmac
-from os import chmod, getenv, lstat, makedirs, path, umask, urandom, walk
+from os import chmod, environ, lstat, makedirs, path, umask, urandom, walk
 from stat import S_IMODE, S_ISLNK
 from urllib.request import urlopen
 from xml.etree import ElementTree
 
+SECRETS_DIR = environ["SECRETS_DIR"]
+CONFIG = environ["TAUTULLI_CONFIG"]
+PLEX_PORT = environ["PLEX_PORT"]
+
 
 def main():
     deadline = time.time() + 300
-    while not path.exists(getenv("TAUTULLI_CONFIG")):
+    while not path.exists(CONFIG):
         if time.time() > deadline:
-            raise SystemExit(f"Tautulli never wrote {getenv('TAUTULLI_CONFIG')}")
-        print("Waiting for initial Tautulli config:", getenv("TAUTULLI_CONFIG"))
+            raise SystemExit(f"Tautulli never wrote {CONFIG}")
+        print("Waiting for initial Tautulli config:", CONFIG)
         time.sleep(5)
 
     # Without a Plex token yet (a fresh install before Plex is claimed), the
     # login and loopback binding are still applied; the Plex link waits for
     # the next run, and the unit fails until then.
-    token_path = f"{getenv('SECRETS_DIR')}/plex/token"
+    token_path = f"{SECRETS_DIR}/plex/token"
     plex_token = read_file(token_path) if path.exists(token_path) else ""
     plex_identity = None
     if plex_token:
@@ -29,9 +33,6 @@ def main():
 
     print("Stopping Tautulli service...")
     subprocess.run(["systemctl", "stop", "tautulli"], check=False)
-
-    print("Waiting for service to stop...")
-    time.sleep(5)
 
     print("Updating configuration...")
     update_config(plex_token, plex_identity)
@@ -56,7 +57,7 @@ def lock_down_data_dir():
     # The module's tmpfiles rule resets the dir itself to 0755, so make
     # everything inside it owner-only instead (config.ini has the Plex token).
     # New files are covered by UMask=0077 on tautulli.service.
-    data_dir = path.dirname(getenv("TAUTULLI_CONFIG"))
+    data_dir = path.dirname(CONFIG)
     for root, dirs, files in walk(data_dir):
         for name in dirs + files:
             p = path.join(root, name)
@@ -72,18 +73,10 @@ COST_FACTOR = 600000
 
 
 def make_hash(password):
-    if isinstance(password, str):
-        password = password.encode("utf-8")
     salt = b64encode(urandom(SALT_LENGTH))
+    key = b64encode(pbkdf2_hmac(HASH_FUNCTION, password.encode(), salt, COST_FACTOR, KEY_LENGTH))
     # PBKDF2$<hash>$<rounds>$<salt>$<key>, the format Tautulli checks against
-    return "PBKDF2${}${}${}${}".format(
-        HASH_FUNCTION,
-        COST_FACTOR,
-        salt.decode("utf-8"),
-        b64encode(pbkdf2_hmac(HASH_FUNCTION, password, salt, COST_FACTOR, KEY_LENGTH)).decode(
-            "utf-8"
-        ),
-    )
+    return f"PBKDF2${HASH_FUNCTION}${COST_FACTOR}${salt.decode()}${key.decode()}"
 
 
 def read_file(path):
@@ -92,8 +85,7 @@ def read_file(path):
 
 
 def get_plex_identity():
-    plex_port = getenv("PLEX_PORT")
-    url = f"http://127.0.0.1:{plex_port}/identity"
+    url = f"http://127.0.0.1:{PLEX_PORT}/identity"
     # A fixed http://127.0.0.1 URL to the local Plex, not user input
     response = urlopen(url, timeout=30)  # noqa: S310
     tree = ElementTree.parse(response)  # noqa: S314
@@ -105,18 +97,15 @@ def get_plex_identity():
 
 
 def update_config(plex_token, plex_identity):
-    cfg_path = getenv("TAUTULLI_CONFIG")
-
     parser = configparser.ConfigParser()
-    parser.read(cfg_path)  # skips a missing file
+    parser.read(CONFIG)  # skips a missing file
 
-    plex_port = getenv("PLEX_PORT")
     settings = {
         "General": {
-            "http_username": read_file(getenv("TAUTULLI_ADMIN_USERNAME_FILE")),
-            "http_password": make_hash(read_file(getenv("TAUTULLI_ADMIN_PASSWORD_FILE"))),
+            "http_username": read_file(f"{SECRETS_DIR}/admin/username"),
+            "http_password": make_hash(read_file(f"{SECRETS_DIR}/tautulli/password")),
             "http_host": "127.0.0.1",  # loopback only; reached through Caddy
-            "http_port": getenv("TAUTULLI_PORT"),
+            "http_port": environ["TAUTULLI_PORT"],
             "first_run_complete": "1",
             "system_analytics": "0",
         },
@@ -124,8 +113,8 @@ def update_config(plex_token, plex_identity):
     if plex_token:
         settings["PMS"] = {
             "pms_ip": "127.0.0.1",
-            "pms_port": plex_port,
-            "pms_url": f"http://127.0.0.1:{plex_port}",
+            "pms_port": PLEX_PORT,
+            "pms_url": f"http://127.0.0.1:{PLEX_PORT}",
             "pms_token": plex_token,
             "pms_identifier": plex_identity["machineIdentifier"],
             "pms_name": plex_identity["friendlyName"],
@@ -135,17 +124,16 @@ def update_config(plex_token, plex_identity):
         }
     parser.read_dict(settings)
 
-    with open(cfg_path, "w") as configfile:
+    with open(CONFIG, "w") as configfile:
         parser.write(configfile)
 
 
 def export_api_key():
-    cfg_path = getenv("TAUTULLI_CONFIG")
     parser = configparser.ConfigParser()
-    parser.read(cfg_path)
+    parser.read(CONFIG)
     api_key = parser["General"]["api_key"]
 
-    secret_dir = f"{getenv('SECRETS_DIR')}/tautulli"
+    secret_dir = f"{SECRETS_DIR}/tautulli"
     makedirs(secret_dir, exist_ok=True)
     secret_path = path.join(secret_dir, "api-key")
     umask(0o077)  # a new secret file is 0600 from the start

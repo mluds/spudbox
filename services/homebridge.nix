@@ -25,6 +25,8 @@ let
     }) cfg.homebridge.dummySwitches;
   };
 
+  compose = "${pkgs.docker}/bin/docker compose -f /etc/homebridge/docker-compose.yml";
+
   configScript = pkgs.writeShellApplication {
     name = "homebridge-config";
     runtimeInputs = with pkgs; [
@@ -148,11 +150,10 @@ lib.mkIf cfg.homebridge.enable {
       wantedBy = [ "multi-user.target" ];
       path = with pkgs; [ docker ];
       serviceConfig = {
-        Type = "simple";
         Restart = "always";
-        ExecStartPre = "${pkgs.docker}/bin/docker compose -f /etc/homebridge/docker-compose.yml down";
-        ExecStart = "${pkgs.docker}/bin/docker compose -f /etc/homebridge/docker-compose.yml up";
-        ExecStop = "${pkgs.docker}/bin/docker compose -f /etc/homebridge/docker-compose.yml down";
+        ExecStartPre = "${compose} down";
+        ExecStart = "${compose} up";
+        ExecStop = "${compose} down";
         WorkingDirectory = "/var/lib/homebridge";
       };
     };
@@ -162,9 +163,7 @@ lib.mkIf cfg.homebridge.enable {
       after = [ "homebridge.service" ];
       wants = [ "homebridge.service" ];
       wantedBy = [ "multi-user.target" ];
-      serviceConfig = {
-        ExecStart = lib.getExe configScript;
-      };
+      serviceConfig.ExecStart = lib.getExe configScript;
     };
   };
 
@@ -190,7 +189,7 @@ lib.mkIf cfg.homebridge.enable {
   };
 
   # Image pinned by date tag + digest so a container restart can't silently
-  # upgrade Homebridge. To bump, see "Hand-pinned versions" in the README.
+  # upgrade Homebridge. To bump, see "Hand-pinned versions" in CLAUDE.md.
   environment.etc."homebridge/docker-compose.yml" = {
     text = ''
       services:

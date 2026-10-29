@@ -96,7 +96,7 @@ in
         ];
 
   # Sonarr profile 1 ("Any").
-  qualityProfile = {
+  sonarrQualityProfile = {
     id = 1;
     name = "Any";
     upgradeAllowed = false;

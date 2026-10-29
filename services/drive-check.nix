@@ -207,7 +207,6 @@ lib.mkIf cfg.hddSpindown.enable {
       timerConfig = {
         OnCalendar = "*:0/5";
         Persistent = true;
-        Unit = "check-drive-status.service";
       };
     };
   };

@@ -33,17 +33,13 @@ in
     wants = [ "tautulli.service" ];
     wantedBy = [ "multi-user.target" ];
 
-    serviceConfig = {
-      ExecStart = lib.getExe configScript;
-    };
+    serviceConfig.ExecStart = lib.getExe configScript;
 
     environment = {
       SECRETS_DIR = secretsDir;
       TAUTULLI_CONFIG = "${config.services.tautulli.dataDir}/config.ini";
       PLEX_PORT = toString plexPort;
       TAUTULLI_PORT = toString tautulliPort;
-      TAUTULLI_ADMIN_USERNAME_FILE = "${secretsDir}/admin/username";
-      TAUTULLI_ADMIN_PASSWORD_FILE = "${secretsDir}/tautulli/password";
     };
   };
 }

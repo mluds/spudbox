@@ -15,8 +15,10 @@ SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 SPUDBOX_SRC="${SPUDBOX_SRC:-}"
 # Extra ssh options for both the server and the installer, e.g. "-p 2222".
 SSH_OPTS="${SSH_OPTS:-}"
-# The server's host key is trusted on first use.
-SSH="ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new $SSH_OPTS $HOST"
+# The server's host key is trusted on first use. SERVER_SSH is the command
+# without the host (for rsync -e); SSH runs one on the server.
+SERVER_SSH="ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new $SSH_OPTS"
+SSH="$SERVER_SSH $HOST"
 # The installer makes a new host key every boot, so it isn't remembered.
 INSTALLER_SSH="ssh -i $SSH_KEY -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $SSH_OPTS"
 NIX="nix --extra-experimental-features 'nix-command flakes'"
@@ -98,12 +100,12 @@ sync_files() {
   # Secrets never land in ~/deploy: the flake there isn't a git checkout, so
   # nixos-rebuild copies the whole directory into the world-readable store.
   rsync -az --delete --delete-excluded --exclude='/.git' --exclude='/secrets/' --exclude='/result' \
-    -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new $SSH_OPTS" "$SCRIPT_DIR/" "$HOST:~/deploy/"
+    -e "$SERVER_SSH" "$SCRIPT_DIR/" "$HOST:~/deploy/"
   revision . | $SSH "cat > ~/deploy/.revision"
   if [ -n "$SPUDBOX_SRC" ]; then
     echo "Syncing the spudbox module from $SPUDBOX_SRC..."
     rsync -az --delete --exclude='/.git' --exclude='/result' \
-      -e "ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new $SSH_OPTS" "$SPUDBOX_SRC/" "$HOST:~/deploy-spudbox/"
+      -e "$SERVER_SSH" "$SPUDBOX_SRC/" "$HOST:~/deploy-spudbox/"
     revision "$SPUDBOX_SRC" | $SSH "cat > ~/deploy-spudbox/.revision"
   fi
 
@@ -258,11 +260,8 @@ case "$CMD" in
   update) update_lock ;;
   ssh) exec $SSH ;;
   restore)
-    # -t: spudbox-restore asks for confirmation on the terminal. SSH_OPTS
-    # is meant to split into words.
-    # shellcheck disable=SC2086
-    exec ssh -t -i "$SSH_KEY" -o StrictHostKeyChecking=accept-new $SSH_OPTS "$HOST" \
-      sudo spudbox-restore --from "${1:-local}" "${2:-latest}"
+    # -t: spudbox-restore asks for confirmation on the terminal.
+    exec $SERVER_SSH -t "$HOST" sudo spudbox-restore --from "${1:-local}" "${2:-latest}"
     ;;
   secret) write_secret "$@" ;;
   hardware) write_hardware "$@" ;;

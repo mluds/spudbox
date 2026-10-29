@@ -32,7 +32,6 @@ let
     }
     // lib.optionalAttrs (widgetAttrs != null) { widget = widget name widgetAttrs; };
   };
-  bookmark = title: href: description: icon: { ${title} = [ { inherit href description icon; } ]; };
 
   uniqueDevices = lib.unique (map (drive: drive.device) storageDrives);
   # From drive-check.nix (spudbox.hddSpindown).
@@ -273,7 +272,9 @@ in
       }
     ];
     bookmarks = lib.optional (cfg.homepage.bookmarks != [ ]) {
-      Bookmarks = map (b: bookmark b.title b.href b.description b.icon) cfg.homepage.bookmarks;
+      Bookmarks = map (b: {
+        ${b.title} = [ { inherit (b) href description icon; } ];
+      }) cfg.homepage.bookmarks;
     };
   };
 }

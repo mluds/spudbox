@@ -70,12 +70,6 @@ in
     storageDrives = drives "Drives pooled at storageDir.";
     backupDrives = drives "Drives pooled at backupDir.";
 
-    adminUserId = mkOption {
-      type = types.str;
-      default = "d3b07384-1138-4e19-8878-669fc7a4c34a";
-      description = "Fixed user ID of the Audiobookshelf root account (audiobookshelf-config inserts it).";
-    };
-
     plexPort = port 32400 "Plex";
     tautulliPort = port 8181 "Tautulli";
     sonarrPort = port 8989 "Sonarr";
@@ -186,9 +180,30 @@ in
       default = true;
       description = ''
         Turn IPv6 off, so the torrent client doesn't announce a global IPv6
-        address. NetworkManager re-enables it per profile; see the README
-        ("IPv6") for the one-time nmcli step.
+        address. NetworkManager re-enables it per profile, so
+        networkmanager-ipv6-off also sets every wired profile to disabled.
       '';
+    };
+
+    bazarr.languageProfiles = mkOption {
+      type = types.listOf (
+        types.submodule {
+          options = {
+            name = str "Profile name.";
+            languages = mkOption {
+              type = types.listOf types.str;
+              description = "ISO 639-1 codes, in order of preference.";
+            };
+          };
+        }
+      );
+      default = [
+        {
+          name = "Default";
+          languages = [ "en" ];
+        }
+      ];
+      description = "Bazarr language profiles; the first is the default for new series and movies.";
     };
 
     homepage = {

@@ -34,8 +34,8 @@ check_eq() {
   if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (got '$2', expected '$3')"; fi
 }
 
-# Empty if missing (check_secret reports that), rather than ending the run
-# under set -e before any check: a fresh install has no Plex token yet.
+# Empty if missing (check_secret reports that): a fresh install has no Plex
+# token yet.
 read_secret() { sudo cat "$SECRETS_DIR/$1" 2>/dev/null | tr -d '\n' || true; }
 
 # Secrets reach curl and grep through files in this private dir, never as
@@ -156,8 +156,10 @@ test_services() {
     check_service "$u.service"
   done
   if has homebridge; then check_service homebridge.service; fi
-  if has hdd-spindown; then check_service drive-status-http.service; fi
-  if has hdd-spindown; then check_service drive-wake-trace.service; fi
+  if has hdd-spindown; then
+    check_service drive-status-http.service
+    check_service drive-wake-trace.service
+  fi
   check_oneshot spudbox-secrets.service
 
   # Oneshots and timer jobs (services/notify.nix alerts on these)
@@ -411,7 +413,7 @@ test_security() {
     check_eq "$u can't read other services' state (readable files)" "$readable" 0
   done
 
-  # Each web login has its own password (finding #5): none reused
+  # Each web login has its own password: none reused
   local dupes
   dupes=$(for u in "${PASSWORD_SERVICES[@]}"; do sudo sha256sum "$SECRETS_DIR/$u/password"; done \
     | awk '{print $1}' | sort | uniq -d | wc -l)
@@ -506,7 +508,7 @@ test_security() {
   check_eq "no global ipv6 addresses" "$(ip -6 -o addr show scope global 2>/dev/null | awk '{print $2": "$4}' | xargs)" ""
 
   # NetworkManager won't re-enable it: every active ethernet profile has
-  # ipv6.method=disabled (set by hand, see the README, "First run")
+  # ipv6.method=disabled (networkmanager-ipv6-off, module.nix)
   local nm_auto
   nm_auto=$(nmcli -t -f UUID,TYPE con show --active 2>/dev/null | awk -F: '$2 == "802-3-ethernet" {print $1}' \
     | while read -r uuid; do [ "$(nmcli -g ipv6.method con show "$uuid")" = "disabled" ] || nmcli -g connection.id con show "$uuid"; done)

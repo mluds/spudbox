@@ -1,6 +1,5 @@
 import os
 import time
-from os import getenv
 from urllib.parse import urlencode
 from xml.etree import ElementTree
 
@@ -15,7 +14,8 @@ def read_file(path):
         return f.read().strip()
 
 
-def get_token(plex_url, token_path, username_file, password_file):
+def get_token(plex_url, secrets_dir):
+    token_path = f"{secrets_dir}/plex/token"
     # Reuse existing token if valid
     try:
         token = read_file(token_path)
@@ -28,8 +28,8 @@ def get_token(plex_url, token_path, username_file, password_file):
 
     # Token missing or invalid, sign in
     print("Signing in to Plex...")
-    username = read_file(username_file)
-    password = read_file(password_file)
+    username = read_file(f"{secrets_dir}/plex/username")
+    password = read_file(f"{secrets_dir}/plex/password")
     account = MyPlexAccount(username, password)
     token = account.authToken
     os.umask(0o077)  # a new secret file is 0600 from the start
@@ -77,10 +77,9 @@ def claim_server(plex_url, token):
 
 
 def main():
-    plex_url = getenv("PLEX_URL")
-    access_url = getenv("PLEX_ACCESS_URL")
-    media_dir = getenv("MEDIA_DIR")
-    token_path = f"{getenv('SECRETS_DIR')}/plex/token"
+    plex_url = os.environ["PLEX_URL"]
+    access_url = os.environ["PLEX_ACCESS_URL"]
+    media_dir = os.environ["MEDIA_DIR"]
     library_sections = [
         {
             "name": "Movies",
@@ -108,9 +107,7 @@ def main():
         },
     ]
 
-    token = get_token(
-        plex_url, token_path, getenv("PLEX_USERNAME_FILE"), getenv("PLEX_PASSWORD_FILE")
-    )
+    token = get_token(plex_url, os.environ["SECRETS_DIR"])
     claim_server(plex_url, token)
     plex = PlexServer(plex_url, token)
 

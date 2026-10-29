@@ -7,7 +7,6 @@
 
 let
   inherit (config.spudbox)
-    adminUserId
     audiobookshelfPort
     secretsDir
     storageDir
@@ -39,7 +38,8 @@ let
   configEnvironment = environment // {
     ABS_DB = "/var/lib/audiobookshelf/config/absdatabase.sqlite";
     LIBRARY_DIR = "${storageDir}/data/media/audiobooks";
-    ADMIN_USER_ID = adminUserId;
+    # The root account's fixed user ID (audiobookshelf-config inserts it)
+    ADMIN_USER_ID = "d3b07384-1138-4e19-8878-669fc7a4c34a";
   };
 in
 {

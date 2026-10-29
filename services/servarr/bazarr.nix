@@ -70,59 +70,33 @@ let
   );
 in
 {
-  options.spudbox.bazarr.languageProfiles = lib.mkOption {
-    type = lib.types.listOf (
-      lib.types.submodule {
-        options = {
-          name = lib.mkOption {
-            type = lib.types.str;
-            description = "Profile name.";
-          };
-          languages = lib.mkOption {
-            type = lib.types.listOf lib.types.str;
-            description = "ISO 639-1 codes, in order of preference.";
-          };
-        };
-      }
-    );
-    default = [
-      {
-        name = "Default";
-        languages = [ "en" ];
-      }
-    ];
-    description = "Bazarr language profiles; the first is the default for new series and movies.";
+  services.bazarr = {
+    enable = true;
+    user = "bazarr";
+    group = "media";
+    openFirewall = false;
   };
 
-  config = {
-    services.bazarr = {
-      enable = true;
-      user = "bazarr";
-      group = "media";
-      openFirewall = false;
-    };
+  systemd.services.bazarr.serviceConfig = import ../hardening.nix;
 
-    systemd.services.bazarr.serviceConfig = import ../hardening.nix;
-
-    systemd.services.bazarr-config = {
-      description = "Bazarr Configuration Updater";
-      after = [
-        "bazarr.service"
-        "radarr-config.service"
-        "sonarr-config.service"
+  systemd.services.bazarr-config = {
+    description = "Bazarr Configuration Updater";
+    after = [
+      "bazarr.service"
+      "radarr-config.service"
+      "sonarr-config.service"
+    ];
+    wants = [ "bazarr.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Environment = [
+        "SECRETS_DIR=${secretsDir}"
+        "CONFIG_PATH=/var/lib/bazarr/config/config.yaml"
+        "DB_PATH=/var/lib/bazarr/db/bazarr.db"
+        "CONFIG_TEMPLATE=${configTemplate}"
+        "LANGUAGE_PROFILES=${pkgs.writeText "bazarr-language-profiles.json" (builtins.toJSON cfg.bazarr.languageProfiles)}"
       ];
-      wants = [ "bazarr.service" ];
-      wantedBy = [ "multi-user.target" ];
-      serviceConfig = {
-        Environment = [
-          "SECRETS_DIR=${secretsDir}"
-          "CONFIG_PATH=/var/lib/bazarr/config/config.yaml"
-          "DB_PATH=/var/lib/bazarr/db/bazarr.db"
-          "CONFIG_TEMPLATE=${configTemplate}"
-          "LANGUAGE_PROFILES=${pkgs.writeText "bazarr-language-profiles.json" (builtins.toJSON cfg.bazarr.languageProfiles)}"
-        ];
-        ExecStart = lib.getExe configScript;
-      };
+      ExecStart = lib.getExe configScript;
     };
   };
 }

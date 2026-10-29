@@ -210,8 +210,6 @@ in
     wants = [ "seerr.service" ];
     wantedBy = [ "multi-user.target" ];
 
-    serviceConfig = {
-      ExecStart = lib.getExe configScript;
-    };
+    serviceConfig.ExecStart = lib.getExe configScript;
   };
 }

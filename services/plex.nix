@@ -85,8 +85,6 @@ in
             "MEDIA_DIR=${storageDir}/data/media"
             "PLEX_URL=http://localhost:${toString plexPort}"
             "PLEX_ACCESS_URL=https://plex.${domain}"
-            "PLEX_USERNAME_FILE=${secretsDir}/plex/username"
-            "PLEX_PASSWORD_FILE=${secretsDir}/plex/password"
           ];
 
           ExecStartPre = "${helpers}/bin/wait-for-http http://localhost:${toString plexPort}/identity 1";

@@ -29,11 +29,11 @@ enables them.
 | Path | What it does |
 | --- | --- |
 | `flake.nix` | `nixosModules.default`, `lib.mkSystem`, `templates.default`, lint `devShell`, `checks.*.template`. One `nixpkgs` input. |
-| `module.nix` | Imports, base packages, nix GC (5 generations), SSH (keys only), sudo, firewall, users, IPv6 off (`networkmanager-ipv6-off` sets every wired NetworkManager profile to `ipv6.method=disabled`). Plex overlay. `create-dirs` oneshot: media dirs (non-recursive), secrets perms, backup dir. Apps that use the pools get `RequiresMountsFor`. `spudbox-test`. Exports `PASSWORD_SERVICES`. |
+| `module.nix` | Imports, base packages, nix GC (5 generations), SSH (keys only), sudo, firewall, users, IPv6 off (`networkmanager-ipv6-off` sets every wired NetworkManager profile to `ipv6.method=disabled`). Plex overlay. `create-dirs` oneshot: media dirs (non-recursive), secrets perms, backup dir. Apps that use the pools get `RequiresMountsFor`. `spudbox-test`. |
 | `storage.nix` | Mounts the XFS data disks (`nofail`), pools them with mergerfs. `ensure-partition-*` formats a blank disk before its mount. hdparm udev rule. |
-| `common/options.nix` | Every `spudbox.*` option and its default; `spudbox.features`. |
+| `common/options.nix` | Every setting (`spudbox.*`) and its default; `spudbox.features`. The internal `revision` and `onFailure` are declared next to their code (`env.nix`, `notify.nix`). |
 | `common/env.nix` | `/etc/spudbox/env` for `test.sh` and `deploy.sh`. |
-| `common/secrets.nix` | `spudbox-secrets` (generates internal secrets, lists missing third-party ones), `spudbox-passwords`. Exports `REQUIRED_SECRETS`, `GENERATED_SECRETS`. |
+| `common/secrets.nix` | `spudbox-secrets` (generates internal secrets, lists missing third-party ones), `spudbox-passwords`. Exports `REQUIRED_SECRETS`, `GENERATED_SECRETS`, `PASSWORD_SERVICES` (the web UIs with their own password). |
 | `common/helpers.nix` | The `helpers` module arg: `read-secret`, `wait-for-http`. |
 | `services/caddy.nix` | Reverse proxy per subdomain (`<name>` to `spudbox.<name>Port`), LAN-only (`remote_ip private_ranges`). `tls`: Cloudflare DNS-challenge wildcard cert (`caddy-config` writes the token env file) or `local_certs`. Sandboxed: only `CAP_NET_BIND_SERVICE`. |
 | `services/hardening.nix` | Shared systemd sandbox settings, merged into units that handle untrusted input. |
@@ -43,7 +43,7 @@ enables them.
 | `services/transmission.nix` | Transmission 4 + Flood UI. RPC credentials built in `ExecStartPre`. |
 | `services/audiobookshelf.nix` + `audiobookshelf-access.py` | Every boot: checks the root password, issues homepage's read-only API key. |
 | `services/audiobookshelf-config.py` | First-time setup (run by `audiobookshelf-access` while the DB has no users): seeds the root user in SQLite, library, users. By hand it refuses if users exist, unless `ABS_FORCE=1`. |
-| `services/homepage.nix` | Dashboard, built with `tile`/`widget`/`bookmark` helpers; title and bookmarks from `homepage.*`. Keys come through `LoadCredential`. |
+| `services/homepage.nix` | Dashboard, built with `tile`/`widget` helpers; title and bookmarks from `homepage.*`. Keys come through `LoadCredential`. |
 | `services/homebridge.nix` | `homebridge.enable`: Homebridge in Docker (pinned digest; Docker only for this). `homebridge-config` does first setup (pinned `homebridge-dummy` for `dummySwitches`) and checks the password. Avahi. |
 | `services/backup.nix` | restic: nightly `/var/lib` backup to the data disks; with `offsiteBackup`, `restic copy` to an S3 bucket, prune, check. Skips caches, poster art, logs and app-internal backups. `spudbox-restore`: stops the apps, restores their state dirs (rsync `--delete`, re-owned to today's owners) and the secrets (never deleting newer ones), restarts them and the setup units. |
 | `services/drive-check.nix` + `drive-wakes.py` | `hddSpindown`: 5-minute timer that forces idle data HDDs into standby, logging each spin-down and wake. `drive-status-http` serves JSON for homepage. Resolves by-id paths for `/sys/block`. `drive-wake-trace` (bpftrace): every first disk request after 60 s of quiet, with the cgroups that asked a mergerfs pool for something in the 30 s before (a kprobe on `__fuse_simple_request`; the disk itself only sees mergerfs and kernel threads). `sudo drive-wakes [--since WHEN]` turns it into a timeline of wakes and their likely causes. |
@@ -167,10 +167,11 @@ enables them.
 
 ## Open improvements
 
-None open. Add new findings here as rows:
-
 | # | Priority | Recommendation | Where | Why | Status |
 | --- | --- | --- | --- | --- | --- |
+| 1 | Low | Require `plex/username` + `plex/password` unless `plex/token` exists (an "either" check in `spudbox-secrets`) | `common/secrets.nix` | `template/secrets/README.md` calls them required, but they're not in `REQUIRED_SECRETS`, so a missing login only shows up as a failed `plex-config` | Open (2026-10-29 review) |
+| 2 | Low | Drop `parted`, `gptfdisk`, `inotify-tools` from the server's packages, unless kept on purpose for hand use | `storage.nix` | Nothing uses them (`ensure-partition` uses `fdisk`; `partition-boot-disk.sh` runs on the installer) | Open (owner's call) |
+| 3 | Low | `restartTriggers` on `homebridge.service` for the compose file | `services/homebridge.nix` | A new image pin needs a manual `systemctl restart homebridge` after the deploy (see `CLAUDE.md`, "Hand-pinned versions") | Open (changes when Homebridge restarts) |
 
 Ideas considered and not done (2026-10-23):
 

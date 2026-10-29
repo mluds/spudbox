@@ -37,19 +37,14 @@ let
     "${cacheDir}/data/usenet/incomplete/tv"
   ];
 
-  # Each has its own web login password in secrets/<name>/password, generated
-  # on the server unless the instance supplies one (secrets.nix). Exported
-  # for test.sh.
-  passwordServices = [
-    "sonarr"
-    "radarr"
-    "bazarr"
-    "sabnzbd"
-    "transmission"
-    "tautulli"
-  ]
-  ++ lib.optional cfg.homebridge.enable "homebridge"
-  ++ [ "audiobookshelf" ];
+  # makeDirs OWNER DIRS: create each dir, owned by OWNER, mode 0775
+  makeDirs =
+    owner:
+    lib.concatMapStringsSep "\n" (dir: ''
+      mkdir -p "${dir}"
+      chown ${owner} "${dir}"
+      chmod 0775 "${dir}"
+    '');
 
   # Plex is pinned by hand, ahead of nixpkgs; see "Hand-pinned versions" in
   # CLAUDE.md.
@@ -106,17 +101,8 @@ let
       # The directories themselves only, not their contents: a recursive
       # chmod made every media file executable and walked the whole library
       # (spinning up the HDD) on each boot. The apps set their own file modes.
-      ${lib.concatMapStringsSep "\n" (dir: ''
-        mkdir -p "${dir}"
-        chown media:media "${dir}"
-        chmod 0775 "${dir}"
-      '') mediaDirs}
-
-      ${lib.concatMapStringsSep "\n" (dir: ''
-        mkdir -p "${dir}"
-        chown sabnzbd:media "${dir}"
-        chmod 0775 "${dir}"
-      '') usenetDirs}
+      ${makeDirs "media:media" mediaDirs}
+      ${makeDirs "sabnzbd:media" usenetDirs}
 
       # Secrets are root-only. Everything that reads them runs as root (the
       # *-config oneshots, restic, transmission's ExecStartPre); other units
@@ -330,7 +316,4 @@ in
       }
     ];
   };
-
-  spudbox.passwordServices = passwordServices;
-  environment.etc."spudbox/env".text = lib.toShellVar "PASSWORD_SERVICES" passwordServices;
 }
