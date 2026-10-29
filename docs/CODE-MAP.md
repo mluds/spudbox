@@ -62,7 +62,8 @@ enables them.
 | `lint.sh` + `ruff.toml`, `_typos.toml`, `.gitleaks.toml` | statix, deadnix, nixfmt, shellcheck, ruff check/format, gitleaks, typos (`nix develop -c ./lint.sh`). |
 | `template/` | A new instance: `flake.nix`, example `spudbox.nix`, placeholder `hardware.nix`, `deploy.sh` (+ `install`, `hardware`, `update`, `secret NAME`; `SSH_OPTS`), `deploy.env`, `secrets/README.md`. |
 | `scripts/partition-boot-disk.sh` | Erases and partitions the boot disk on the NixOS installer (ESP + ext4, mounted at `/mnt`). Refuses off the installer (`/iso`), on a disk with anything mounted, or without `CONFIRM=<disk name>`. Mounts with explicit types (the installer may not have ext4 loaded). |
-| `.claude/skills/install-spudbox/` | The `/install-spudbox` Claude Code skill: settings → instance repo → secrets (typed by the person, never through the chat) → installer → partition (typed confirmation) → `deploy.sh install` → first-run steps. Resumable. Keep it in step with the README and `deploy.sh`. |
+| `.claude/skills/install-spudbox/` | The `/install-spudbox` Claude Code skill: settings → instance repo → secrets (typed by the person, never through the chat) → installer → partition (typed confirmation) → `deploy.sh install` → first-run steps. Resumable. Keep it in step with the README and `deploy.sh`; the README's "Setting up a server" summarises its steps. |
+| `AGENTS.md` | Points other AI agents at the install skill (installing) and at `CLAUDE.md` (changing the module). |
 
 ## Notes and gotchas
 
@@ -185,6 +186,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-10-29 | `711caaf` | README rewritten for newcomers: what spudbox is, what you get (apps and addresses, the request flow, what it doesn't do), a hardware guide and the accounts it needs, the agent-driven install first (Claude Code or any agent, through `AGENTS.md`), then the manual steps with the DNS, certificate and existing-media steps added. |
 | 2026-10-29 | `15f2da7` | The review's open items: `spudbox-secrets` reports a missing plex.tv login (`plex/username` + `plex/password`) unless `plex/token` exists; `homebridge.service` has `restartTriggers` on its compose file (a new pin restarts it on deploy); `parted`, `gptfdisk`, `inotify-tools` no longer installed. |
 | 2026-10-29 | `247e7ce` | Review pass (simplify, dead code, smells): `passwordServices` moved into `common/secrets.nix` (internal option gone); `bazarr.languageProfiles` into `options.nix`; `adminUserId` option → constant; duplicated loops in `create-dirs` and `ensure-partition` factored; plex/tautulli-config read secret paths from `SECRETS_DIR` (and no sleep after `systemctl stop`); homebridge compose command named once; redundant `Type=`/timer `Unit=` dropped; `deploy.sh` ssh command spelled once; stale nmcli/`set -e`/finding-#5 comments fixed. Evaluated system diffed: only those units change. VM test 6/6. |
 | 2026-10-28 | `e724e12`, `5902502`, `a3d3e4e`, `b848e4e` | Disk-wake monitor: `drive-wake-trace` + `sudo drive-wakes` (ignores the spin-down command itself; logs the first request after it starts). It showed every HDD wake (~75 a day) was media-fixup: its temp dir lived on the pool (now in the state dir; pool scratch only when a video is rewritten), and three releases with 2097 modification times matched `-newer` every run (now `-cnewer`). After both, its runs leave the HDD in standby and take 1 s instead of ~55 s. |
