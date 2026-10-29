@@ -146,10 +146,7 @@ in
   ];
   environment.systemPackages = with pkgs; [
     mergerfs
-    parted
     xfsprogs
-    gptfdisk
-    inotify-tools
   ];
 
   systemd.services = lib.listToAttrs (

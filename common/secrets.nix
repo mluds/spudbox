@@ -91,6 +91,12 @@ let
           missing=1
         fi
       done
+      # The plex.tv login, unless there's a token (supplied, or saved by
+      # plex-config after its first sign-in).
+      if [ ! -s plex/token ] && { [ ! -s plex/username ] || [ ! -s plex/password ]; }; then
+        echo "MISSING: ${secretsDir}/plex/username and plex/password, or plex/token (add them to the instance's secrets/ and deploy)"
+        missing=1
+      fi
       [ "$missing" -eq 0 ] && echo "All required secrets present."
       exit 0
     '';

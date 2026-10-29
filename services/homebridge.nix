@@ -148,6 +148,8 @@ lib.mkIf cfg.homebridge.enable {
       ];
       requires = [ "docker.service" ];
       wantedBy = [ "multi-user.target" ];
+      # A new image pin (or any compose change) restarts the container.
+      restartTriggers = [ config.environment.etc."homebridge/docker-compose.yml".source ];
       path = with pkgs; [ docker ];
       serviceConfig = {
         Restart = "always";

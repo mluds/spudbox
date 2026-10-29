@@ -35,6 +35,14 @@ pkgs.testers.runNixOSTest {
       };
       # The test VM boots its kernel directly.
       boot.loader.systemd-boot.enable = lib.mkForce false;
+      # A placeholder plex.tv login, so spudbox-secrets finds every required
+      # secret (signing in fails offline anyway).
+      systemd.tmpfiles.rules = [
+        "d /var/lib/secrets/plex 0700 root root -"
+        "f /var/lib/secrets/plex/username 0600 root root - test"
+        "f /var/lib/secrets/plex/password 0600 root root - test"
+      ];
+      systemd.services.spudbox-secrets.after = [ "systemd-tmpfiles-setup.service" ];
     };
 
   testScript = ''

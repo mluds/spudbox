@@ -75,7 +75,8 @@ before any cleanup, hardening, or review, and keep it current:
 ## Verifying a change
 
 1. **Lint**: `nix develop -c ./lint.sh` (statix, deadnix, nixfmt, shellcheck,
-   ruff, gitleaks, typos). Fix formatting with `nixfmt $(find . -name '*.nix')`
+   ruff, gitleaks, typos; from a git worktree on the server, `nix develop
+   path:. -c ./lint.sh`). Fix formatting with `nixfmt $(find . -name '*.nix')`
    and `ruff format .`. Allowlist a deliberate finding in that tool's config,
    or `# noqa: <code>` with a reason, rather than switching a rule off.
 2. **Evaluate and test**: `nix flake check` evaluates the template with
@@ -149,5 +150,4 @@ All seen on the 25.11→26.05 upgrade:
 - **Homebridge**: `services/homebridge.nix` pins the image by date tag +
   digest. Pick the newest plain `YYYY-MM-DD` tag (not `alpha-`/`beta-`):
   `curl -s "https://hub.docker.com/v2/repositories/homebridge/homebridge/tags/$TAG" | jq -r .digest`.
-  After deploying, `sudo systemctl restart homebridge` (the compose file is
-  in /etc, so a switch alone doesn't restart it).
+  The deploy restarts Homebridge on the new image (`restartTriggers`).
