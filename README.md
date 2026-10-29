@@ -18,10 +18,31 @@ terminal. An AI coding agent such as [Claude Code](https://claude.com/claude-cod
 can do most of the install for you (see
 [the easy way](#the-easy-way-let-an-ai-agent-install-it)).
 
-## What you get
+## The end result
 
-Once it's installed, every app is up, logged in and connected to the others.
-They're on your home network at `https://<app>.<your domain>`:
+When you're done, you have a computer at home that you never need to plug a
+screen or keyboard into again. Day to day, using it looks like this:
+
+- **Watching.** Open the Plex app on your TV, phone, tablet or a browser.
+  Your library is there as Movies, TV Shows and Videos, with artwork,
+  descriptions and subtitles. At home it plays straight from the server.
+  Away from home it streams over the internet; Plex charges for that part
+  (a [Plex Pass](https://www.plex.tv/plex-pass/)).
+- **Getting something new.** On your home network, open Jellyseerr, search
+  for a movie or show, and click Request. If your indexer has it, it lands
+  in Plex once the download finishes, with nothing else to do. New episodes
+  of the shows you follow arrive the same way, on their own.
+- **Sharing it.** Share your Plex library with family and friends from Plex's
+  settings. Anyone you share with can also sign in to Jellyseerr with their
+  Plex account and make requests.
+- **Looking after it.** Mostly nothing. Backups run every night, and with
+  alerts turned on, your phone hears about anything that fails. To change a
+  setting, you edit one file on your own computer and run `./deploy.sh`.
+
+### What's running on it
+
+Every app is up, logged in and connected to the others. Each has its own
+page on your home network, at `https://<app>.<your domain>`:
 
 | Address | App | What it's for |
 | --- | --- | --- |
@@ -65,7 +86,7 @@ new episodes keep arriving on their own.
   can't play, a HomeKit bridge, and [Claude Code](https://claude.com/claude-code)
   on the server for maintenance.
 
-**What it doesn't do:**
+### What it doesn't do
 
 - It comes with no media and no accounts. You bring a usenet provider, an
   indexer and a plex.tv account (see [What you need](#what-you-need)).
@@ -130,7 +151,7 @@ turn Secure Boot off.
 | | What for | Cost |
 | --- | --- | --- |
 | A domain name | Gives each app its address. Point a wildcard record (`*.yourdomain`) at the server's home address | About $10 a year |
-| A plex.tv account | Plex | Free; [Plex Pass](https://www.plex.tv/plex-pass/) is optional |
+| A plex.tv account | Plex | Free. A [Plex Pass](https://www.plex.tv/plex-pass/) adds hardware transcoding and streaming away from home |
 | A usenet provider | Where downloads come from | Paid subscription |
 | A usenet indexer (e.g. [NZBGeek](https://nzbgeek.info)) | How Sonarr and Radarr search usenet | Usually a small yearly fee |
 | Optional: [Cloudflare](https://www.cloudflare.com) DNS for your domain | Real HTTPS certificates. Without it the apps use spudbox's own certificate, which browsers warn about until you trust it | Free |
