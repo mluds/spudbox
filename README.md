@@ -2,44 +2,26 @@
 
 **Turn a spare PC into a home media server that runs itself.**
 
-spudbox is a ready-made setup for a home server that streams your movies,
-TV shows and audiobooks to every screen in the house, the way Netflix does,
-from a library you own. Ask for a movie or a show and it finds it, downloads
-it, files it, adds subtitles and puts it in Plex, without you touching a
-folder.
+spudbox sets up a server that streams your movies, TV shows and audiobooks
+to every screen in the house. Once it's installed:
 
-It's built on [NixOS](https://nixos.org), a Linux distribution configured
-by code. You describe your server in one settings file and spudbox installs
-and connects about a dozen apps that would otherwise each need their own
-setup. Rebuilding the server from scratch gives you the same server again.
+- **Watch** in the Plex app on your TV, phone, tablet or browser. Streaming
+  away from home needs a [Plex Pass](https://www.plex.tv/plex-pass/).
+- **Request** a movie or show in Jellyseerr. It's downloaded, filed and
+  subtitled, and shows up in Plex when the download finishes. New episodes
+  of the shows you follow arrive on their own.
+- **Share** your library with family and friends. They can make requests
+  too.
+- **Leave it alone.** It backs itself up every night and can alert your
+  phone when something fails.
 
-You don't need to know NixOS. You do need to be comfortable opening a
-terminal. An AI coding agent such as [Claude Code](https://claude.com/claude-code)
+You describe the server in one settings file, and spudbox installs and
+connects about a dozen apps on [NixOS](https://nixos.org). You don't need to
+know NixOS: an AI agent such as [Claude Code](https://claude.com/claude-code)
 can do most of the install for you (see
 [the easy way](#the-easy-way-let-an-ai-agent-install-it)).
 
-## The end result
-
-When you're done, you have a computer at home that you never need to plug a
-screen or keyboard into again. Day to day, using it looks like this:
-
-- **Watching.** Open the Plex app on your TV, phone, tablet or a browser.
-  Your library is there as Movies, TV Shows and Videos, with artwork,
-  descriptions and subtitles. At home it plays straight from the server.
-  Away from home it streams over the internet; Plex charges for that part
-  (a [Plex Pass](https://www.plex.tv/plex-pass/)).
-- **Getting something new.** On your home network, open Jellyseerr, search
-  for a movie or show, and click Request. If your indexer has it, it lands
-  in Plex once the download finishes, with nothing else to do. New episodes
-  of the shows you follow arrive the same way, on their own.
-- **Sharing it.** Share your Plex library with family and friends from Plex's
-  settings. Anyone you share with can also sign in to Jellyseerr with their
-  Plex account and make requests.
-- **Looking after it.** Mostly nothing. Backups run every night, and with
-  alerts turned on, your phone hears about anything that fails. To change a
-  setting, you edit one file on your own computer and run `./deploy.sh`.
-
-### What's running on it
+## Apps
 
 Every app is up, logged in and connected to the others. Each has its own
 page on your home network, at `https://<app>.<your domain>`:
@@ -86,21 +68,7 @@ new episodes keep arriving on their own.
   can't play, a HomeKit bridge, and [Claude Code](https://claude.com/claude-code)
   on the server for maintenance.
 
-### What it doesn't do
-
-- It comes with no media and no accounts. You bring a usenet provider, an
-  indexer and a plex.tv account (see [What you need](#what-you-need)).
-- The web apps are reachable on your home network only. Plex is the
-  exception: you can stream from outside your home (port 32400). For
-  anything else away from home, set up a VPN yourself (e.g.
-  [Tailscale](https://tailscale.com) or WireGuard).
-- Its data disks aren't RAID: if a disk dies, the media on it is gone. Keep
-  your own copy of anything you can't download again.
-
-What you download is your responsibility: use it for content you have the
-right to.
-
-## What you need
+## Requirements
 
 ### Hardware
 
