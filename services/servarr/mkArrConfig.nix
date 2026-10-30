@@ -167,7 +167,19 @@ let
 
       if [ -f "${dataDir}/${name}.db" ]; then
         # The app may be writing (just started, migrating): wait for its lock.
-        sqlite3 -cmd ".timeout 30000" "${dataDir}/${name}.db" 'DELETE FROM "Users";'
+        # On a first start the file exists before its tables do, so wait for
+        # the Users table too; a database that never gets one has no users.
+        db() { sqlite3 -cmd ".timeout 30000" "${dataDir}/${name}.db" "$@"; }
+        users_table() {
+          [ "$(db "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'Users';")" = Users ]
+        }
+        for _ in $(seq 1 30); do
+          users_table && break
+          sleep 2
+        done
+        if users_table; then
+          db 'DELETE FROM "Users";'
+        fi
       fi
       xmlstarlet ed -L -u "/Config/AuthenticationMethod" -v "Forms" "${dataDir}/config.xml"
       set-config-xml "${dataDir}/config.xml" \

@@ -336,9 +336,10 @@ snapshots" until the first backup has run. If Plex isn't set up yet, everything
 that needs its token fails too: `plex/token`, `jellyseerr/api-key`, the
 `plex-config`/`tautulli-config`/`jellyseerr-config` units, homepage, the
 Jellyseerr and Plex library checks, and "plex rejects anonymous" (an
-unclaimed Plex answers anyone on localhost). Tautulli restarts each time
-`tautulli-config` runs; if its checks fail right after a deploy, run the
-test again a minute later.
+unclaimed Plex answers anyone on localhost). The backup unit shows failed
+too: its snapshot is saved, but restarting homepage afterwards fails. The
+backup and some setup units restart apps (Bazarr, Tautulli): if their checks
+fail right after a backup or a deploy, run the test again a minute later.
 
 ## Step 9: Hand-over
 
