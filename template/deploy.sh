@@ -223,6 +223,11 @@ install_system() {
     echo "Copying the spudbox module from $SPUDBOX_SRC..."
     copy_tree "$SPUDBOX_SRC" "$ssh" /tmp/deploy-spudbox
     $ssh "cd /tmp/deploy && $NIX flake lock --override-input spudbox path:/tmp/deploy-spudbox"
+  elif [ ! -f flake.lock ]; then
+    # A new instance has no flake.lock: write it before nixos-install
+    # evaluates the flake, or Nix writes it mid-evaluation and stops with a
+    # NAR hash mismatch on path:/tmp/deploy.
+    $ssh "cd /tmp/deploy && $NIX flake lock"
   fi
 
   echo "Installing secrets..."
