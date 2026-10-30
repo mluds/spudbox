@@ -119,7 +119,15 @@ def main():
         raw API for all libraries to keep things consistent.
         """
         url = f"{plex_url}/library/sections?{urlencode(section)}"
-        resp = requests.post(url, headers={"X-Plex-Token": token}, timeout=60)
+        # Just after it's started (or claimed), Plex answers but refuses with
+        # 400 "the server is still starting up. Please retry later".
+        deadline = time.time() + 120
+        while True:
+            resp = requests.post(url, headers={"X-Plex-Token": token}, timeout=60)
+            if resp.status_code != 400 or time.time() > deadline:
+                break
+            print(f"Plex refused '{section['name']}' (still starting?); retrying")
+            time.sleep(5)
         resp.raise_for_status()
 
     for section in library_sections:
