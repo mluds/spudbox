@@ -1,7 +1,7 @@
 # AGENTS.md
 
 spudbox is a NixOS module for a self-hosted media server. `README.md` is the
-user guide.
+front page and [`docs/GUIDE.md`](docs/GUIDE.md) the user guide.
 
 - **Installing a server for someone:** read and follow
   [`.claude/skills/install-spudbox/SKILL.md`](.claude/skills/install-spudbox/SKILL.md).

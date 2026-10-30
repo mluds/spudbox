@@ -12,15 +12,15 @@ then once it's installed. Some steps need their hands (booting from USB,
 typing passwords, a browser); for those, tell them exactly what to do and
 wait.
 
-Assume they haven't read the README, and don't send them to it. Ask for
-everything you need, say briefly what each thing is for, and when they need
-to get something (an account, an API key, a router setting), tell them
-where to find it. If they're missing something, say what it costs them and
+Assume they haven't read the README or the guide, and don't send them
+there. Ask for everything you need, say briefly what each thing is for, and
+when they need to get something (an account, an API key, a router setting),
+tell them where to find it. If they're missing something, say what it costs them and
 whether they can carry on without it.
 
 Read `template/spudbox.nix` before starting. Option details are in
-`common/options.nix`; `README.md` has the overview, the day-to-day commands
-and backups.
+`common/options.nix`; `docs/GUIDE.md` has the requirements, the apps, the
+day-to-day commands and backups.
 
 ## Safety rules (never break these)
 
@@ -371,7 +371,7 @@ move to a newer spudbox, and `./deploy.sh ssh` to get a shell on the server.
   `sudo systemctl restart <unit>`. A secret fix needs `./deploy.sh` first.
 - Reinstalling a server that had spudbox before: after the first boot,
   `./deploy.sh restore` puts the apps' state back from the local backup on
-  the data disks (it asks before changing anything; README "Backups and
-  restores").
+  the data disks (it asks before changing anything; `docs/GUIDE.md` "Backups
+  and restores").
 - A data disk didn't mount: `journalctl -u ensure-partition-<...>` says why
   (usually "isn't blank XFS").

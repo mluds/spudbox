@@ -40,7 +40,7 @@ Commands:
   secret NAME         Type a secret into secrets/NAME (input hidden), e.g. usenet/password
   hardware ROOT@IP    Write hardware.nix from a machine booted into the installer
   install ROOT@IP     Install onto a machine booted into the NixOS installer,
-                      its disks mounted at /mnt (see the spudbox README)
+                      its disks mounted at /mnt (/install-spudbox does this)
 EOF
   exit 1
 }

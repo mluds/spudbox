@@ -3,7 +3,9 @@
 The spudbox NixOS module: a self-hosted media stack (Plex, the *arr apps,
 Jellyseerr/seerr, SABnzbd, Transmission, Audiobookshelf, Caddy, homepage,
 optional Homebridge) configured end to end from `spudbox.*` options.
-`README.md` is the user guide (install, first run, backups).
+`README.md` is the front page (what it is, how to install);
+`docs/GUIDE.md` is the user guide (requirements, apps, day to day, backups,
+settings).
 
 Code map, notes, and the log of improvements done / open / declined — check it
 before any cleanup, hardening, or review, and keep it current:
@@ -69,7 +71,7 @@ before any cleanup, hardening, or review, and keep it current:
   `template/secrets/README.md`.
 - A new optional feature: an option in `common/options.nix`, an entry in
   `spudbox.features`, `lib.mkIf` in its module, `has <feature>` guards in
-  `test.sh` (`if has X; then ...; fi`), and a line in the README's settings
+  `test.sh` (`if has X; then ...; fi`), and a line in `docs/GUIDE.md`'s settings
   table.
 
 ## Verifying a change

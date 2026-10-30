@@ -3,7 +3,8 @@
 # Claude Code Remote Control server, reachable from the Claude mobile app and
 # claude.ai/code (spudbox.claudeCode). The binary is the native install at
 # ~/.local/bin/claude (self-updating; runs via nix-ld) rather than
-# pkgs.claude-code, which lags. One-time setup is in the README ("Claude Code").
+# pkgs.claude-code, which lags. One-time setup is in docs/GUIDE.md
+# ("Claude Code on the server").
 #
 # Runs as spudbox.claudeCode.user. If that user is a superuser (passwordless
 # sudo), Claude sessions have root on the server: anyone controlling the

@@ -278,7 +278,7 @@ in
       enable = mkEnableOption ''
         Claude Code Remote Control as a service, so the server can be driven
         from the Claude app. Runs as `user`; if that user is a superuser,
-        Claude sessions have root. One-time login: see the README
+        Claude sessions have root. One-time login: see docs/GUIDE.md
       '';
       user = mkOption {
         type = types.str;
