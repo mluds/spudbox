@@ -12,6 +12,12 @@ then once it's installed. Some steps need their hands (booting from USB,
 typing passwords, a browser); for those, tell them exactly what to do and
 wait.
 
+Assume they haven't read the README, and don't send them to it. Ask for
+everything you need, say briefly what each thing is for, and when they need
+to get something (an account, an API key, a router setting), tell them
+where to find it. If they're missing something, say what it costs them and
+whether they can carry on without it.
+
 Read `template/spudbox.nix` before starting. Option details are in
 `common/options.nix`; `README.md` has the overview, the day-to-day commands
 and backups.
@@ -50,6 +56,43 @@ anything again: the instance directory exists? `spudbox.nix` filled in
 (installed)? does `ssh` to `HOST` from `deploy.env` work (booted)? Continue
 from the first step that isn't done.
 
+## Step 0: What they need
+
+Start by saying what's ahead: about an hour of their time, plus 10-60
+minutes while the server builds, and the steps where they'll need to be at
+the server (booting it from a USB stick, typing a temporary password on its
+console). Then check, in one or two rounds of questions:
+
+- **The server.** A 64-bit PC (x86_64; ARM is untested) they're happy to
+  erase: the boot disk is wiped. Ask what it is and check it against: 8 GB of
+  memory or more (16 GB recommended); an SSD for the boot disk, 256 GB or
+  more (1 TB or more is comfortable: it also holds the app databases and
+  downloads in progress); wired Ethernet. An Intel CPU with integrated
+  graphics (Quick Sync) lets Plex convert video for devices that can't play
+  a file as it is; without one the CPU does that work, and the Dolby Vision
+  fix-up extra isn't available. Plex's hardware transcoding also needs a
+  Plex Pass.
+- **Data disks** (optional): hard drives for the library. They're pooled
+  into one folder, not mirrored, so a dead disk loses its files. Without any,
+  the library lives on the boot disk.
+- **For the install:** a USB stick (2 GB or more, it gets erased), and a
+  monitor and keyboard on the server for a few minutes.
+- **A domain name** they own (about $10 a year at any registrar). Each app
+  gets its own address under it, reachable only on their home network. If
+  its DNS is on Cloudflare (free), the apps get real HTTPS certificates;
+  otherwise spudbox uses its own certificate, which their devices must be
+  told to trust (Step 7).
+- **A plex.tv account** (free, at plex.tv). Streaming away from home needs a
+  Plex Pass.
+- **A usenet provider and a usenet indexer** (both paid; NZBGeek is a common
+  indexer). These are where downloads come from. Without them everything
+  installs, but nothing downloads on its own; they can be added later by
+  editing the settings and deploying.
+
+If they don't have a domain, a plex.tv account or a provider yet, they can
+get one now while you carry on; you'll need the domain in Step 2 and the
+logins in Step 3.
+
 ## Step 1: Their computer
 
 - Check this is the spudbox repo (`module.nix`, `template/` exist).
@@ -69,10 +112,10 @@ options), explaining briefly what each is for. Defaults in parentheses.
 
 1. **Where to keep their instance repo** (`~/spudbox-home`).
 2. **Domain.** Each web UI will be `https://<service>.<domain>`, LAN only. They
-   need a wildcard DNS record `*.<domain>` → the server's LAN IP (done in
-   Step 7). **TLS:** `cloudflare` if the domain's DNS is on Cloudflare (real
-   certificates; needs an API token with Zone:DNS:Edit), otherwise
-   `internal` (Caddy's own CA; browsers warn until they trust its root).
+   need a wildcard DNS record `*.<domain>` → the server's LAN IP (you walk
+   them through it in Step 7). **TLS:** `cloudflare` if the domain's DNS is
+   on Cloudflare (real certificates; needs an API token, Step 3), otherwise
+   `internal` (Caddy's own CA; their devices warn until they trust its root).
 3. **Login user**: name (lowercase; not `root` or `admin`), and the public key
    from Step 1. They get passwordless sudo.
 4. **Time zone** (detect from their computer: `readlink /etc/localtime`).
@@ -112,13 +155,23 @@ in `common/secrets.nix`; summarised in `template/secrets/README.md`:
 - always: `plex/username`, `plex/password` (their plex.tv login; with
   two-factor auth on, use `plex/token` instead: Plex's support article
   "Finding an authentication token")
-- `usenet/username`, `usenet/password` if there are usenet servers
-- `<lowercased indexer name>/api-key` per indexer
-- `cloudflare/api-token` for `tls = "cloudflare"`
-- `opensubtitles/username` + `password`, `assrt/api-token` per provider
-- `pushover/app-token`, `pushover/user-key`; `r2/s3-credentials.env`
-  (two lines, `AWS_ACCESS_KEY_ID=...` and `AWS_SECRET_ACCESS_KEY=...`, so
-  for this one have them create the file with an editor)
+- `usenet/username`, `usenet/password` if there are usenet servers (the
+  provider's account page; often different from the website login)
+- `<lowercased indexer name>/api-key` per indexer (the indexer's profile or
+  API page once signed in)
+- `cloudflare/api-token` for `tls = "cloudflare"`: in the Cloudflare
+  dashboard, My Profile → API Tokens → Create Token → the "Edit zone DNS"
+  template, limited to their domain
+- `opensubtitles/username` + `password` (their opensubtitles.com account),
+  `assrt/api-token` (their assrt.net account), per provider
+- `pushover/user-key` (on the pushover.net dashboard) and
+  `pushover/app-token` (from creating an application there)
+- `r2/s3-credentials.env` for off-site backups: two lines,
+  `AWS_ACCESS_KEY_ID=...` and `AWS_SECRET_ACCESS_KEY=...`, so for this one
+  have them create the file with an editor. For Cloudflare R2: create a
+  bucket, then an R2 API token with Object Read & Write on it, which shows
+  both keys; the repository URL is
+  `s3:https://<account id>.r2.cloudflarestorage.com/<bucket>`.
 
 Give them the list as commands to run **in their own terminal**, from the
 instance directory, one per secret:
@@ -219,8 +272,9 @@ remove the USB stick.
 
 ## Step 7: First boot
 
-- Suggest a DHCP reservation for the server in their router, so its address
-  stays put. Set `HOST=<user>@<ip>` in `deploy.env`.
+- Have them give the server a fixed address: a DHCP reservation in their
+  router's admin page (usually under LAN or DHCP settings), for the server's
+  current address. Set `HOST=<user>@<ip>` in `deploy.env`.
 - Wait for SSH (`./deploy.sh ssh` may take a minute or two; if their
   `known_hosts` has an old key for that address, `ssh-keygen -R <ip>`).
 - The apps configure each other on first boot; give it ~5 minutes, then
@@ -230,10 +284,20 @@ remove the USB stick.
   should say "Plex server claimed." If `plex-config` failed instead, so do
   the units that need its token (`tautulli-config`, `jellyseerr-config`) and
   homepage keeps restarting; see Step 8.
-- DNS: a wildcard `A` record `*.<domain>` → the server's LAN IP (at
-  Cloudflare: "DNS only", not proxied), or the same in their router/Pi-hole.
-  With `tls = "internal"`, they can trust Caddy's root certificate from
-  `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`.
+- DNS: walk them through adding a wildcard `A` record, name `*`, pointing at
+  the server's LAN IP, at their DNS host. At Cloudflare that's the domain's
+  DNS → Records → Add record, with the proxy turned off ("DNS only"). A
+  router or Pi-hole that can answer for the domain works too. Check it with
+  `dig +short homepage.<domain>` (or `nslookup`).
+- With `tls = "internal"`, their devices must trust Caddy's root
+  certificate,
+  `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt` on the
+  server. It's public, so you can copy it to their computer
+  (`ssh ... sudo cat <that path> > spudbox-root.crt`; never the `root.key`
+  next to it). Then help them trust it: on macOS,
+  `sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain spudbox-root.crt`;
+  on Linux, their distro's CA store; phones and tablets install it as a
+  profile or certificate from their settings.
 
 ## Step 8: First-run steps
 
@@ -287,8 +351,12 @@ Tell them, and have them do these themselves (secrets, rule 2):
 - The git-crypt key, if they haven't saved it yet.
 - Optionally push the instance repo to a **private** remote.
 
-Day to day it's `./deploy.sh` after editing `spudbox.nix`, and
-`./deploy.sh update` to move to a newer spudbox (README "Day to day").
+Finish by telling them where to start: `https://homepage.<domain>` links
+every app; Plex is in the Plex apps on their TV and phone; requests go
+through `https://jellyseerr.<domain>`. Day to day, from their instance repo:
+`./deploy.sh` after editing `spudbox.nix` (copies, rebuilds and runs the
+checks), `./deploy.sh test` for the checks alone, `./deploy.sh update` to
+move to a newer spudbox, and `./deploy.sh ssh` to get a shell on the server.
 
 ## If something fails
 

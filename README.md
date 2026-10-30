@@ -18,8 +18,35 @@ to every screen in the house. Once it's installed:
 You describe the server in one settings file, and spudbox installs and
 connects about a dozen apps on [NixOS](https://nixos.org). You don't need to
 know NixOS: an AI agent such as [Claude Code](https://claude.com/claude-code)
-can do most of the install for you (see
-[Setting up a server](#setting-up-a-server)).
+can do the install for you (see [Installation](#installation)).
+
+## Installation
+
+An AI coding agent does the install. It asks you for everything it needs,
+checks that your hardware and accounts will work, runs the commands, and
+tells you when a step needs your hands, such as booting the server from a
+USB stick or typing in a password. Plan on about an hour, plus waiting while
+the server builds.
+
+With [Claude Code](https://claude.com/claude-code):
+
+```bash
+git clone https://github.com/mluds/spudbox
+cd spudbox
+claude
+```
+
+Then type `/install-spudbox`.
+
+With another agent (Codex, Gemini CLI, Cursor, ...), start it in the cloned
+repository and tell it:
+
+> Read `.claude/skills/install-spudbox/SKILL.md` and follow it to install
+> spudbox on my server.
+
+The agent makes a private repository on your computer for your server's
+settings and encrypted secrets. Afterwards, you manage the server from there
+with `./deploy.sh` (see [Day to day](#day-to-day)).
 
 ## Requirements
 
@@ -85,83 +112,6 @@ macOS or Linux (on Windows, WSL should work but hasn't been tried), with
 `git`, `ssh` and `rsync`. [git-crypt](https://github.com/AGWA/git-crypt) is
 recommended: it keeps your passwords encrypted in git. You don't need NixOS
 or Nix: the server builds everything itself.
-
-## Setting up a server
-
-Plan on about an hour of your own time, plus waiting while the server builds
-(10 to 60 minutes, depending on the machine).
-
-Two repositories are involved:
-
-- **This one** holds the code: a NixOS module (the `spudbox.*` settings), a
-  test suite, and a template.
-- **Yours** is made from [`template/`](template). It holds only what's
-  specific to your server: `spudbox.nix` (your settings), `hardware.nix`,
-  `secrets/` (encrypted) and `deploy.sh`. Its `flake.lock` pins a version of
-  this repository, and `./deploy.sh update` moves it. Keep it private.
-
-`deploy.sh` runs on your own computer. It copies your repository to the
-server over SSH, and the server builds.
-
-### Install with an AI agent
-
-The install is packaged as a step-by-step guide for AI coding agents,
-[`.claude/skills/install-spudbox/SKILL.md`](.claude/skills/install-spudbox/SKILL.md).
-The agent runs the commands on your computer and on the server, and asks
-you whenever a step needs your hands or a decision.
-
-**With Claude Code** (needs a Claude subscription or an Anthropic API key):
-
-```bash
-curl -fsSL https://claude.ai/install.sh | bash   # or see claude.com/claude-code
-git clone https://github.com/mluds/spudbox
-cd spudbox
-claude
-```
-
-Then type `/install-spudbox`.
-
-**With another agent** (Codex, Gemini CLI, Cursor, Copilot, Aider, ...):
-clone the repository, start the agent in it, and tell it:
-
-> Read `.claude/skills/install-spudbox/SKILL.md` and follow it to install
-> spudbox on my server.
-
-Agents that read [`AGENTS.md`](AGENTS.md) are pointed there already. The
-guide is plain Markdown, so any agent that can run shell commands can follow
-it.
-
-What the agent does, in order:
-
-1. Checks your computer has what it needs, and makes an SSH key if you don't
-   have one.
-2. Asks for your settings in a few short rounds: domain, login user, usenet
-   servers and indexers, subtitle languages, extras.
-3. Creates your private instance repository, with encryption for the
-   secrets.
-4. Gives you a command to type each password or API key into **your own
-   terminal**. Secrets never go through the chat, and the agent only checks
-   that they exist.
-5. Tells you how to boot the server from the NixOS USB stick, then connects
-   to it.
-6. Lists the disks and has you pick the boot disk. It erases it only after
-   you type that disk's name back, and it never wipes a data disk without
-   the same confirmation.
-7. Installs, reboots, waits for the apps to configure each other and runs the
-   health check.
-8. Walks you through the first-run steps and hands over: where your logins
-   are, and what to save in your password manager.
-
-If it stops partway, start it again: it works out where it got to.
-
-No agent? The guide is plain step-by-step instructions, so you can follow it
-yourself.
-
-**What you do yourself:** write the USB stick and boot the server from it,
-type a temporary password on the server's console, type in your secrets, and
-check the boot disk before it's erased. You'll also add the DNS record, and
-finish Plex's setup in a browser if it couldn't sign in to your account by
-itself.
 
 ## Apps
 
