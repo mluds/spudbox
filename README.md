@@ -22,7 +22,3 @@ through the rest.
 
 Requirements, the apps, day-to-day use and backups are in the
 [guide](docs/GUIDE.md).
-
-## License
-
-MIT; see [LICENSE](LICENSE).
