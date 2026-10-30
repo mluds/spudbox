@@ -77,17 +77,35 @@ console). Then check, in one or two rounds of questions:
   the library lives on the boot disk.
 - **For the install:** a USB stick (2 GB or more, it gets erased), and a
   monitor and keyboard on the server for a few minutes.
-- **A domain name** they own (about $10 a year at any registrar). Each app
-  gets its own address under it, reachable only on their home network. If
-  its DNS is on Cloudflare (free), the apps get real HTTPS certificates;
-  otherwise spudbox uses its own certificate, which their devices must be
-  told to trust (Step 7).
-- **A plex.tv account** (free, at plex.tv). Streaming away from home needs a
-  Plex Pass.
-- **A usenet provider and a usenet indexer** (both paid; NZBGeek is a common
-  indexer). These are where downloads come from. Without them everything
-  installs, but nothing downloads on its own; they can be added later by
-  editing the settings and deploying.
+- **A domain name** they own (about $10 a year at any registrar, e.g.
+  [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/),
+  [Porkbun](https://porkbun.com) or [Namecheap](https://www.namecheap.com)).
+  Each app gets its own address under it, reachable only on their home
+  network. If its DNS is on Cloudflare (a free account,
+  [sign up](https://dash.cloudflare.com/sign-up)), the apps get real HTTPS
+  certificates; otherwise spudbox uses its own certificate, which their
+  devices must be told to trust (Step 7).
+- **A plex.tv account** (free, [sign up](https://www.plex.tv/sign-up/)).
+  Plex is what they watch with; spudbox signs in once to claim the server
+  for this account. Streaming away from home and hardware transcoding need
+  a [Plex Pass](https://www.plex.tv/plex-pass/).
+- **A usenet provider**: the servers the downloads come from, paid by the
+  month or year, or as a one-off block of data. A few well-known ones:
+  [Frugal Usenet](https://frugalusenet.com),
+  [Newshosting](https://www.newshosting.com),
+  [UsenetServer](https://www.usenetserver.com),
+  [Eweka](https://www.eweka.nl/en) and, as a backup block account,
+  [Blocknews](https://www.blocknews.net). After signing up, the provider
+  emails or shows the server hostnames and a usenet username and password.
+- **A usenet indexer**: the search engine Sonarr and Radarr use to find
+  releases on usenet. Usually a small yearly fee, e.g.
+  [NZBGeek](https://nzbgeek.info), [NZBFinder](https://nzbfinder.ws) or
+  [NZBPlanet](https://nzbplanet.net). Each gives an API URL and an API key.
+
+Without a provider and an indexer everything installs, but nothing
+downloads on its own; they can be added later by editing the settings and
+deploying. These are their own choices: name the options, don't pick one
+for them.
 
 If they don't have a domain, a plex.tv account or a provider yet, they can
 get one now while you carry on; you'll need the domain in Step 2 and the
@@ -152,20 +170,28 @@ the release in this repo's `flake.nix` (`nixos-XX.YY` → `"XX.YY"`), and set
 Work out the required secrets from the settings. The authority is `required`
 in `common/secrets.nix`; summarised in `template/secrets/README.md`:
 
-- always: `plex/username`, `plex/password` (their plex.tv login; with
-  two-factor auth on, use `plex/token` instead: Plex's support article
-  "Finding an authentication token")
-- `usenet/username`, `usenet/password` if there are usenet servers (the
-  provider's account page; often different from the website login)
-- `<lowercased indexer name>/api-key` per indexer (the indexer's profile or
-  API page once signed in)
+- always: `plex/username`, `plex/password`: their plex.tv login
+  ([sign up](https://www.plex.tv/sign-up/) if they have none), used once to
+  claim the server for their account. With two-factor sign-in on, use
+  `plex/token` instead
+  ([how to find it](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)).
+- `usenet/username`, `usenet/password` if there are usenet servers: what
+  SABnzbd logs in to the provider with. They're on the provider's account
+  page or in its welcome email, and are often different from the website
+  login.
+- `<lowercased indexer name>/api-key` per indexer: lets Sonarr and Radarr
+  search it. On the indexer's profile or API page once signed in.
 - `cloudflare/api-token` for `tls = "cloudflare"`: in the Cloudflare
   dashboard, My Profile → API Tokens → Create Token → the "Edit zone DNS"
   template, limited to their domain
-- `opensubtitles/username` + `password` (their opensubtitles.com account),
-  `assrt/api-token` (their assrt.net account), per provider
+- `opensubtitles/username` + `password`: their opensubtitles.com account
+  (free, [sign up](https://www.opensubtitles.com/en/users/sign_up)), for
+  Bazarr's subtitle downloads; `assrt/api-token`: their
+  [assrt.net](https://assrt.net) account's token (Chinese subtitles)
 - `pushover/user-key` (on the pushover.net dashboard) and
-  `pushover/app-token` (from creating an application there)
+  `pushover/app-token` (from creating an application there), for failure
+  alerts on their phone ([sign up](https://pushover.net/signup); the phone
+  app is a one-time purchase)
 - `r2/s3-credentials.env` for off-site backups: two lines,
   `AWS_ACCESS_KEY_ID=...` and `AWS_SECRET_ACCESS_KEY=...`, so for this one
   have them create the file with an editor. For Cloudflare R2: create a
@@ -173,7 +199,9 @@ in `common/secrets.nix`; summarised in `template/secrets/README.md`:
   both keys; the repository URL is
   `s3:https://<account id>.r2.cloudflarestorage.com/<bucket>`.
 
-Give them the list as commands to run **in their own terminal**, from the
+For each one, say what it's for and where to get it (above), with the
+sign-up link if they don't have the account yet, before the command. Then
+give them the list as commands to run **in their own terminal**, from the
 instance directory, one per secret:
 
 ```bash
