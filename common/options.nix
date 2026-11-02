@@ -234,8 +234,8 @@ in
     };
 
     pushover.enable = mkEnableOption ''
-      Pushover alerts when a setup unit, backup or timer job fails, and
-      Jellyseerr request notifications. Needs secrets/pushover/{app-token,user-key}
+      Pushover alerts when a setup unit, backup or timer job fails or a disk
+      reports a SMART problem, and Jellyseerr request notifications. Needs secrets/pushover/{app-token,user-key}
     '';
 
     offsiteBackup = {

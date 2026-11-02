@@ -16,6 +16,13 @@ let
     storageDrives
     ;
 
+  # Run by smartd when it finds a problem; smartd has already logged it.
+  smartdAlert = pkgs.writeShellApplication {
+    name = "smartd-alert";
+    runtimeInputs = [ pkgs.systemd ];
+    text = "systemctl start --no-block notify-failure@smartd.service";
+  };
+
   # ensure-partition DEVICE PARTITION: give a blank disk one GPT partition
   # with an XFS filesystem. Leaves existing partitions and filesystems alone.
   ensurePartitionScript = pkgs.writeShellApplication {
@@ -183,4 +190,20 @@ in
   services.udev.extraRules = ''
     ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", RUN+="${pkgs.hdparm}/bin/hdparm -S 60 -B 127 /dev/%k"
   '';
+
+  # SMART: smartd checks every disk every 30 minutes for failing health,
+  # reallocated or pending sectors and new errors in the drive's log, and
+  # logs what it finds. With Pushover, the first warning of each kind goes out
+  # as a notify-failure alert with smartd's log. -n standby: a check skips a
+  # sleeping disk instead of spinning it up (SMART commands don't count as
+  # I/O for check-drive-status, so they don't keep it awake either). -I 194:
+  # don't log every temperature change.
+  services.smartd = {
+    enable = true;
+    extraOptions = [ "--quit=never" ]; # keep running without SMART disks (VMs)
+    notifications.wall.enable = false;
+    defaults.autodetected =
+      "-a -n standby,q -I 194"
+      + lib.optionalString config.spudbox.pushover.enable " -m <nomailer> -M exec ${lib.getExe smartdAlert}";
+  };
 }

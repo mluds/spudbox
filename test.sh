@@ -156,6 +156,11 @@ test_services() {
     check_service "$u.service"
   done
   if has homebridge; then check_service homebridge.service; fi
+  check_service smartd.service
+  if has pushover; then
+    check "smartd alerts via Pushover" grep -q smartd-alert \
+      "$(systemctl show -p ExecStart --value smartd.service | grep -o -- '--configfile=[^ ;]*' | cut -d= -f2)"
+  fi
   if has hdd-spindown; then
     check_service drive-status-http.service
     check_service drive-wake-trace.service

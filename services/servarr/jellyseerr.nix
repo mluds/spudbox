@@ -175,8 +175,12 @@ in
   };
 
   systemd.services.seerr = {
-    # Loopback only; reached through Caddy.
-    environment.HOST = "127.0.0.1";
+    environment = {
+      # Loopback only; reached through Caddy.
+      HOST = "127.0.0.1";
+      # Its default, debug, logs a line every minute (~1,400 a day).
+      LOG_LEVEL = "info";
+    };
     serviceConfig = {
       DynamicUser = lib.mkForce false;
       User = "jellyseerr";

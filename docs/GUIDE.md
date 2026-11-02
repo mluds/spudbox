@@ -192,7 +192,7 @@ descriptions and defaults. The main ones:
 | `subtitleProviders` | `[ ]` | `opensubtitlescom`, `assrt` |
 | `bazarr.languageProfiles` | English | Subtitle languages |
 | `disableIPv6` | `true` | |
-| `pushover.enable` | off | Alerts when a setup unit, backup or timer job fails |
+| `pushover.enable` | off | Alerts when a setup unit, backup or timer job fails, or a disk reports a SMART problem |
 | `offsiteBackup.enable` | off | Copy backups to an S3 bucket |
 | `hddSpindown.enable` | off | Spin idle data HDDs down, show their state on the dashboard, and log what wakes them (`sudo drive-wakes`) |
 | `mediaFixup.enable` | off | Fix Dolby Vision profile 5 and 8 files (Intel iGPU) |

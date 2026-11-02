@@ -64,7 +64,10 @@ let
       {
         \$s = ((struct fuse_mount *)arg1)->sb->s_dev;
         if ($(join "''${pools[@]}")) {
-          @seen[cgroup] = (nsecs, comm, ((struct fuse_args *)arg2)->opcode);
+          // The cgroup's name now: by the time a wake is printed, a unit
+          // that has since stopped no longer has a path to look up.
+          @seen[cgroup] = (nsecs, comm, ((struct fuse_args *)arg2)->opcode,
+            str(curtask->cgroups->dfl_cgrp->kn->name));
         }
       }
       // rwbs "N...": a drive command without data, such as check-drive-status's
@@ -83,7 +86,7 @@ let
             \$age = (nsecs - \$kv.1.0) / 1000000;
             if (\$age < $WINDOW_MS) {
               printf("pool-request ms_before=%d op=%d comm=%s cgroup=%s\\n",
-                \$age, \$kv.1.2, \$kv.1.1, cgroup_path(\$kv.0));
+                \$age, \$kv.1.2, \$kv.1.1, \$kv.1.3);
             }
           }
         }
@@ -160,6 +163,13 @@ in
 lib.mkIf cfg.hddSpindown.enable {
   # drive-wakes [--since WHEN]: what woke the disks (sudo: reads the journal)
   environment.systemPackages = [ wakesCommand ];
+
+  # Keep the pool's directory tree cached. media-fixup's 15-minute find reads
+  # it from memory, but streaming fills the page cache charged to the
+  # mergerfs mount, and reclaiming that can drop the tree's inodes with it:
+  # the next find then woke the disk (1-2 times a day, after evening
+  # playback). Reclaim page cache first; the tree is a few MB.
+  boot.kernel.sysctl."vm.vfs_cache_pressure" = 10;
 
   systemd = {
     tmpfiles.rules = [

@@ -57,7 +57,7 @@ def fields(line):
 
 
 def unit_of(cgroup):
-    """unified:/system.slice/plex.service -> plex.service"""
+    """unified:/system.slice/plex.service (or just plex.service) -> plex.service"""
     path = cgroup.split(":", 1)[-1].rstrip("/")
     name = path.rsplit("/", 1)[-1]
     if not name:
