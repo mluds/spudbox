@@ -260,7 +260,7 @@ in
 
     mediaFixup.enable = mkEnableOption ''
       media-fixup: every 15 minutes, rewrite new videos some Plex clients
-      can't play (Dolby Vision profile 5 to HDR10, hybrid DV8 stripped, SRT
+      can't play (Dolby Vision profile 5 to HDR10, DV8 stripped, SRT
       font tags). Needs an Intel iGPU (x86_64)
     '';
 

@@ -3,9 +3,10 @@
 #   - Dolby Vision profile 5 has no HDR10 fallback, so non-DV players show
 #     green/purple or fail: re-encode to HDR10 on the Intel GPU (libplacebo
 #     applies the DV reshaping, hevc_vaapi encodes Main10).
-#   - "Hybrid" Dolby Vision profile 8 (an RPU grafted from another source) can
-#     stall the Apple TV at buffering forever: strip the DV layer losslessly,
-#     leaving the HDR10 base untouched.
+#   - Dolby Vision profile 8 (most often converted from a UHD Blu-ray's
+#     profile 7, or a "hybrid" RPU grafted from another source) can stall the
+#     Apple TV or fail to play there: strip the DV layer losslessly, leaving
+#     the HDR10 base untouched. DV-capable TVs then show HDR10.
 #   - SRT tracks carrying <font size=...> tags render tiny in Plex: strip them.
 # Each rewrite is verified (duration, stream count, tags) before it replaces
 # the original. Afterwards Sonarr/Radarr rescan and Plex refreshes the folder.
@@ -113,7 +114,7 @@ strip_dv() {
   local tmp out
   tmp=$(scratch)
   out=$tmp/strip.mkv
-  say "Hybrid Dolby Vision: stripping the DV layer (lossless)"
+  say "Dolby Vision profile 8: stripping the DV layer (lossless)"
   ffmpeg -hide_banner -nostdin -y -v error -i "$FILE" -map 0 -c copy -bsf:v dovi_rpu=strip=1 "$out"
   if ! same_media "$FILE" "$out" || [ -n "$(dv_profile "$out")" ]; then
     say "Verification failed, leaving the file unchanged"
@@ -224,7 +225,7 @@ process() {
   profile=$(dv_profile "$FILE")
   if [ "$profile" = 5 ]; then
     convert_dv5 && changed=1
-  elif [ "$profile" = 8 ] && [[ ${FILE,,} == *hybrid* ]]; then
+  elif [ "$profile" = 8 ]; then
     strip_dv && changed=1
   fi
   if [[ ${FILE,,} == *.mkv ]] && fix_subs; then

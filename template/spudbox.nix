@@ -56,7 +56,7 @@ _:
     #   repository = "s3:https://<account>.r2.cloudflarestorage.com/<bucket>";
     # };
     # hddSpindown.enable = true;     # spin idle storage HDDs down
-    # mediaFixup.enable = true;      # fix DV5/hybrid-DV videos (Intel iGPU)
+    # mediaFixup.enable = true;      # fix Dolby Vision 5/8 videos (Intel iGPU)
     # homebridge.enable = true;      # HomeKit bridge
     # claudeCode = {                 # Claude Code Remote Control
     #   enable = true;
