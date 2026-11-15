@@ -31,11 +31,9 @@ let
     flakeIgnore = [ "E501" ];
   } (builtins.readFile ./audiobookshelf-config.py);
 
-  environment = {
+  configEnvironment = {
     SECRETS_DIR = secretsDir;
     ABS_PORT = toString audiobookshelfPort;
-  };
-  configEnvironment = environment // {
     ABS_DB = "/var/lib/audiobookshelf/config/absdatabase.sqlite";
     LIBRARY_DIR = "${storageDir}/data/media/audiobooks";
     # The root account's fixed user ID (audiobookshelf-config inserts it)
