@@ -8,6 +8,7 @@
 let
   cfg = config.spudbox;
   inherit (cfg)
+    bazarrPort
     radarrPort
     secretsDir
     sonarrPort
@@ -75,6 +76,7 @@ in
     user = "bazarr";
     group = "media";
     openFirewall = false;
+    listenPort = bazarrPort;
   };
 
   systemd.services.bazarr.serviceConfig = import ../hardening.nix;

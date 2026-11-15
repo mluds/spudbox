@@ -167,6 +167,7 @@ in
 
   services.seerr = {
     enable = true;
+    port = jellyseerrPort;
     openFirewall = false;
     # The pre-26.05 location on every install (upstream moves it to
     # /var/lib/seerr for stateVersion >= 26.05), so scripts and tests have one path.

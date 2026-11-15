@@ -10,6 +10,7 @@ let
     cacheDir
     secretsDir
     storageDir
+    transmissionPort
     ;
 
   credentialsDir = "/run/transmission";
@@ -39,6 +40,7 @@ in
     credentialsFile = credentialsPath;
     settings = {
       rpc-bind-address = "127.0.0.1";
+      rpc-port = transmissionPort;
       rpc-whitelist-enabled = true;
       rpc-authentication-required = true;
       incomplete-dir-enabled = true;
