@@ -34,9 +34,6 @@ let
     [
       "audiobookshelf"
       "bazarr"
-    ]
-    ++ lib.optional cfg.homebridge.enable "homebridge"
-    ++ [
       "homepage"
       "jellyseerr"
       "plex"
@@ -46,6 +43,7 @@ let
       "tautulli"
       "transmission"
     ]
+    ++ lib.optional cfg.homebridge.enable "homebridge"
   ) (name: { port = cfg."${name}Port"; } // proxyExtras.${name} or { });
 
   virtualHost =
