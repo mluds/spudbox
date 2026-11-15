@@ -128,6 +128,11 @@ enables them.
   measured at 0 disk reads (the directory tree stays cached), but it still
   woke the disk 1-2 times a day, after reclaim had dropped the tree's
   inodes: hence `vm.vfs_cache_pressure = 10` with `hddSpindown`.
+  A wake whose disk request is a write or flush of 0 bytes after only
+  lookups/readdirs (`rw=FF`/`WSM` in `journalctl -u drive-wake-trace`) is
+  metadata being journalled, not a read: in the week to 2026-11-15 that was
+  all 50 of the scan's wakes (relatime's daily atime write per directory
+  read; now `noatime`), so they weren't cache misses.
 - The trace records the requester's cgroup *name* when it asks the pool:
   `cgroup_path()` is resolved only when a wake is printed, so a unit that
   had stopped by then (media-fixup's `find`) showed up as "kernel".

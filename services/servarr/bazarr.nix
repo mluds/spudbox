@@ -32,6 +32,10 @@ let
           movie_default_enabled = true;
           movie_default_profile = 1;
           parse_embedded_audio_track = false;
+          # No enabled provider matches by file hash (opensubtitlescom has
+          # use_hash off, assrt has none), but Bazarr still read each video's
+          # first and last 64 KB to compute one on every search, waking the HDD.
+          skip_hashing = true;
           use_embedded_subs = true;
           chmod = "0660";
           chmod_enabled = true;

@@ -117,6 +117,11 @@ let
           options = [
             "defaults"
             "nofail"
+            # relatime still writes a directory's atime once a day when it's
+            # read, so the 15-minute media-fixup scan and Bazarr's health
+            # check (both served from cache) woke the HDD ~8 times a day just
+            # to journal atimes. Nothing here uses atime.
+            "noatime"
           ];
         };
       };

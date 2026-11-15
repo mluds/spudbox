@@ -291,6 +291,7 @@ test_integrations() {
     check_json "bazarr $provider provider" ".general.enabled_providers | index(\"$provider\")" bazarr system/settings
   done
   check_json "bazarr -> radarr/sonarr" '.data' bazarr system/health
+  check_json "bazarr skips file hashing" '.general.skip_hashing' bazarr system/settings
 
   check_json "tautulli -> plex" '.response.result == "success"' tautulli get_server_info
 
@@ -327,6 +328,9 @@ test_storage() {
 
   check_eq "media dirs owned by media:media" \
     "$(stat -c "%U:%G" "$STORAGE_DIR/data/media/movies" 2>/dev/null)" media:media
+
+  # A once-a-day atime write per directory read woke the HDDs (storage.nix)
+  check "data drives mounted noatime" not grep -qvw noatime <<< "$(findmnt -rn -t xfs -o OPTIONS)"
 
   # Drive status (spindown monitor) served for homepage
   local dev
