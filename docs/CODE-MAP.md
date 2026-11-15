@@ -170,10 +170,11 @@ enables them.
 
 ## Open improvements
 
-None open. Add new findings here as rows:
+Add new findings here as rows:
 
 | # | Priority | Recommendation | Where | Why | Status |
 | --- | --- | --- | --- | --- | --- |
+| 1 | Low | Pass the port options to the apps themselves: `services.{sonarr,radarr}.settings.server.port`, `services.bazarr.listenPort`, `services.seerr.port`, Transmission's `settings.rpc-port` (or make those options read-only). | `services/servarr/{mkArrConfig,bazarr,jellyseerr}.nix`, `services/transmission.nix` | `sonarrPort`, `radarrPort`, `bazarrPort`, `jellyseerrPort` and `transmissionPort` are read only by the clients (Caddy, homepage, the `*-config` units, `test.sh`); each app listens on its built-in default, which the option defaults happen to match. An instance that changes one gets a Caddy route and setup unit pointed at a closed port. Found in the 2026-11-15 simplify pass; left alone there because it changes behavior. | Open |
 
 Ideas considered and not done (2026-10-23):
 
@@ -188,6 +189,7 @@ Newest first. Don't redo these.
 
 | Date | Commit | Change |
 | --- | --- | --- |
+| 2026-11-15 | `3560010`..`70f85b5` | Simplify pass over the whole tree (most of it was already clean after `247e7ce`): Caddy's proxied-app list in one block (`genAttrs` ignores order); Audiobookshelf's two environment attrsets merged (the first was only ever merged into the second); `flake.nix` checks name `pkgs` and an `evaluates NAME NIXOS` helper instead of repeating `writeText (unsafeDiscardStringContext ...drvPath)` around a 40-line `extendModules`. The template, all-features and vm check derivations are identical to before (x86_64 and aarch64), so both evaluated systems are byte-identical. Found the unwired `*Port` options (Open #1). Declined deduplications are under Won't fix. |
 | 2026-10-30 | `1f42dea` | Second `/install-spudbox` VM run, with the real plex.tv, usenet and NZBGeek accounts: 208/208 after re-running the setup units; NZBGeek's indexer test passes in Sonarr and Radarr, and SABnzbd shows all five servers active with no errors. It found `plex-config` adding the first library a few seconds after claiming Plex, which Plex refuses with 400 "the server is still starting up. Please retry later" (now retried for up to two minutes); `jellyseerr-config` then found no Plex libraries, which follows from that. The skill now says what each account is for, with sign-up links (Plex, a few usenet providers and indexers, registrars). Claiming the test VM left it on the real plex.tv account. |
 | 2026-10-30 | `be55ada`, `477f0c4` | `/install-spudbox` run end to end by a fresh headless Claude Code session against a QEMU VM (real 26.05 minimal ISO, UEFI, NVMe boot disk, blank data disk), with a person answering: it asked for everything it needed and caught the VM's low memory. It found: `deploy.sh install` on a new instance (no `flake.lock`) failed with a NAR hash mismatch, because nixos-install wrote the lock mid-evaluation (now locked first; earlier tests used `SPUDBOX_SRC`, which already did); `sonarr-config` on first boot queried the database before Sonarr had created its tables ("no such table: Users"; `*arr-config` now waits for the table). The skill now expects the backup unit to show failed before Plex is set up (homepage can't restart), and apps restarted by a backup to need a minute. VM test 6/6. |
 | 2026-10-29 | `711caaf`..`1b6f22d` | README cut to a front page: the intro, a minimal Installation (Claude Code, then `/install-spudbox`) and the license. Everything else (requirements and a hardware guide, the apps, day to day, backups, settings, security model) is in `docs/GUIDE.md`, with the Claude Code login added. The install skill is the one set of install steps and assumes the person has read neither: a Step 0 checks hardware and accounts, it says where to find each secret, and walks through DNS, trusting the internal CA, first-run steps and day-to-day commands. `AGENTS.md` points other agents at the skill. |
@@ -210,4 +212,6 @@ Don't re-raise these unless the setup changes.
 | Bazarr stores an unsalted MD5 password | It's Bazarr's own format. |
 | No scheduled Sonarr/Radarr library rescan (2026-10-23) | Spares the HDD; manual Refresh when files change outside the apps. |
 | `claudeCode` as a superuser gives Claude root | Documented on the option; it's the instance owner's call. |
+| Shared helpers for small repeated snippets (2026-11-15): the `LoadCredential` mapping (homepage, sabnzbd, media-fixup), `json = escapeShellArg (toJSON ...)` (mkArrConfig, jellyseerr), `uniqueDevices` (homepage, drive-check), `read_secret`/`read_file` in the Python scripts | Each is a one-liner. A shared home (a Nix lib module argument, a Python module on every script's path) costs more to follow than the repetition does. |
+| Unifying media-fixup's Sonarr/Radarr `rescan` branches, or the units listed in `module.nix`'s `RequiresMountsFor` and `create-dirs.before` (2026-11-15) | The branches differ in endpoint, jq filter and command; the two unit lists differ (Bazarr is only in the first), so deriving one from the other would change unit ordering. |
 | Declarative boot-disk partitioning with disko (2026-10-27) | The step it would remove is already automated (`scripts/partition-boot-disk.sh`, run by the install skill, tested in a VM). disko would add a second, untested path and a flake input, and conflict with existing installs' generated `fileSystems`. |
