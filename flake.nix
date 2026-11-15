@@ -85,6 +85,13 @@
       checks = forAllSystems (
         system:
         let
+          pkgs = nixpkgs.legacyPackages.${system};
+          # evaluates NAME NIXOS: a check that NIXOS evaluates (its drvPath in a file).
+          evaluates =
+            name: nixos:
+            pkgs.writeText name (
+              builtins.unsafeDiscardStringContext nixos.config.system.build.toplevel.drvPath
+            );
           example = lib.nixosSystem {
             modules = [
               ./module.nix
@@ -101,62 +108,59 @@
           };
         in
         {
-          template = nixpkgs.legacyPackages.${system}.writeText "spudbox-template-eval" (
-            builtins.unsafeDiscardStringContext example.config.system.build.toplevel.drvPath
-          );
+          template = evaluates "spudbox-template-eval" example;
         }
         # And with every optional feature on (media-fixup is x86_64 only),
         # and a fresh install booted in a VM (tests/vm.nix; several minutes).
         // lib.optionalAttrs (system == "x86_64-linux") {
           vm = import ./tests/vm.nix {
-            pkgs = nixpkgs.legacyPackages.${system};
+            inherit pkgs;
             module = self.nixosModules.default;
           };
 
-          all-features = nixpkgs.legacyPackages.${system}.writeText "spudbox-all-features-eval" (
-            builtins.unsafeDiscardStringContext
-              (example.extendModules {
-                modules = [
-                  {
-                    spudbox = {
-                      tls = lib.mkForce "cloudflare";
-                      usenet.servers = [ "news.example.com" ];
-                      indexers = [
-                        {
-                          name = "Example";
-                          url = "https://indexer.example.com/";
-                        }
-                      ];
-                      subtitleProviders = [
-                        "opensubtitlescom"
-                        "assrt"
-                      ];
-                      storageDrives = [
-                        {
-                          device = "/dev/disk/by-id/ata-EXAMPLE";
-                          partition = "/dev/disk/by-id/ata-EXAMPLE-part1";
-                          mount = "/mnt/storage1";
-                        }
-                      ];
-                      pushover.enable = true;
-                      offsiteBackup = {
-                        enable = true;
-                        repository = "s3:https://example.r2.cloudflarestorage.com/backups";
-                      };
-                      hddSpindown.enable = true;
-                      mediaFixup.enable = true;
-                      homebridge = {
-                        enable = true;
-                        dummySwitches = [ "Example" ];
-                      };
-                      claudeCode = {
-                        enable = true;
-                        user = "alice";
-                      };
+          all-features = evaluates "spudbox-all-features-eval" (
+            example.extendModules {
+              modules = [
+                {
+                  spudbox = {
+                    tls = lib.mkForce "cloudflare";
+                    usenet.servers = [ "news.example.com" ];
+                    indexers = [
+                      {
+                        name = "Example";
+                        url = "https://indexer.example.com/";
+                      }
+                    ];
+                    subtitleProviders = [
+                      "opensubtitlescom"
+                      "assrt"
+                    ];
+                    storageDrives = [
+                      {
+                        device = "/dev/disk/by-id/ata-EXAMPLE";
+                        partition = "/dev/disk/by-id/ata-EXAMPLE-part1";
+                        mount = "/mnt/storage1";
+                      }
+                    ];
+                    pushover.enable = true;
+                    offsiteBackup = {
+                      enable = true;
+                      repository = "s3:https://example.r2.cloudflarestorage.com/backups";
                     };
-                  }
-                ];
-              }).config.system.build.toplevel.drvPath
+                    hddSpindown.enable = true;
+                    mediaFixup.enable = true;
+                    homebridge = {
+                      enable = true;
+                      dummySwitches = [ "Example" ];
+                    };
+                    claudeCode = {
+                      enable = true;
+                      user = "alice";
+                    };
+                  };
+                }
+              ];
+            }
           );
         }
       );
