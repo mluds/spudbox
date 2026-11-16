@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Moves services/plex.json to the newest public Plex Media Server release:
-# its version and the SRI hashes of its amd64 and arm64 .debs. Prints the new
-# version, or nothing when it's already current. Needs curl, jq and nix.
-# Run daily by .github/workflows/update-plex.yml.
+# its version and the SRI hashes of its amd64 and arm64 .debs. Prints a commit
+# message, or nothing when it's already current. Needs curl, jq and nix.
+# Run daily by scripts/update.sh.
 set -euo pipefail
 shopt -s inherit_errexit # a failed check inside $(hash ...) stops the script
 
@@ -40,4 +40,4 @@ arm64=$(hash arm64)
 jq -n --arg version "$version" --arg amd64 "$amd64" --arg arm64 "$arm64" \
   '{version: $version, hashes: {amd64: $amd64, arm64: $arm64}}' >"$PIN.tmp"
 mv "$PIN.tmp" "$PIN"
-echo "$version"
+echo "Plex $version"

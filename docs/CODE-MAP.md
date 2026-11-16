@@ -28,7 +28,7 @@ enables them.
 
 | Path | What it does |
 | --- | --- |
-| `flake.nix` | `nixosModules.default`, `lib.mkSystem`, `templates.default`, lint `devShell`, `checks.*.template`. One `nixpkgs` input. |
+| `flake.nix` | `nixosModules.default`, `lib.mkSystem`, `templates.default`, lint `devShell`, `checks.*.template`, x86_64 `all-features`, `vm`, `caddy-cloudflare` (built). One `nixpkgs` input. |
 | `module.nix` | Imports, base packages, nix GC (5 generations), SSH (keys only), sudo, firewall, users, IPv6 off (`networkmanager-ipv6-off` sets every wired NetworkManager profile to `ipv6.method=disabled`). `create-dirs` oneshot: media dirs (non-recursive), secrets perms, backup dir. Apps that use the pools get `RequiresMountsFor`. `spudbox-test`. |
 | `storage.nix` | Mounts the XFS data disks (`nofail`), pools them with mergerfs. `ensure-partition-*` formats a blank disk before its mount. hdparm udev rule. `smartd` on every disk (skips sleeping ones); with `pushover`, its warnings go out through `notify-failure@smartd`. |
 | `common/options.nix` | Every setting (`spudbox.*`) and its default; `spudbox.features`. The internal `revision` and `onFailure` are declared next to their code (`env.nix`, `notify.nix`). |
@@ -37,7 +37,7 @@ enables them.
 | `common/helpers.nix` | The `helpers` module arg: `read-secret`, `wait-for-http`. |
 | `services/caddy.nix` | Reverse proxy per subdomain (`<name>` to `spudbox.<name>Port`), LAN-only (`remote_ip private_ranges`). `tls`: Cloudflare DNS-challenge wildcard cert (`caddy-config` writes the token env file) or `local_certs`. Sandboxed: only `CAP_NET_BIND_SERVICE`. |
 | `services/hardening.nix` | Shared systemd sandbox settings, merged into units that handle untrusted input. |
-| `services/plex.nix` + `plex-config.py` | Plex at the version in `plex.json` (an overlay, ahead of nixpkgs; bumped daily by `update-plex.yml`). GPU-only device access, no capabilities; plus token sign-in, claiming an unclaimed server for the account (a plex.tv claim token posted to the local `/myplex/claim`), libraries and remote-access settings. `ExecStop` signals Plex itself, not the FHS env's `bwrap`, so it stops cleanly. |
+| `services/plex.nix` + `plex-config.py` | Plex at the version in `plex.json` (an overlay, ahead of nixpkgs; bumped daily by `update.yml`). GPU-only device access, no capabilities; plus token sign-in, claiming an unclaimed server for the account (a plex.tv claim token posted to the local `/myplex/claim`), libraries and remote-access settings. `ExecStop` signals Plex itself, not the FHS env's `bwrap`, so it stops cleanly. |
 | `services/tautulli.nix` + `tautulli-config.py` | Rewrites `config.ini` (login hash, Plex link). Exports the API key. |
 | `services/sabnzbd.nix` | SABnzbd via NixOS `settings` + `secretValues`; servers from `usenet.*`. Hourly `sabnzbd-resume` (no `Requires=`; exits 0 if SABnzbd is down). |
 | `services/transmission.nix` | Transmission 4 + Flood UI. RPC credentials built in `ExecStartPre`. |
@@ -59,8 +59,8 @@ enables them.
 | `services/servarr/jellyseerr.nix` | seerr under a fixed user, sandboxed, config always in `/var/lib/jellyseerr/config`. First-run setup, Plex/arr links, Pushover. |
 | `test.sh` | About 250 server checks, gated on `FEATURES`. Installed as `spudbox-test`. |
 | `tests/vm.nix` | `checks.x86_64-linux.vm`: a fresh install of the template's settings in a VM, offline, with a blank data disk: secrets, disk format + pool, setup units, IPv6, Caddy with its CA, anonymous API refused, backup then `spudbox-restore`. Several minutes. |
-| `.github/workflows/check.yml` | CI on every push: lint, the two evaluation checks, the VM test (KVM). Also callable (`workflow_call` with a `ref`). |
-| `.github/workflows/update-plex.yml` + `scripts/update-plex.sh` | Daily: bump `services/plex.json` to plex.tv's newest release (SHA-1 checked), commit to `update-plex`, run `check.yml` on it, fast-forward `main`. |
+| `.github/workflows/check.yml` | CI on every push: lint, the two evaluation checks, the Caddy plugin build, the VM test (KVM). Also callable (`workflow_call` with a `ref`). |
+| `.github/workflows/update.yml` + `scripts/update*.sh` | Daily: `update.sh` runs `update-{nixpkgs,caddy,plex,homebridge}.sh` (one commit each, a failed one skipped) on the `update` branch, then `check.yml` on it, then `main` fast-forwards through the refs API. Pins: `flake.lock`, `services/{caddy,plex,homebridge}.json`. See CLAUDE.md "Pinned versions". |
 | `lint.sh` + `ruff.toml`, `_typos.toml`, `.gitleaks.toml` | statix, deadnix, nixfmt, shellcheck, ruff check/format, gitleaks, typos (`nix develop -c ./lint.sh`). |
 | `template/` | A new instance: `flake.nix`, example `spudbox.nix`, placeholder `hardware.nix`, `deploy.sh` (+ `install`, `hardware`, `update`, `secret NAME`; `SSH_OPTS`; refuses to deploy a checkout behind `origin`), `deploy.env`, `secrets/README.md`, `.github/workflows/update-lock.yml` (daily `nix flake update spudbox`, evaluated, committed). |
 | `scripts/partition-boot-disk.sh` | Erases and partitions the boot disk on the NixOS installer (ESP + ext4, mounted at `/mnt`). Refuses off the installer (`/iso`), on a disk with anything mounted, or without `CONFIRM=<disk name>`. Mounts with explicit types (the installer may not have ext4 loaded). |
@@ -181,10 +181,14 @@ enables them.
 - `claude-remote-control` is never restarted by a switch, because a deploying
   Claude session lives in it. Changes to it apply at the next boot or after
   `sudo systemctl restart claude-remote-control` over SSH.
-- The update chain, all daily (times in New York): `update-plex` (module,
+- The update chain, all daily (times in New York): `update` (module,
   ~01:15) → `update-lock` (instance, ~02:45) → `spudbox-auto-update` (server,
   04:30). Bot pushes use `GITHUB_TOKEN`, which doesn't trigger other
-  workflows: that's why `update-plex` calls `check.yml` itself.
+  workflows: that's why `update` calls `check.yml` itself.
+- CI never runs Homebridge, and evaluates rather than builds the
+  all-features system: the Caddy plugin is the one piece of it built there
+  (its hash breaks on nixpkgs bumps). A bad Homebridge image shows up only
+  in the server's `spudbox-test`, which rolls the update back.
 - `spudbox-auto-update` runs `nixos-rebuild switch` from inside a unit, so
   it has `restartIfChanged = false` (like `claude-remote-control`).
   It runs `spudbox-test` with `/run/wrappers/bin` and the system profile on

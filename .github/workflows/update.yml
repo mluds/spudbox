@@ -1,9 +1,10 @@
-name: update-plex
+name: update
 
-# Daily: move services/plex.json to the newest Plex release
-# (scripts/update-plex.sh). The bump is committed to the update-plex branch,
-# gets the same checks as any push (check.yml), and main fast-forwards to it
-# only if they pass. Instances pick it up with their flake.lock.
+# Daily: bring every pin up to date (scripts/update.sh: nixpkgs within its
+# channel, the Caddy plugin and its hash, Plex, Homebridge), one commit each.
+# They go to the update branch, get the same checks as any push (check.yml),
+# and main fast-forwards to them only if those pass. Instances pick them up
+# with their flake.lock.
 on:
   schedule:
     - cron: "17 6 * * *" # about 1 am in New York
@@ -12,29 +13,33 @@ on:
 permissions:
   contents: write
 
-concurrency: update-plex
+concurrency: update
 
 jobs:
   bump:
     runs-on: ubuntu-latest
     outputs:
-      sha: ${{ steps.commit.outputs.sha }}
+      sha: ${{ steps.push.outputs.sha }}
+      partial: ${{ steps.update.outputs.partial }}
     steps:
       - uses: actions/checkout@v5
       - uses: cachix/install-nix-action@v31
-      - name: Bump services/plex.json
-        id: bump
-        run: echo "version=$(./scripts/update-plex.sh)" >> "$GITHUB_OUTPUT"
-      - name: Commit to the update-plex branch
-        id: commit
-        if: steps.bump.outputs.version != ''
-        env:
-          VERSION: ${{ steps.bump.outputs.version }}
+      # Exit 2: an updater failed and was skipped; the others still go in,
+      # and the run is marked failed at the end.
+      - name: Update the pins
+        id: update
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -qam "Plex $VERSION"
-          git push --force origin HEAD:refs/heads/update-plex
+          rc=0
+          scripts/update.sh || rc=$?
+          [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ] || exit "$rc"
+          echo "partial=$([ "$rc" -eq 2 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Push to the update branch
+        id: push
+        run: |
+          [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ] || exit 0
+          git push --force origin HEAD:refs/heads/update
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   check:
@@ -50,11 +55,21 @@ jobs:
     steps:
       # Through the API, which refuses anything but a fast-forward (and needs
       # no checkout): if main moved meanwhile, this fails and tomorrow's run
-      # bumps the new main.
+      # updates the new main.
       - name: Fast-forward main
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ needs.bump.outputs.sha }}
         run: |
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/main" -f sha="$SHA" -F force=false
-          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/update-plex"
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/update"
+
+  # So a skipped updater shows up as a failed run (and GitHub's email).
+  report:
+    needs: [bump, merge]
+    if: always() && needs.bump.outputs.partial == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::An updater failed and was skipped; see the bump job's log."
+          exit 1

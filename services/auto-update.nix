@@ -8,7 +8,7 @@
 # autoUpdate: every night, deploy the instance repository's newest commit on
 # its branch, as `./deploy.sh` would (no secrets: those stay as deployed),
 # then run spudbox-test and roll back if it fails. With daily GitHub Actions
-# bumping Plex in the module (update-plex.yml) and the module in the
+# updating the module's pins (update.yml) and the module in the
 # instance's flake.lock (template/.github/workflows/update-lock.yml), the
 # server keeps itself current.
 #

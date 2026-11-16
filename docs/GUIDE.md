@@ -135,10 +135,13 @@ or revert and deploy again.
 
 ## Staying up to date
 
-Plex is pinned ahead of NixOS's own package, in `services/plex.json`. A daily
-GitHub Action in the spudbox repository (`update-plex.yml`) bumps it to each
-new Plex release, and `main` moves to the bump only once the usual checks
-pass, including the VM test.
+A daily GitHub Action in the spudbox repository (`update.yml`) updates
+everything spudbox pins: nixpkgs within its NixOS release (security fixes
+and updates for every app it packages, and the kernel), Plex (ahead of
+NixOS's own package), Caddy's Cloudflare plugin and Homebridge. `main` moves
+to the updates only once the usual checks pass, including the VM test. Moving
+to the next NixOS release (e.g. 26.05 to 26.11) stays a deliberate, manual
+step.
 
 To have your server follow by itself:
 
@@ -172,7 +175,8 @@ or a commit that isn't on it, it leaves the server alone, and alerts after
 three days of that. Since the server may run a newer `flake.lock` than your
 checkout, `./deploy.sh` refuses to deploy a checkout that's behind `origin`:
 pull first. A new secret still needs `./deploy.sh` (or the tests fail and the
-update rolls back).
+update rolls back). A new kernel takes effect at the next reboot; the server
+doesn't reboot itself.
 
 ## Backups and restores
 

@@ -105,7 +105,8 @@ Commit only on a green lint and test run.
 ## Upgrades
 
 Everything from `nixpkgs` moves together with this repo's `nixpkgs` input;
-instances follow it.
+instances follow it. Within the channel that's automatic (below); a channel
+jump is by hand:
 
 1. Bump the channel in `flake.nix` (e.g. `nixos-26.05` → `nixos-26.11`) and
    `nix flake update` (on any machine with Nix).
@@ -121,9 +122,9 @@ instances follow it.
 
 All seen on the 25.11→26.05 upgrade:
 
-- **Caddy vendor-hash mismatch**: `services/caddy.nix` pins a `withPlugins`
-  build `hash`. When Caddy core moves, Nix prints `specified:`/`got:`; paste
-  the `got:` value in. Required, not optional.
+- **Caddy vendor-hash mismatch**: `services/caddy.json` pins the
+  `withPlugins` build `hash`. When Caddy core moves, the build fails with
+  `specified:`/`got:`; `scripts/update-caddy.sh` writes the new one.
 - **Flaky package test**: a package (e.g. `paho-mqtt`) fails its test suite
   while building from source because Hydra hasn't cached it yet. Nix doesn't
   cache failures; rebuild that derivation (`nix build '/nix/store/<hash>-<pkg>.drv^*'
@@ -135,17 +136,27 @@ All seen on the 25.11→26.05 upgrade:
   `grep -rn "X\.service\|services\.X\|systemctl.*X" .`
 - **Deprecation warnings** are non-fatal; fix opportunistically.
 
-### Hand-pinned versions (upgrade separately from nixpkgs)
+### Pinned versions (automatic)
 
-- **Plex**: automatic. `services/plex.nix`'s overlay reads
-  `services/plex.json`; `scripts/update-plex.sh` moves it to the newest
-  release on plex.tv (checking each `.deb` against plex.tv's SHA-1). The
-  daily `update-plex` workflow runs it, commits to the `update-plex` branch,
-  runs `check.yml` on that commit, and fast-forwards `main` if it passes. A
-  failed run is visible in the Actions tab (GitHub emails the workflow's
-  last editor); run the script by hand to see why.
-- **Caddy cloudflare-dns plugin**: `services/caddy.nix`, plugin ref + `hash`.
-- **Homebridge**: `services/homebridge.nix` pins the image by date tag +
-  digest. Pick the newest plain `YYYY-MM-DD` tag (not `alpha-`/`beta-`):
-  `curl -s "https://hub.docker.com/v2/repositories/homebridge/homebridge/tags/$TAG" | jq -r .digest`.
-  The deploy restarts Homebridge on the new image (`restartTriggers`).
+`.github/workflows/update.yml` runs `scripts/update.sh` daily: each updater
+below that finds something new makes one commit, on the `update` branch;
+`check.yml` (lint, evaluations, the Caddy plugin build, the VM test) runs on
+it, and `main` fast-forwards only if it passes. An updater that fails is
+skipped (the others still land) and the run is marked failed; GitHub emails
+the workflow's last editor. Run `scripts/update.sh` (clean tree; commits as
+you) or a single `scripts/update-<name>.sh` (prints a commit message, or
+nothing when current) by hand to see why. In order:
+
+- **nixpkgs** (`update-nixpkgs.sh`): `nix flake update nixpkgs`, within the
+  channel in `flake.nix`; the message lists the apps whose version changed.
+- **Caddy cloudflare-dns plugin** (`update-caddy.sh`, `services/caddy.json`):
+  the newest version on the Go proxy, and the hash of the build's Go modules,
+  which also changes when nixpkgs changes Caddy's build (hence after
+  nixpkgs). It builds with an empty hash to learn the real one, then again
+  to check it. `checks.x86_64-linux.caddy-cloudflare` builds it in CI.
+- **Plex** (`update-plex.sh`, `services/plex.json`): plex.tv's newest
+  public release, each `.deb` checked against plex.tv's SHA-1.
+- **Homebridge** (`update-homebridge.sh`, `services/homebridge.json`): the
+  newest plain `YYYY-MM-DD` image tag (not `alpha-`/`beta-`), by digest. CI
+  doesn't run Homebridge; the server's `spudbox-test` does. A deploy
+  restarts it on the new image (`restartTriggers`).

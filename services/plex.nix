@@ -23,8 +23,8 @@ let
   } (builtins.readFile ./plex-config.py);
 
   # Plex runs the newest release, ahead of nixpkgs: plex.json is the version
-  # and its .debs' hashes, which scripts/update-plex.sh rewrites (a daily
-  # GitHub Action runs it; see "Hand-pinned versions" in CLAUDE.md).
+  # and its .debs' hashes, which scripts/update-plex.sh rewrites (the daily
+  # update workflow runs it; see "Pinned versions" in CLAUDE.md).
   pin = lib.importJSON ./plex.json;
   debArch = {
     x86_64-linux = "amd64";
