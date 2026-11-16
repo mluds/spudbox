@@ -46,32 +46,6 @@ let
       chmod 0775 "${dir}"
     '');
 
-  # Plex is pinned by hand, ahead of nixpkgs; see "Hand-pinned versions" in
-  # CLAUDE.md.
-  plexOverlay = final: prev: {
-    plexRaw = prev.plexRaw.overrideAttrs (_: rec {
-      version = "1.43.4.10903-e5521bd8c";
-      src =
-        let
-          debs = {
-            x86_64-linux = {
-              arch = "amd64";
-              hash = "sha256-b2ocgzbXeeHyAVGmk0NJiEutb2pmsYorGJuW5Vw7Pts=";
-            };
-            aarch64-linux = {
-              arch = "arm64";
-              hash = "sha256-lF6G0FFPYUkrUWm76sbpGJKzNvaJXXhjK+wBe1kI5as=";
-            };
-          };
-          deb = debs.${final.stdenv.hostPlatform.system};
-        in
-        prev.fetchurl {
-          url = "https://downloads.plex.tv/plex-media-server-new/${version}/debian/plexmediaserver_${version}_${deb.arch}.deb";
-          inherit (deb) hash;
-        };
-    });
-  };
-
   # NetworkManager turns IPv6 back on for any profile with ipv6.method=auto,
   # and that can't be made a global default; so every ethernet profile gets
   # ipv6.method=disabled here (once; then it's saved in the profile).
@@ -202,10 +176,7 @@ in
   };
 
   i18n.defaultLocale = lib.mkDefault "en_US.UTF-8";
-  nixpkgs = {
-    overlays = [ plexOverlay ];
-    config.allowUnfree = true;
-  };
+  nixpkgs.config.allowUnfree = true;
 
   networking = {
     # IPv6 off (spudbox.disableIPv6): an ISP's global address would be

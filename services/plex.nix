@@ -21,8 +21,33 @@ let
     ];
     flakeIgnore = [ "E501" ];
   } (builtins.readFile ./plex-config.py);
+
+  # Plex runs the newest release, ahead of nixpkgs: plex.json is the version
+  # and its .debs' hashes, which scripts/update-plex.sh rewrites (a daily
+  # GitHub Action runs it; see "Hand-pinned versions" in CLAUDE.md).
+  pin = lib.importJSON ./plex.json;
+  debArch = {
+    x86_64-linux = "amd64";
+    aarch64-linux = "arm64";
+  };
 in
 {
+  nixpkgs.overlays = [
+    (final: prev: {
+      plexRaw = prev.plexRaw.overrideAttrs (_: {
+        inherit (pin) version;
+        src =
+          let
+            arch = debArch.${final.stdenv.hostPlatform.system};
+          in
+          prev.fetchurl {
+            url = "https://downloads.plex.tv/plex-media-server-new/${pin.version}/debian/plexmediaserver_${pin.version}_${arch}.deb";
+            hash = pin.hashes.${arch};
+          };
+      });
+    })
+  ];
+
   services.plex = {
     enable = true;
     user = "plex";
