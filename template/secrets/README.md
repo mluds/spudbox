@@ -33,6 +33,7 @@ the values yourself. `sudo spudbox-passwords` on the server prints the logins.
 | `admin/username` | The login name for every web UI (default `admin`) |
 | `<service>/password` | That web UI's password (sonarr, radarr, bazarr, sabnzbd, transmission, tautulli, audiobookshelf, homebridge) |
 | `sonarr/api-key`, `radarr/api-key`, `sabnzbd/api-key`, `sabnzbd/nzb-key` | API keys |
+| `auto-update/deploy-key` | With `autoUpdate`: the SSH key the server reads this repository with. Add its public half (`sudo ssh-keygen -y -f /var/lib/secrets/auto-update/deploy-key`) as a read-only deploy key. |
 | `restic/password` | Encrypts the backups. **Copy it into your password manager**: without it no backup can be restored. |
 | `users/<name>/hashed` | A password hash for a login user (`mkpasswd -m yescrypt`); without one, SSH keys only |
 | `users/<name>/plaintext` | Your own recovery copy of that password. Never copied to the server. |

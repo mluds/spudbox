@@ -29,7 +29,7 @@ enables them.
 | Path | What it does |
 | --- | --- |
 | `flake.nix` | `nixosModules.default`, `lib.mkSystem`, `templates.default`, lint `devShell`, `checks.*.template`. One `nixpkgs` input. |
-| `module.nix` | Imports, base packages, nix GC (5 generations), SSH (keys only), sudo, firewall, users, IPv6 off (`networkmanager-ipv6-off` sets every wired NetworkManager profile to `ipv6.method=disabled`). Plex overlay. `create-dirs` oneshot: media dirs (non-recursive), secrets perms, backup dir. Apps that use the pools get `RequiresMountsFor`. `spudbox-test`. |
+| `module.nix` | Imports, base packages, nix GC (5 generations), SSH (keys only), sudo, firewall, users, IPv6 off (`networkmanager-ipv6-off` sets every wired NetworkManager profile to `ipv6.method=disabled`). `create-dirs` oneshot: media dirs (non-recursive), secrets perms, backup dir. Apps that use the pools get `RequiresMountsFor`. `spudbox-test`. |
 | `storage.nix` | Mounts the XFS data disks (`nofail`), pools them with mergerfs. `ensure-partition-*` formats a blank disk before its mount. hdparm udev rule. `smartd` on every disk (skips sleeping ones); with `pushover`, its warnings go out through `notify-failure@smartd`. |
 | `common/options.nix` | Every setting (`spudbox.*`) and its default; `spudbox.features`. The internal `revision` and `onFailure` are declared next to their code (`env.nix`, `notify.nix`). |
 | `common/env.nix` | `/etc/spudbox/env` for `test.sh` and `deploy.sh`. |
@@ -37,7 +37,7 @@ enables them.
 | `common/helpers.nix` | The `helpers` module arg: `read-secret`, `wait-for-http`. |
 | `services/caddy.nix` | Reverse proxy per subdomain (`<name>` to `spudbox.<name>Port`), LAN-only (`remote_ip private_ranges`). `tls`: Cloudflare DNS-challenge wildcard cert (`caddy-config` writes the token env file) or `local_certs`. Sandboxed: only `CAP_NET_BIND_SERVICE`. |
 | `services/hardening.nix` | Shared systemd sandbox settings, merged into units that handle untrusted input. |
-| `services/plex.nix` + `plex-config.py` | Plex (GPU-only device access, no capabilities), plus token sign-in, claiming an unclaimed server for the account (a plex.tv claim token posted to the local `/myplex/claim`), libraries and remote-access settings. `ExecStop` signals Plex itself, not the FHS env's `bwrap`, so it stops cleanly. |
+| `services/plex.nix` + `plex-config.py` | Plex at the version in `plex.json` (an overlay, ahead of nixpkgs; bumped daily by `update-plex.yml`). GPU-only device access, no capabilities; plus token sign-in, claiming an unclaimed server for the account (a plex.tv claim token posted to the local `/myplex/claim`), libraries and remote-access settings. `ExecStop` signals Plex itself, not the FHS env's `bwrap`, so it stops cleanly. |
 | `services/tautulli.nix` + `tautulli-config.py` | Rewrites `config.ini` (login hash, Plex link). Exports the API key. |
 | `services/sabnzbd.nix` | SABnzbd via NixOS `settings` + `secretValues`; servers from `usenet.*`. Hourly `sabnzbd-resume` (no `Requires=`; exits 0 if SABnzbd is down). |
 | `services/transmission.nix` | Transmission 4 + Flood UI. RPC credentials built in `ExecStartPre`. |
@@ -49,6 +49,7 @@ enables them.
 | `services/drive-check.nix` + `drive-wakes.py` | `hddSpindown`: 5-minute timer that forces idle data HDDs into standby, logging each spin-down and wake. `drive-status-http` serves JSON for homepage. Resolves by-id paths for `/sys/block`. `drive-wake-trace` (bpftrace): every first disk request after 60 s of quiet, with the cgroups that asked a mergerfs pool for something in the 30 s before (a kprobe on `__fuse_simple_request`; the disk itself only sees mergerfs and kernel threads). `sudo drive-wakes [--since WHEN]` turns it into a timeline of wakes and their likely causes. `vm.vfs_cache_pressure = 10` keeps the pool's directory tree cached. |
 | `services/media-fixup.{nix,sh}` | `mediaFixup`: 15-minute timer, DV5 to HDR10, DV8 strip, SRT `<font>` cleanup. x86_64 + Intel iGPU. Sandboxed as user `media-fixup` (CAP_CHOWN only, writes only `<storageDir>/data`). |
 | `services/notify.nix` | Lists the setup oneshots and timer jobs. With `pushover`, `notify-failure@` sends a Pushover alert with the journal tail when one fails (`spudbox.onFailure`). Setup oneshots get `Type=oneshot` and `RemainAfterExit` here. Exports `ALERT_UNITS` and `SETUP_UNITS`. |
+| `services/auto-update.nix` | `autoUpdate`: nightly timer (04:30, after the backup) that fetches the instance repo with a generated deploy key (`secrets/auto-update/deploy-key`), and if the branch moved past the running `REVISION`, deploys it like `deploy.sh` (tree without `.git`/`secrets`, `.revision`), waits out Plex streams (up to 3 h), runs `spudbox-test` (twice if needed) and rolls back the system profile if it fails. Never restarted by a switch. Skips (and alerts after 3 days) when running a `-dirty` or off-branch revision; doesn't retry a failed commit. Exports `AUTO_UPDATE_REPOSITORY`/`_BRANCH`. |
 | `services/claude-code.nix` | `claudeCode`: Claude Code Remote Control as `claudeCode.user`. Never restarted by a switch (`restartIfChanged = false`). Status-screen redraws filtered from the journal. |
 | `services/servarr/mkArrConfig.nix` | Returns the Sonarr/Radarr module: the app (loopback only) plus its `*-config` unit (login, `indexers`, SABnzbd, quality, custom formats, folder import). |
 | `services/servarr/{sonarr,radarr}.nix` | The apps plus their mkArrConfig args. Radarr also has the `radarr-auto-import` timer: skips permanently rejected files, tries each download once, no `Requires=` on Radarr. No scheduled disk rescan (`rescanAfterRefresh = "afterManual"`). |
@@ -58,9 +59,10 @@ enables them.
 | `services/servarr/jellyseerr.nix` | seerr under a fixed user, sandboxed, config always in `/var/lib/jellyseerr/config`. First-run setup, Plex/arr links, Pushover. |
 | `test.sh` | About 250 server checks, gated on `FEATURES`. Installed as `spudbox-test`. |
 | `tests/vm.nix` | `checks.x86_64-linux.vm`: a fresh install of the template's settings in a VM, offline, with a blank data disk: secrets, disk format + pool, setup units, IPv6, Caddy with its CA, anonymous API refused, backup then `spudbox-restore`. Several minutes. |
-| `.github/workflows/check.yml` | CI on every push: lint, the two evaluation checks, the VM test (KVM). |
+| `.github/workflows/check.yml` | CI on every push: lint, the two evaluation checks, the VM test (KVM). Also callable (`workflow_call` with a `ref`). |
+| `.github/workflows/update-plex.yml` + `scripts/update-plex.sh` | Daily: bump `services/plex.json` to plex.tv's newest release (SHA-1 checked), commit to `update-plex`, run `check.yml` on it, fast-forward `main`. |
 | `lint.sh` + `ruff.toml`, `_typos.toml`, `.gitleaks.toml` | statix, deadnix, nixfmt, shellcheck, ruff check/format, gitleaks, typos (`nix develop -c ./lint.sh`). |
-| `template/` | A new instance: `flake.nix`, example `spudbox.nix`, placeholder `hardware.nix`, `deploy.sh` (+ `install`, `hardware`, `update`, `secret NAME`; `SSH_OPTS`), `deploy.env`, `secrets/README.md`. |
+| `template/` | A new instance: `flake.nix`, example `spudbox.nix`, placeholder `hardware.nix`, `deploy.sh` (+ `install`, `hardware`, `update`, `secret NAME`; `SSH_OPTS`; refuses to deploy a checkout behind `origin`), `deploy.env`, `secrets/README.md`, `.github/workflows/update-lock.yml` (daily `nix flake update spudbox`, evaluated, committed). |
 | `scripts/partition-boot-disk.sh` | Erases and partitions the boot disk on the NixOS installer (ESP + ext4, mounted at `/mnt`). Refuses off the installer (`/iso`), on a disk with anything mounted, or without `CONFIRM=<disk name>`. Mounts with explicit types (the installer may not have ext4 loaded). |
 | `.claude/skills/install-spudbox/` | The `/install-spudbox` Claude Code skill: settings → instance repo → secrets (typed by the person, never through the chat) → installer → partition (typed confirmation) → `deploy.sh install` → first-run steps. Resumable, and self-contained: it asks for and explains everything, so a newcomer never needs the README. Keep it in step with `deploy.sh` and `docs/GUIDE.md`'s Requirements. |
 | `README.md`, `docs/GUIDE.md` | The front page (what spudbox is, how to start the install) and the user guide (requirements, apps, day to day, backups, Claude Code login, settings, security model). |
@@ -179,6 +181,15 @@ enables them.
 - `claude-remote-control` is never restarted by a switch, because a deploying
   Claude session lives in it. Changes to it apply at the next boot or after
   `sudo systemctl restart claude-remote-control` over SSH.
+- The update chain, all daily (times in New York): `update-plex` (module,
+  ~01:15) → `update-lock` (instance, ~02:45) → `spudbox-auto-update` (server,
+  04:30). Bot pushes use `GITHUB_TOKEN`, which doesn't trigger other
+  workflows: that's why `update-plex` calls `check.yml` itself.
+- `spudbox-auto-update` runs `nixos-rebuild switch` from inside a unit, so
+  it has `restartIfChanged = false` (like `claude-remote-control`).
+  It compares only the instance revision: a deploy with `SPUDBOX_SRC` (an
+  unreleased module) is replaced by the branch the next time the branch
+  moves, so push module work before the instance's next `update-lock`.
 - Building from a git worktree on the server: use a `path:` flake ref
   (`path:.#default`); a plain `.#` git flake fails there with libgit2
   "object not found".

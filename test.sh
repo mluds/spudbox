@@ -183,6 +183,7 @@ test_services() {
   done
   if has hdd-spindown; then check_service check-drive-status.timer; fi
   if has media-fixup; then check_service media-fixup.timer; fi
+  if has auto-update; then check_service spudbox-auto-update.timer; fi
 }
 
 test_ports() {
@@ -256,6 +257,12 @@ test_integrations() {
   section "Integrations"
 
   local app category indexer provider
+  # Its deploy key must be added to the repository (docs/GUIDE.md)
+  if has auto-update; then
+    check "auto-update reads $AUTO_UPDATE_REPOSITORY ($AUTO_UPDATE_BRANCH)" sudo env \
+      GIT_SSH_COMMAND="ssh -i $SECRETS_DIR/auto-update/deploy-key -o IdentitiesOnly=yes -o BatchMode=yes" \
+      git ls-remote --exit-code "$AUTO_UPDATE_REPOSITORY" "refs/heads/$AUTO_UPDATE_BRANCH"
+  fi
   for app in radarr sonarr; do
     check_json "$app -> sabnzbd" 'any(.[]; .name | test("SABnzbd"))' "$app" downloadclient
     for indexer in "${INDEXERS[@]}"; do

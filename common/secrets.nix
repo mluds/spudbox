@@ -41,7 +41,8 @@ let
     "audiobookshelf/token-secret" = "password";
     "restic/password" = "password";
   }
-  // lib.genAttrs (map (svc: "${svc}/password") passwordServices) (_: "password");
+  // lib.genAttrs (map (svc: "${svc}/password") passwordServices) (_: "password")
+  // lib.optionalAttrs cfg.autoUpdate.enable { "auto-update/deploy-key" = "ssh-key"; };
 
   required =
     lib.optionals (cfg.usenet.servers != [ ]) [
@@ -63,7 +64,10 @@ let
 
   generateScript = pkgs.writeShellApplication {
     name = "spudbox-secrets";
-    runtimeInputs = with pkgs; [ coreutils ];
+    runtimeInputs = with pkgs; [
+      coreutils
+      openssh
+    ];
     text = ''
       umask 077
       install -d -m 700 ${secretsDir}
@@ -79,6 +83,13 @@ let
           # SIGPIPE under pipefail.
           password) head -c 1024 /dev/urandom | tr -dc 'A-Za-z0-9' | cut -c1-32 | tr -d '\n' ;;
           hex) od -An -tx1 -N16 /dev/urandom | tr -d ' \n' ;;
+          # A private key; its public half: ssh-keygen -y -f FILE
+          ssh-key)
+            rm -f "$1.tmp"
+            ssh-keygen -q -t ed25519 -N "" -C spudbox-auto-update -f "$1.tmp"
+            cat "$1.tmp"
+            rm -f "$1.tmp" "$1.tmp.pub"
+            ;;
         esac > "$1"
         echo "Generated $1"
       }

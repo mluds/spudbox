@@ -74,7 +74,8 @@ let
   ++ [
     "sabnzbd-resume"
     "radarr-auto-import"
-  ];
+  ]
+  ++ lib.optional cfg.autoUpdate.enable "spudbox-auto-update";
 in
 {
   options.spudbox.onFailure = lib.mkOption {

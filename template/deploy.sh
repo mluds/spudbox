@@ -57,6 +57,23 @@ check_unlocked() {
   fi
 }
 
+# The server can run a newer commit than this checkout: the update-lock
+# workflow commits a flake.lock update daily, and spudbox.autoUpdate deploys
+# it. Deploying a checkout without it would roll the server back.
+check_not_behind() {
+  local upstream
+  upstream=$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null) || upstream=origin/main
+  git rev-parse -q --verify "$upstream" >/dev/null || return 0
+  if ! GIT_TERMINAL_PROMPT=0 git fetch -q origin 2>/dev/null; then
+    echo "WARNING: couldn't fetch origin; not checking for newer commits" >&2
+    return 0
+  fi
+  if ! git merge-base --is-ancestor "$upstream" HEAD; then
+    echo "ERROR: $upstream has commits this checkout doesn't (a flake.lock update the server may already run); pull or rebase first" >&2
+    exit 1
+  fi
+}
+
 check_hardware() {
   if grep -q SPUDBOX-PLACEHOLDER hardware.nix; then
     echo "ERROR: hardware.nix is still the template's; run ./deploy.sh hardware root@<ip> first" >&2
@@ -91,6 +108,7 @@ copy_tree() {
 sync_files() {
   check_unlocked
   check_hardware
+  check_not_behind
   if [ ! -f flake.lock ] && [ -z "$SPUDBOX_SRC" ]; then
     echo "ERROR: no flake.lock; run ./deploy.sh update first" >&2
     exit 1

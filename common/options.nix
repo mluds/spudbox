@@ -274,6 +274,31 @@ in
       };
     };
 
+    autoUpdate = {
+      enable = mkEnableOption ''
+        deploying the newest commit of the instance repository every night,
+        then running spudbox-test and rolling back if it fails. The server
+        reads the repository with a deploy key it generates
+        (secrets/auto-update/deploy-key): add its public key to the
+        repository, read-only. See docs/GUIDE.md
+      '';
+      repository = mkOption {
+        type = types.str;
+        example = "git@github.com:you/spudbox-home.git";
+        description = "The instance repository, as an SSH URL the deploy key can read.";
+      };
+      branch = mkOption {
+        type = types.str;
+        default = "main";
+        description = "The branch to deploy.";
+      };
+      time = mkOption {
+        type = types.str;
+        default = "04:30";
+        description = "When to check, as a systemd OnCalendar expression (server time). After the 02:30 backup.";
+      };
+    };
+
     claudeCode = {
       enable = mkEnableOption ''
         Claude Code Remote Control as a service, so the server can be driven
@@ -312,6 +337,7 @@ in
     ++ lib.optional cfg.hddSpindown.enable "hdd-spindown"
     ++ lib.optional cfg.mediaFixup.enable "media-fixup"
     ++ lib.optional cfg.homebridge.enable "homebridge"
+    ++ lib.optional cfg.autoUpdate.enable "auto-update"
     ++ lib.optional cfg.claudeCode.enable "claude-code"
     ++ lib.optional cfg.disableIPv6 "no-ipv6"
     ++ lib.optional (cfg.tls == "cloudflare") "tls-cloudflare";

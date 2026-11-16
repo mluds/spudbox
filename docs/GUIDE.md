@@ -133,6 +133,47 @@ secret changed, the setup units re-run so the apps pick it up.
 To undo a bad deploy: `ssh you@server sudo nixos-rebuild switch --rollback`,
 or revert and deploy again.
 
+## Staying up to date
+
+Plex is pinned ahead of NixOS's own package, in `services/plex.json`. A daily
+GitHub Action in the spudbox repository (`update-plex.yml`) bumps it to each
+new Plex release, and `main` moves to the bump only once the usual checks
+pass, including the VM test.
+
+To have your server follow by itself:
+
+1. Copy `.github/workflows/update-lock.yml` from the template into your
+   instance repository (new instances have it). Daily, it moves `flake.lock`
+   to the newest spudbox, if your settings still evaluate with it, and
+   commits that.
+2. Set `autoUpdate` in `spudbox.nix`, with your repository's SSH URL, and
+   deploy:
+   ```nix
+   autoUpdate = {
+     enable = true;
+     repository = "git@github.com:you/spudbox-home.git";
+   };
+   ```
+3. Give the server read access: the deploy brought a key in
+   `/var/lib/secrets/auto-update/deploy-key`. Print its public half with
+   `sudo ssh-keygen -y -f /var/lib/secrets/auto-update/deploy-key` and add it
+   to the repository as a read-only deploy key (GitHub: Settings → Deploy
+   keys). `spudbox-test` checks it works.
+
+Every night at 04:30 (`autoUpdate.time`) the server fetches the branch and,
+if it moved, deploys it the way `./deploy.sh` does, minus secrets (they stay
+as you last deployed them). It waits up to three hours for Plex streams to
+end, runs `spudbox-test`, and rolls back if that fails; a commit that failed
+isn't tried again. With `pushover`, a failure sends an alert. `journalctl -u
+spudbox-auto-update` shows what it did.
+
+It only moves forward along the branch. If you deployed uncommitted changes
+or a commit that isn't on it, it leaves the server alone, and alerts after
+three days of that. Since the server may run a newer `flake.lock` than your
+checkout, `./deploy.sh` refuses to deploy a checkout that's behind `origin`:
+pull first. A new secret still needs `./deploy.sh` (or the tests fail and the
+update rolls back).
+
 ## Backups and restores
 
 `restic-backups-local` runs nightly at 02:30: it stops the apps, backs up
@@ -198,6 +239,7 @@ descriptions and defaults. The main ones:
 | `mediaFixup.enable` | off | Fix Dolby Vision profile 5 and 8 files (Intel iGPU) |
 | `homebridge.enable` | off | HomeKit bridge in Docker |
 | `claudeCode.enable` | off | Claude Code Remote Control as a service (see its security note) |
+| `autoUpdate.enable` | off | Deploy the instance repository's newest commit nightly, test, roll back on failure (see Staying up to date) |
 | `homepage.*` | | Dashboard title and bookmarks |
 | `*Port` | | Each app's (loopback) port |
 
@@ -213,6 +255,9 @@ there too (`time.timeZone`, extra packages, ...).
   command line; services that need one get it through systemd's
   `LoadCredential`.
 - Apps that handle downloaded files run sandboxed (`systemd-analyze security`).
+- With `autoUpdate`, the server can read (not write) your instance
+  repository with its own deploy key. Whoever can push to that branch, or to
+  the spudbox repository it follows, can change what runs on the server.
 - `spudbox-test` checks all of the above on every deploy.
 
 ## Working on spudbox

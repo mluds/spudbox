@@ -30,8 +30,8 @@ before any cleanup, hardening, or review, and keep it current:
   `spudbox.revision`), `templates.default`, a `devShell` with the lint tools,
   and `checks.*.template` (the template's settings evaluate to a full system).
 - `module.nix`: imports every module; base system (packages, nix GC, SSH,
-  sudo, firewall, users, IPv6), `create-dirs`, the hand-pinned Plex overlay,
-  and `spudbox-test` (= `test.sh`) on the PATH.
+  sudo, firewall, users, IPv6), `create-dirs`, and `spudbox-test`
+  (= `test.sh`) on the PATH.
 - `common/options.nix`: every `spudbox.*` option with its default. Optional
   features are `spudbox.<feature>.enable`, collected into
   `spudbox.features` (→ `FEATURES` for `test.sh`).
@@ -111,12 +111,11 @@ instances follow it.
    `nix flake update` (on any machine with Nix).
 2. Build against an instance and deploy with `SPUDBOX_SRC` (above); work
    through failures (below).
-3. **Also bump Plex** (below) in the same pass so it doesn't silently fall
-   behind.
-4. Never change `system.stateVersion` here: it's per instance, set once at
+3. Never change `system.stateVersion` here: it's per instance, set once at
    install. Modules that gate migrations on it (seerr's config dir) are
    pinned to one path in `services/servarr/jellyseerr.nix`.
-5. Commit and push; instances run `./deploy.sh update`.
+4. Commit and push; instances run `./deploy.sh update` (or their
+   `update-lock` workflow picks it up).
 
 ### Things that commonly break on a channel jump
 
@@ -138,16 +137,13 @@ All seen on the 25.11→26.05 upgrade:
 
 ### Hand-pinned versions (upgrade separately from nixpkgs)
 
-- **Plex**: overlay in `module.nix`.
-  1. Latest version: `curl -s https://plex.tv/api/downloads/5.json | jq -r '.computer.Linux.version'`.
-  2. SRI hashes of the `.deb`s, `amd64` and `arm64`:
-     ```bash
-     VER=<version>
-     for ARCH in amd64 arm64; do
-       nix store prefetch-file --json "https://downloads.plex.tv/plex-media-server-new/${VER}/debian/plexmediaserver_${VER}_${ARCH}.deb" | jq -r .hash
-     done
-     ```
-  3. Update `version` and both `hash`es.
+- **Plex**: automatic. `services/plex.nix`'s overlay reads
+  `services/plex.json`; `scripts/update-plex.sh` moves it to the newest
+  release on plex.tv (checking each `.deb` against plex.tv's SHA-1). The
+  daily `update-plex` workflow runs it, commits to the `update-plex` branch,
+  runs `check.yml` on that commit, and fast-forwards `main` if it passes. A
+  failed run is visible in the Actions tab (GitHub emails the workflow's
+  last editor); run the script by hand to see why.
 - **Caddy cloudflare-dns plugin**: `services/caddy.nix`, plugin ref + `hash`.
 - **Homebridge**: `services/homebridge.nix` pins the image by date tag +
   digest. Pick the newest plain `YYYY-MM-DD` tag (not `alpha-`/`beta-`):

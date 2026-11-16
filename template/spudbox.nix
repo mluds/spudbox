@@ -62,6 +62,10 @@ _:
     #   enable = true;
     #   user = "alice";
     # };
+    # autoUpdate = {                 # deploy this repo's newest commit nightly; docs/GUIDE.md
+    #   enable = true;
+    #   repository = "git@github.com:you/spudbox-home.git";
+    # };
 
     # homepage = {
     #   title = "SpudBox";

@@ -3,12 +3,24 @@ name: check
 on:
   push:
   pull_request:
+  # update-plex.yml checks its bump before main moves to it.
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to check
+        type: string
+        required: true
+
+permissions:
+  contents: read
 
 jobs:
   lint-and-evaluate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
       - uses: cachix/install-nix-action@v31
       - name: Lint
         run: nix develop -c ./lint.sh
@@ -20,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
       - name: Let Nix use KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

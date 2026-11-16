@@ -118,6 +118,7 @@ in
     ./services/drive-check.nix
     ./services/homebridge.nix
     ./services/claude-code.nix
+    ./services/auto-update.nix
     ./services/media-fixup.nix
     ./services/notify.nix
   ];
