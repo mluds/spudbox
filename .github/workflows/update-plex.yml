@@ -48,14 +48,13 @@ jobs:
     needs: [bump, check]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ needs.bump.outputs.sha }}
-      # Fast-forward only: if main moved meanwhile, this fails and tomorrow's
-      # run bumps the new main.
+      # Through the API, which refuses anything but a fast-forward (and needs
+      # no checkout): if main moved meanwhile, this fails and tomorrow's run
+      # bumps the new main.
       - name: Fast-forward main
         env:
+          GH_TOKEN: ${{ github.token }}
           SHA: ${{ needs.bump.outputs.sha }}
         run: |
-          git push origin "$SHA:refs/heads/main"
-          git push origin --delete update-plex
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/main" -f sha="$SHA" -F force=false
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/update-plex"
