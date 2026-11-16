@@ -121,8 +121,12 @@ let
           sleep 5
         done
       done
-      if /run/current-system/sw/bin/spudbox-test > "$RUNTIME_DIRECTORY/test.log" 2>&1 ||
-        { sleep 120 && /run/current-system/sw/bin/spudbox-test > "$RUNTIME_DIRECTORY/test.log" 2>&1; }; then
+      # spudbox-test needs a login PATH: sudo (a setuid wrapper), curl, jq, ...
+      run_tests() {
+        PATH=/run/wrappers/bin:/run/current-system/sw/bin:$PATH \
+          spudbox-test > "$RUNTIME_DIRECTORY/test.log" 2>&1
+      }
+      if run_tests || { sleep 120 && run_tests; }; then
         echo "Updated to ''${new:0:7}; $(tail -n 1 "$RUNTIME_DIRECTORY/test.log" | sed 's/\x1b\[[0-9;]*m//g' | xargs)."
         exit 0
       fi

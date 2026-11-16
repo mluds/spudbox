@@ -187,6 +187,10 @@ enables them.
   workflows: that's why `update-plex` calls `check.yml` itself.
 - `spudbox-auto-update` runs `nixos-rebuild switch` from inside a unit, so
   it has `restartIfChanged = false` (like `claude-remote-control`).
+  It runs `spudbox-test` with `/run/wrappers/bin` and the system profile on
+  `PATH`: a unit's own PATH has no `sudo`, and the first live run failed
+  157 checks (and rolled back) without them. Its stubbed tests couldn't
+  see that; test a change to it with a real run on the server.
   It compares only the instance revision: a deploy with `SPUDBOX_SRC` (an
   unreleased module) is replaced by the branch the next time the branch
   moves, so push module work before the instance's next `update-lock`.
