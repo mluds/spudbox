@@ -190,13 +190,14 @@ lib.mkIf cfg.homebridge.enable {
     ];
   };
 
-  # Image pinned by date tag + digest so a container restart can't silently
-  # upgrade Homebridge. To bump, see "Hand-pinned versions" in CLAUDE.md.
+  # Image pinned by date tag + digest (homebridge.json) so a container restart
+  # can't silently upgrade Homebridge; scripts/update-homebridge.sh moves it
+  # to the newest date tag, daily.
   environment.etc."homebridge/docker-compose.yml" = {
     text = ''
       services:
         homebridge:
-          image: homebridge/homebridge:2026-02-25@sha256:180e4ba165c4474d13d4f74e1de655bfb5afcf16a4ff3233de000bea4b8e2904
+          image: ${(lib.importJSON ./homebridge.json).image}
           container_name: homebridge
           restart: unless-stopped
           network_mode: host

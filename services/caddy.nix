@@ -121,9 +121,14 @@ in
   services.caddy = {
     enable = true;
     package = lib.mkIf cloudflare (
+      # caddy.json: the plugin and the hash of its build's Go modules, which
+      # changes with Caddy itself too (scripts/update-caddy.sh, run daily).
+      let
+        pin = lib.importJSON ./caddy.json;
+      in
       pkgs.caddy.withPlugins {
-        plugins = [ "github.com/caddy-dns/cloudflare@v0.2.4" ];
-        hash = "sha256-xRJ5evsAJ2akg47j3Bt6YDXJOgX88B/rKNP50KSVyNY=";
+        plugins = [ pin.plugin ];
+        inherit (pin) hash;
       }
     );
     environmentFile = lib.mkIf cloudflare envFile;

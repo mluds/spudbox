@@ -106,6 +106,52 @@
               }
             ];
           };
+          allFeatures = example.extendModules {
+            modules = [
+              {
+                spudbox = {
+                  tls = lib.mkForce "cloudflare";
+                  usenet.servers = [ "news.example.com" ];
+                  indexers = [
+                    {
+                      name = "Example";
+                      url = "https://indexer.example.com/";
+                    }
+                  ];
+                  subtitleProviders = [
+                    "opensubtitlescom"
+                    "assrt"
+                  ];
+                  storageDrives = [
+                    {
+                      device = "/dev/disk/by-id/ata-EXAMPLE";
+                      partition = "/dev/disk/by-id/ata-EXAMPLE-part1";
+                      mount = "/mnt/storage1";
+                    }
+                  ];
+                  pushover.enable = true;
+                  offsiteBackup = {
+                    enable = true;
+                    repository = "s3:https://example.r2.cloudflarestorage.com/backups";
+                  };
+                  hddSpindown.enable = true;
+                  mediaFixup.enable = true;
+                  homebridge = {
+                    enable = true;
+                    dummySwitches = [ "Example" ];
+                  };
+                  claudeCode = {
+                    enable = true;
+                    user = "alice";
+                  };
+                  autoUpdate = {
+                    enable = true;
+                    repository = "git@github.com:example/spudbox-home.git";
+                  };
+                };
+              }
+            ];
+          };
         in
         {
           template = evaluates "spudbox-template-eval" example;
@@ -118,54 +164,11 @@
             module = self.nixosModules.default;
           };
 
-          all-features = evaluates "spudbox-all-features-eval" (
-            example.extendModules {
-              modules = [
-                {
-                  spudbox = {
-                    tls = lib.mkForce "cloudflare";
-                    usenet.servers = [ "news.example.com" ];
-                    indexers = [
-                      {
-                        name = "Example";
-                        url = "https://indexer.example.com/";
-                      }
-                    ];
-                    subtitleProviders = [
-                      "opensubtitlescom"
-                      "assrt"
-                    ];
-                    storageDrives = [
-                      {
-                        device = "/dev/disk/by-id/ata-EXAMPLE";
-                        partition = "/dev/disk/by-id/ata-EXAMPLE-part1";
-                        mount = "/mnt/storage1";
-                      }
-                    ];
-                    pushover.enable = true;
-                    offsiteBackup = {
-                      enable = true;
-                      repository = "s3:https://example.r2.cloudflarestorage.com/backups";
-                    };
-                    hddSpindown.enable = true;
-                    mediaFixup.enable = true;
-                    homebridge = {
-                      enable = true;
-                      dummySwitches = [ "Example" ];
-                    };
-                    claudeCode = {
-                      enable = true;
-                      user = "alice";
-                    };
-                    autoUpdate = {
-                      enable = true;
-                      repository = "git@github.com:example/spudbox-home.git";
-                    };
-                  };
-                }
-              ];
-            }
-          );
+          all-features = evaluates "spudbox-all-features-eval" allFeatures;
+
+          # Built, not just evaluated: its pinned hash breaks whenever nixpkgs
+          # moves Caddy (scripts/update-caddy.sh recomputes it).
+          caddy-cloudflare = allFeatures.config.services.caddy.package;
         }
       );
     };
