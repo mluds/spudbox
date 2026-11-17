@@ -185,6 +185,10 @@ enables them.
   ~01:15) → `update-lock` (instance, ~02:45) → `spudbox-auto-update` (server,
   04:30). Bot pushes use `GITHUB_TOKEN`, which doesn't trigger other
   workflows: that's why `update` calls `check.yml` itself.
+  GitHub runs these schedules late (observed 2026-11-16: both ~9.5 h after
+  their cron time, still in order), so an update reaches a server at the
+  04:30 after it lands, about a day later. Order isn't guaranteed: an
+  `update-lock` that runs before `update` just picks it up the next day.
 - CI never runs Homebridge, and evaluates rather than builds the
   all-features system: the Caddy plugin is the one piece of it built there
   (its hash breaks on nixpkgs bumps). A bad Homebridge image shows up only
