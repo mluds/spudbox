@@ -96,7 +96,7 @@ enables them.
   whose unit changed. `deploy.sh` re-runs all of them when a secret changed.
   To re-apply one by hand: `sudo systemctl restart sonarr-config`.
 - On a first start Sonarr/Radarr write `config.xml` in steps, so the file
-  exists before it's complete; `*-arr-config` waits for the database too,
+  exists before it's complete; `*arr-config` waits for the database too,
   which the app creates only after saving the config (~0.4 s later).
 - `sonarr-config` and `radarr-config` empty the app's `Users` table (with a
   30 s SQLite busy timeout: a just-started app holds the lock; on a first
