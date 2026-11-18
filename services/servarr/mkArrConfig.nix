@@ -158,10 +158,14 @@ let
           '$body | (.fields[] | select(.name == "apiKey")).value = ($key | rtrimstr("\n"))'
       }
 
-      # A fresh install has no config.xml until the app's first start.
+      # A fresh install has no config.xml until the app's first start, and
+      # the file exists before the app has finished writing it: read then, it
+      # can be half-written ("Extra content at the end of the document").
+      # The app creates its database only after saving the config, so wait
+      # for both.
       echo "Waiting for ${name} to write its config..."
       for _ in $(seq 1 150); do
-        [ -f "${dataDir}/config.xml" ] && break
+        [ -f "${dataDir}/config.xml" ] && [ -f "${dataDir}/${name}.db" ] && break
         sleep 2
       done
 
