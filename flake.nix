@@ -147,6 +147,7 @@
                   autoUpdate = {
                     enable = true;
                     repository = "git@github.com:example/spudbox-home.git";
+                    reboot = true;
                   };
                 };
               }

@@ -65,6 +65,7 @@ _:
     # autoUpdate = {                 # deploy this repo's newest commit nightly; docs/GUIDE.md
     #   enable = true;
     #   repository = "git@github.com:you/spudbox-home.git";
+    #   reboot = true;               # and reboot onto a new kernel (tested, falls back)
     # };
 
     # homepage = {

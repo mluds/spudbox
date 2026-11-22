@@ -16,9 +16,22 @@
 # deployed by hand from uncommitted changes, or from a commit that isn't on
 # the branch, it leaves it alone (and fails, so an alert goes out, once
 # that has lasted three days). A commit that failed its tests isn't retried.
+#
+# autoUpdate.reboot: when the running kernel (or its modules or initrd) is
+# older than the installed one, it then reboots, once Plex is idle. With
+# systemd-boot the new system is booted once, with the system that was
+# running left as the default entry, so a kernel that panics (panic=10) or
+# hangs (the hardware watchdog) comes back up on the old one. After the
+# boot, spudbox-reboot-check runs spudbox-test, makes the newest entry the
+# default again, and alerts if the tests fail or the server came back on the
+# old system. A kernel that didn't boot isn't tried again by itself.
 let
   cfg = config.spudbox.autoUpdate;
   inherit (config.spudbox) secretsDir plexPort;
+  systemdBoot = config.boot.loader.systemd-boot.enable;
+
+  # Only the nightly run reboots, and only with autoUpdate.reboot.
+  rebootIfDue = lib.optionalString cfg.reboot "reboot_if_due";
 
   script = pkgs.writeShellApplication {
     name = "spudbox-auto-update";
@@ -30,6 +43,7 @@ let
       gnutar
       openssh
       config.nix.package
+      config.systemd.package
       config.system.build.nixos-rebuild
     ];
     text = ''
@@ -37,6 +51,128 @@ let
       repo=$state/repo
       tree=$state/tree
       export GIT_SSH_COMMAND="ssh -i ${secretsDir}/auto-update/deploy-key -o IdentitiesOnly=yes -o BatchMode=yes"
+      umask 077
+      printf 'X-Plex-Token: %s\n' "$(cat ${secretsDir}/plex/token 2>/dev/null)" > "$RUNTIME_DIRECTORY/plex-header"
+
+      # wait_for_streams: until nobody is watching Plex, for up to 3 hours
+      # (fails if someone still is).
+      wait_for_streams() {
+        local streams
+        for _ in $(seq 18); do
+          streams=$(curl -fs --max-time 10 -H @"$RUNTIME_DIRECTORY/plex-header" -H 'Accept: application/json' \
+            http://localhost:${toString plexPort}/status/sessions | jq '.MediaContainer.size // 0') || streams=0
+          [ "$streams" -eq 0 ] && return 0
+          echo "Plex is streaming to $streams; checking again in 10 minutes."
+          sleep 600
+        done
+        return 1
+      }
+
+      # As ./deploy.sh: wait for the apps (a switch or boot starts them).
+      wait_for_apps() {
+        local path code
+        # shellcheck disable=SC1091
+        source /etc/spudbox/env
+        for path in "$TAUTULLI_PORT" "$BAZARR_PORT" "$SONARR_PORT" "$RADARR_PORT" "$JELLYSEERR_PORT" "$SABNZBD_PORT" "$PLEX_PORT/identity"; do
+          for _ in $(seq 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "http://localhost:$path") || true
+            [ "$code" != "000" ] && break
+            sleep 5
+          done
+        done
+      }
+      # spudbox-test needs a login PATH: sudo (a setuid wrapper), curl, jq, ...
+      run_tests() {
+        PATH=/run/wrappers/bin:/run/current-system/sw/bin:$PATH \
+          spudbox-test > "$RUNTIME_DIRECTORY/test.log" 2>&1
+      }
+      test_summary() { tail -n 1 "$RUNTIME_DIRECTORY/test.log" | sed 's/\x1b\[[0-9;]*m//g' | xargs; }
+      test_failures() { grep -a FAIL "$RUNTIME_DIRECTORY/test.log" | sed 's/\x1b\[[0-9;]*m//g' || true; }
+
+      # What only a reboot brings in.
+      boot_parts() { readlink -f "$1/kernel" "$1/kernel-modules" "$1/initrd"; }
+      linux_version() { ls "$1/kernel-modules/lib/modules"; }
+      # The newest generation of the system profile that is system $1, if any.
+      generation_of() {
+        local link n found=""
+        for link in /nix/var/nix/profiles/system-*-link; do
+          [ "$(readlink -f "$link")" = "$1" ] || continue
+          n=''${link##*/system-}
+          n=''${n%-link}
+          if [ -z "$found" ] || [ "$n" -gt "$found" ]; then found=$n; fi
+        done
+        echo "$found"
+      }
+      has_boot_entry() {
+        [ -n "$1" ] && bootctl list --json=short | jq -e --arg id "nixos-generation-$1.conf" 'any(.[]; .id == $id)' > /dev/null
+      }
+
+      # Reboot onto the current system if its kernel isn't the running one.
+      reboot_if_due() {
+        local target booted kernel version new_gen old_gen
+        target=$(readlink -f /run/current-system)
+        booted=$(readlink -f /run/booted-system)
+        [ "$(boot_parts "$booted")" != "$(boot_parts "$target")" ] || return 0
+        kernel=$(readlink -f "$target/kernel")
+        version=$(linux_version "$target")
+        if [ "$(cat "$state/reboot-failed" 2>/dev/null)" = "$kernel" ]; then
+          echo "Not rebooting onto Linux $version: the last reboot onto it came back on the old system. Reboot by hand to try it again."
+          return 0
+        fi
+        if ! wait_for_streams; then
+          echo "Plex is still streaming; rebooting onto Linux $version tomorrow night instead."
+          return 0
+        fi
+        printf '%s\n' "$target" "$booted" > "$state/reboot"
+      ${lib.optionalString systemdBoot ''
+        # Boot the new system once; until it passes, the old one stays the default.
+        new_gen=$(generation_of "$target")
+        old_gen=$(generation_of "$booted")
+        if has_boot_entry "$new_gen" && has_boot_entry "$old_gen"; then
+          bootctl set-default "nixos-generation-$old_gen.conf"
+          bootctl set-oneshot "nixos-generation-$new_gen.conf"
+        else
+          echo "No boot entry for generation ''${old_gen:-?} (running) or ''${new_gen:-?} (new): if Linux $version doesn't boot, the server won't come back by itself."
+        fi
+      ''}
+        echo "Rebooting onto Linux $version (running $(uname -r)); spudbox-reboot-check tests it after the boot."
+        systemctl --no-block reboot
+        exit 0
+      }
+
+      # After a reboot by reboot_if_due (spudbox-reboot-check).
+      after_reboot() {
+        local target from booted version
+        [ -s "$state/reboot" ] || exit 0
+        { read -r target; read -r from; } < "$state/reboot"
+        rm "$state/reboot"
+      ${lib.optionalString systemdBoot ''
+        # The newest generation is the default entry again.
+        bootctl set-default "" || echo "Couldn't reset the default boot entry (bootctl set-default \"\")."
+      ''}
+        booted=$(readlink -f /run/booted-system)
+        version=$(linux_version "$target")
+        if [ "$booted" != "$target" ]; then
+          if [ "$booted" != "$from" ]; then
+            echo "Booted $booted, not the system the reboot was for ($target); not checking it."
+            exit 0
+          fi
+          readlink -f "$target/kernel" > "$state/reboot-failed"
+          echo "Rebooted onto Linux $version, but the server came back on the old system ($(uname -r)): the new kernel didn't boot."
+          echo "It won't reboot onto it again by itself; a reboot by hand tries it again (it's the default entry)."
+          exit 1
+        fi
+        wait_for_apps
+        if run_tests || { sleep 120 && run_tests; } || { sleep 120 && run_tests; }; then
+          echo "Rebooted onto Linux $version; $(test_summary)."
+          exit 0
+        fi
+        test_failures
+        echo "spudbox-test failed after rebooting onto Linux $version. The previous system is in the boot menu."
+        exit 1
+      }
+
+      if [ "''${1:-}" = --after-reboot ]; then after_reboot; fi
 
       # skip REASON: leave the running system alone; after three days of
       # that, fail (an alert) so auto-updates don't stop unnoticed.
@@ -66,25 +202,19 @@ let
       rm -f "$state/skipped-since"
       if [ "$running_full" = "$new" ]; then
         echo "Up to date: $running."
+        ${rebootIfDue}
         exit 0
       fi
       if [ "$(cat "$state/failed" 2>/dev/null)" = "$new" ]; then
         echo "''${new:0:7} already failed its tests; waiting for a newer commit."
+        ${rebootIfDue}
         exit 0
       fi
       echo "Updating $running -> ''${new:0:7}:"
       git -C "$repo" log --format='  %h %s' "$running_full..$new"
 
-      # Don't restart Plex under someone watching: wait up to 3 hours.
-      umask 077
-      printf 'X-Plex-Token: %s\n' "$(cat ${secretsDir}/plex/token 2>/dev/null)" > "$RUNTIME_DIRECTORY/plex-header"
-      for _ in $(seq 18); do
-        streams=$(curl -fs --max-time 10 -H @"$RUNTIME_DIRECTORY/plex-header" -H 'Accept: application/json' \
-          http://localhost:${toString plexPort}/status/sessions | jq '.MediaContainer.size // 0') || streams=0
-        [ "$streams" -eq 0 ] && break
-        echo "Plex is streaming to $streams; checking again in 10 minutes."
-        sleep 600
-      done
+      # Don't restart Plex under someone watching (after 3 hours, go ahead).
+      wait_for_streams || true
 
       # The tree as ./deploy.sh copies it: no .git, no secrets (the flake
       # isn't a git checkout, so all of it goes into the world-readable store).
@@ -110,27 +240,14 @@ let
         exit 1
       fi
 
-      # As ./deploy.sh: wait for the apps (a switch can restart them), then
-      # test, once more after a pause if the apps were still settling.
-      # shellcheck disable=SC1091
-      source /etc/spudbox/env
-      for path in "$TAUTULLI_PORT" "$BAZARR_PORT" "$SONARR_PORT" "$RADARR_PORT" "$JELLYSEERR_PORT" "$SABNZBD_PORT" "$PLEX_PORT/identity"; do
-        for _ in $(seq 60); do
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "http://localhost:$path") || true
-          [ "$code" != "000" ] && break
-          sleep 5
-        done
-      done
-      # spudbox-test needs a login PATH: sudo (a setuid wrapper), curl, jq, ...
-      run_tests() {
-        PATH=/run/wrappers/bin:/run/current-system/sw/bin:$PATH \
-          spudbox-test > "$RUNTIME_DIRECTORY/test.log" 2>&1
-      }
+      # Test, once more after a pause if the apps were still settling.
+      wait_for_apps
       if run_tests || { sleep 120 && run_tests; }; then
-        echo "Updated to ''${new:0:7}; $(tail -n 1 "$RUNTIME_DIRECTORY/test.log" | sed 's/\x1b\[[0-9;]*m//g' | xargs)."
+        echo "Updated to ''${new:0:7}; $(test_summary)."
+        ${rebootIfDue}
         exit 0
       fi
-      grep -a FAIL "$RUNTIME_DIRECTORY/test.log" | sed 's/\x1b\[[0-9;]*m//g' || true
+      test_failures
       rollback
       echo "spudbox-test failed on ''${new:0:7}."
       exit 1
@@ -149,7 +266,14 @@ lib.mkIf cfg.enable {
     (lib.toShellVar "AUTO_UPDATE_BRANCH" cfg.branch)
   ];
 
+  # With reboot: a kernel that panics or hangs reboots (onto the old system,
+  # see above) instead of waiting for someone to power-cycle it. The
+  # watchdog only works where the board has one (/dev/watchdog).
+  boot.kernelParams = lib.mkIf cfg.reboot [ "panic=10" ];
+
   systemd = {
+    settings.Manager.RuntimeWatchdogSec = lib.mkIf cfg.reboot (lib.mkDefault "30s");
+
     services.spudbox-auto-update = {
       description = "Deploy the newest spudbox instance commit";
       # A switch must not restart the unit that's running the switch.
@@ -168,6 +292,25 @@ lib.mkIf cfg.enable {
         StateDirectory = "spudbox-auto-update";
         StateDirectoryMode = "0700";
         RuntimeDirectory = "spudbox-auto-update";
+      };
+    };
+
+    # Not in notify.nix's ALERT_UNITS: spudbox-test fails on those when
+    # they've failed, and that would roll back every update after one bad boot.
+    services.spudbox-reboot-check = lib.mkIf cfg.reboot {
+      description = "Test the server after spudbox-auto-update rebooted it";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "multi-user.target" ];
+      unitConfig.ConditionPathExists = "/var/lib/spudbox-auto-update/reboot";
+      restartIfChanged = false;
+      inherit (config.spudbox) onFailure;
+      environment.HOME = "/root";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${lib.getExe script} --after-reboot";
+        StateDirectory = "spudbox-auto-update";
+        StateDirectoryMode = "0700";
+        RuntimeDirectory = "spudbox-reboot-check";
       };
     };
 

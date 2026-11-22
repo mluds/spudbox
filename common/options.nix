@@ -297,6 +297,20 @@ in
         default = "04:30";
         description = "When to check, as a systemd OnCalendar expression (server time). After the 02:30 backup.";
       };
+      reboot = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          After the nightly check, reboot when the running kernel is older
+          than the installed one (once Plex is idle), then run spudbox-test
+          again (an alert if it fails). With systemd-boot the new kernel is
+          booted once, the old system staying the default entry, so a kernel
+          that panics or hangs comes back on the old one (kernel panic=10 and
+          the hardware watchdog; a hang where neither fires needs a power
+          cycle). A kernel that didn't boot isn't tried again by itself. The
+          reboot ends Claude Code sessions running on the server.
+        '';
+      };
     };
 
     claudeCode = {
@@ -338,6 +352,7 @@ in
     ++ lib.optional cfg.mediaFixup.enable "media-fixup"
     ++ lib.optional cfg.homebridge.enable "homebridge"
     ++ lib.optional cfg.autoUpdate.enable "auto-update"
+    ++ lib.optional (cfg.autoUpdate.enable && cfg.autoUpdate.reboot) "auto-reboot"
     ++ lib.optional cfg.claudeCode.enable "claude-code"
     ++ lib.optional cfg.disableIPv6 "no-ipv6"
     ++ lib.optional (cfg.tls == "cloudflare") "tls-cloudflare";

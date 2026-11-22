@@ -184,6 +184,12 @@ test_services() {
   if has hdd-spindown; then check_service check-drive-status.timer; fi
   if has media-fixup; then check_service media-fixup.timer; fi
   if has auto-update; then check_service spudbox-auto-update.timer; fi
+  if has auto-reboot; then
+    # Both take effect at the next boot; a reboot by spudbox-auto-update
+    # relies on them to come back on the old system if the new one fails.
+    check "a kernel panic reboots (panic=10)" grep -qw 'panic=10' /run/current-system/kernel-params
+    check "systemd runs the hardware watchdog" grep -q '^RuntimeWatchdogSec=' /etc/systemd/system.conf
+  fi
 }
 
 test_ports() {

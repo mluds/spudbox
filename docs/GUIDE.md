@@ -175,8 +175,20 @@ or a commit that isn't on it, it leaves the server alone, and alerts after
 three days of that. Since the server may run a newer `flake.lock` than your
 checkout, `./deploy.sh` refuses to deploy a checkout that's behind `origin`:
 pull first. A new secret still needs `./deploy.sh` (or the tests fail and the
-update rolls back). A new kernel takes effect at the next reboot; the server
-doesn't reboot itself.
+update rolls back).
+
+A new kernel takes effect at the next reboot. With `autoUpdate.reboot = true`
+the server does that itself, right after the nightly check, once nobody is
+watching Plex (it waits up to three hours, else tries the next night). It
+boots the new kernel once and keeps the system it was running as the default
+boot entry: if the new kernel panics or hangs, the server restarts (kernel
+`panic=10`, the board's hardware watchdog) on the old one. After the boot,
+`spudbox-reboot-check` runs `spudbox-test`, makes the newest system the
+default again, and alerts if the tests fail or the server came back on the
+old kernel; a kernel that didn't boot isn't tried again by itself. A hang
+that neither the panic setting nor the watchdog catches still needs a power
+cycle, and the reboot ends any Claude Code session on the server. `journalctl
+-u spudbox-auto-update -u spudbox-reboot-check` shows what happened.
 
 ## Backups and restores
 
@@ -244,6 +256,7 @@ descriptions and defaults. The main ones:
 | `homebridge.enable` | off | HomeKit bridge in Docker |
 | `claudeCode.enable` | off | Claude Code Remote Control as a service (see its security note) |
 | `autoUpdate.enable` | off | Deploy the instance repository's newest commit nightly, test, roll back on failure (see Staying up to date) |
+| `autoUpdate.reboot` | off | Also reboot onto a new kernel, booting it once so a failed boot comes back on the old system; tested afterwards |
 | `homepage.*` | | Dashboard title and bookmarks |
 | `*Port` | | Each app's (loopback) port |
 
